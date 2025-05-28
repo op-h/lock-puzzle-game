@@ -15,7 +15,206 @@
 <body>
     <div id="root"></div>
     <script type="text/babel">
-        // [PASTE THE ENTIRE REACT COMPONENT CODE HERE]
+        import React, { useState, useEffect } from 'react';
+import { Lock, Check, X, RotateCcw } from 'lucide-react';
+
+const LockPuzzleGame = () => {
+  const [userGuess, setUserGuess] = useState(['', '', '']);
+  const [attempts, setAttempts] = useState([]);
+  const [isComplete, setIsComplete] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+  
+  // The correct answer is encoded to prevent easy cheating
+  const encodedAnswer = 'MTUz'; // Base64 encoded
+  const correctAnswer = atob(encodedAnswer).split('');
+  
+  // Clues from the image
+  const clues = [
+    { digits: ['3', '1', '7'], hint: 'رقمان صحيحان ولكن في المكان الخطأ', translation: 'Two digits correct but in wrong place' },
+    { digits: ['8', '4', '9'], hint: 'لا شيء صحيح', translation: 'Nothing is correct' },
+    { digits: ['8', '9', '1'], hint: 'رقم واحد صحيح ولكن في المكان الخطأ', translation: 'One digit correct but in wrong place' },
+    { digits: ['7', '9', '3'], hint: 'رقم واحد صحيح وفي المكان الصحيح', translation: 'One digit correct and in right place' },
+    { digits: ['7', '2', '5'], hint: 'رقم واحد صحيح ولكن في المكان الخطأ', translation: 'One digit correct but in wrong place' }
+  ];
+
+  const handleDigitChange = (index, value) => {
+    if (value.length <= 1 && /^[0-9]*$/.test(value)) {
+      const newGuess = [...userGuess];
+      newGuess[index] = value;
+      setUserGuess(newGuess);
+    }
+  };
+
+  const checkAnswer = () => {
+    if (userGuess.every(digit => digit !== '')) {
+      const isCorrect = userGuess.every((digit, index) => digit === correctAnswer[index]);
+      
+      const newAttempt = {
+        guess: [...userGuess],
+        correct: isCorrect,
+        timestamp: new Date().toLocaleTimeString()
+      };
+      
+      setAttempts([...attempts, newAttempt]);
+      
+      if (isCorrect) {
+        setIsComplete(true);
+      }
+    }
+  };
+
+  const resetGame = () => {
+    setUserGuess(['', '', '']);
+    setAttempts([]);
+    setIsComplete(false);
+    setShowHint(false);
+  };
+
+  const getClueStatus = (clueDigits, userDigits) => {
+    let correctPosition = 0;
+    let correctDigit = 0;
+    
+    clueDigits.forEach((digit, index) => {
+      if (digit === correctAnswer[index]) {
+        correctPosition++;
+      } else if (correctAnswer.includes(digit)) {
+        correctDigit++;
+      }
+    });
+    
+    return { correctPosition, correctDigit };
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+        
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="flex justify-center mb-4">
+            <div className="bg-slate-700 p-4 rounded-full">
+              <Lock size={48} className="text-white" />
+            </div>
+          </div>
+          <h1 className="text-2xl font-bold text-slate-800 mb-2">
+            هل تستطيع فتح القفل؟
+          </h1>
+          <p className="text-slate-600">Can you open the lock?</p>
+        </div>
+
+        {/* Input Section */}
+        <div className="mb-6">
+          <div className="flex justify-center gap-4 mb-4">
+            {userGuess.map((digit, index) => (
+              <input
+                key={index}
+                type="text"
+                value={digit}
+                onChange={(e) => handleDigitChange(index, e.target.value)}
+                className="w-16 h-16 text-2xl font-bold text-center border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                maxLength="1"
+                disabled={isComplete}
+              />
+            ))}
+          </div>
+          
+          <div className="flex gap-2 justify-center">
+            <button
+              onClick={checkAnswer}
+              disabled={userGuess.some(digit => digit === '') || isComplete}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+            >
+              تحقق / Check
+            </button>
+            <button
+              onClick={resetGame}
+              className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+            >
+              <RotateCcw size={20} />
+            </button>
+          </div>
+        </div>
+
+        {/* Success Message */}
+        {isComplete && (
+          <div className="bg-green-100 border-2 border-green-400 rounded-lg p-4 mb-6 text-center">
+            <Check className="mx-auto mb-2 text-green-600" size={32} />
+            <p className="text-green-800 font-bold">🎉 مبروك! فتحت القفل!</p>
+            <p className="text-green-700">Congratulations! You opened the lock!</p>
+          </div>
+        )}
+
+        {/* Clues Section */}
+        <div className="mb-6">
+          <h3 className="text-lg font-bold text-slate-800 mb-4 text-center">القرائن / Clues</h3>
+          <div className="space-y-3">
+            {clues.map((clue, index) => (
+              <div key={index} className="bg-slate-50 rounded-lg p-3">
+                <div className="flex justify-center gap-2 mb-2">
+                  {clue.digits.map((digit, digitIndex) => (
+                    <div key={digitIndex} className="w-10 h-10 bg-white border-2 border-slate-300 rounded flex items-center justify-center font-bold text-slate-700">
+                      {digit}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-sm text-slate-600 text-center font-semibold">{clue.hint}</p>
+                <p className="text-xs text-slate-500 text-center">{clue.translation}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Attempts History */}
+        {attempts.length > 0 && (
+          <div className="mb-4">
+            <h3 className="text-lg font-bold text-slate-800 mb-2">المحاولات / Attempts</h3>
+            <div className="space-y-2 max-h-32 overflow-y-auto">
+              {attempts.slice(-5).map((attempt, index) => (
+                <div key={index} className="flex items-center gap-2 text-sm">
+                  <div className="flex gap-1">
+                    {attempt.guess.map((digit, digitIndex) => (
+                      <span key={digitIndex} className="w-6 h-6 bg-slate-200 rounded text-center text-xs flex items-center justify-center">
+                        {digit}
+                      </span>
+                    ))}
+                  </div>
+                  {attempt.correct ? (
+                    <Check size={16} className="text-green-600" />
+                  ) : (
+                    <X size={16} className="text-red-600" />
+                  )}
+                  <span className="text-slate-500">{attempt.timestamp}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Hint Button */}
+        <div className="text-center">
+          <button
+            onClick={() => setShowHint(!showHint)}
+            className="text-blue-600 hover:text-blue-800 text-sm underline"
+          >
+            {showHint ? 'إخفاء التلميح / Hide Hint' : 'إظهار التلميح / Show Hint'}
+          </button>
+          {showHint && (
+            <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm">
+              <p className="text-yellow-800">
+                💡 فكر في كل قرينة بعناية. ابدأ بالقرائن التي تعطي معلومات أكثر تحديداً.
+              </p>
+              <p className="text-yellow-700 text-xs mt-1">
+                Think about each clue carefully. Start with clues that give more specific information.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default LockPuzzleGame;
     </script>
 </body>
 </html>
