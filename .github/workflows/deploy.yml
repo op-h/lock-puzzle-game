@@ -1,0 +1,23 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main # أو اسم الفرع الرئيسي الذي تستخدمه مثل master
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@v3
+
+      - name: Replace Firebase Config ⚙️
+        run: |
+          sed -i "s|'__FIREBASE_CONFIG_PLACEHOLDER__'|'${{ secrets.FIREBASE_CONFIG }}'|g" index.html
+
+      - name: Deploy 🚀
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages # الفرع الذي سيتم النشر إليه
+          folder: . # المجلد الحالي الذي يحتوي على index.html
