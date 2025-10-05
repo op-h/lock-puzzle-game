@@ -24,16 +24,17 @@ jobs:
           fi
           echo "Secret is present."
           
-          # Prepare the secret to be safely injected as a JSON string
+          # Prepare the secret to be safely injected as a JSON object
           CONFIG_JSON=$(echo "${{ secrets.FIREBASE_CONFIG }}" | tr -d '\n\r')
           
           echo "Attempting to replace placeholder..."
-          # Replace the placeholder. Using a different delimiter (#) to avoid issues with special characters.
-          sed -i "s#\`__FIREBASE_CONFIG_JSON_PLACEHOLDER__\`#\`${CONFIG_JSON}\`#g" index.html
+          # Replace the simple placeholder string with the JSON object.
+          # Note we are replacing the version with quotes around it.
+          sed -i "s|\"%%FIREBASE_CONFIG%%\"|${CONFIG_JSON}|g" index.html
           
           echo "Verifying replacement..."
           # Check if the placeholder still exists. If it does, the replacement failed.
-          if grep -q "__FIREBASE_CONFIG_JSON_PLACEHOLDER__" index.html; then
+          if grep -q "%%FIREBASE_CONFIG%%" index.html; then
             echo "::error::Placeholder replacement failed. Check your FIREBASE_CONFIG secret format."
             exit 1
           else
