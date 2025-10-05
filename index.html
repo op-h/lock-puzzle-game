@@ -29,6 +29,12 @@
 <body>
     <div id="root"></div>
 
+    <script>
+        // This object will be replaced by the GitHub Action.
+        // It starts as a simple string placeholder.
+        window.firebaseConfig = "__FIREBASE_CONFIG_PLACEHOLDER__";
+    </script>
+
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
         
@@ -66,24 +72,14 @@
 
             // --- Firebase Initialization and Auth ---
             useEffect(() => {
-                // This placeholder will be replaced by the GitHub Action with a JSON string.
-                const firebaseConfigJSON = `{  apiKey: AIzaSyAHXQMCBK6NdEdBO4-msM7M0Mm6x-cDxNY,  authDomain: lock-puzzle-game.firebaseapp.com,  projectId: lock-puzzle-game,  storageBucket: lock-puzzle-game.firebasestorage.app,  messagingSenderId: 884071011603,  appId: 1:884071011603:web:0a6cd0efaef45d3ba7f6e6,  measurementId: G-X5GHFKLZDD}`;
-                let firebaseConfig = {};
-
                 try {
-                    if (firebaseConfigJSON.startsWith("__FIREBASE")) {
-                        throw new Error("Placeholder not replaced");
+                    const firebaseConfig = window.firebaseConfig;
+
+                    // Check if the placeholder was replaced. If it's still a string, it failed.
+                    if (typeof firebaseConfig === 'string' || !firebaseConfig) {
+                        throw new Error("Placeholder not replaced or config is invalid");
                     }
-                    // Safely parse the JSON string. This prevents syntax errors.
-                    firebaseConfig = JSON.parse(firebaseConfigJSON);
-                } catch (e) {
-                    console.warn("Could not parse Firebase config. Running in offline mode.", e.message);
-                    setIsOnlineMode(false);
-                    setIsAuthReady(true);
-                    return;
-                }
 
-                try {
                     if (!firebase.apps.length) {
                         firebase.initializeApp(firebaseConfig);
                     }
@@ -103,7 +99,7 @@
                     });
                     return () => unsubscribe();
                 } catch (e) {
-                    console.error("Error initializing Firebase:", e);
+                    console.warn("Could not initialize Firebase. Running in offline mode.", e.message);
                     setIsOnlineMode(false);
                     setIsAuthReady(true);
                 }
