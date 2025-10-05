@@ -113,7 +113,7 @@
 
                 const unsubscribe = db.collection(leaderboardPath).onSnapshot(snapshot => {
                     const leaderboardData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    const sortedLeaderboard = leaderboardData.sort((a, b) => b.totalScore - a.totalScore).slice(0, 20);
+                    const sortedLeaderboard = leaderboardData.sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0)).slice(0, 20);
                     setLeaderboard(sortedLeaderboard);
                 }, error => {
                     console.error("Error fetching leaderboard: ", error);
@@ -217,38 +217,36 @@
             const addToLeaderboard = async (puzzleScore, timeInSeconds) => {
                 if (!db || !isOnlineMode) return;
                 const appId = 'lock-puzzle-game';
-                const leaderboardPath = `artifacts/${appId}/public/data/leaderboard`;
+                const leaderboardRef = db.collection(`artifacts/${appId}/public/data/leaderboard`);
 
-                // Find if player already exists in the current session's leaderboard state
-                const existingPlayer = leaderboard.find(p => p.name === playerName);
+                try {
+                    // Query for an existing player with the same name
+                    const querySnapshot = await leaderboardRef.where("name", "==", playerName).limit(1).get();
 
-                if (existingPlayer) {
-                    // Player exists, update their score
-                    const playerDocRef = db.doc(`${leaderboardPath}/${existingPlayer.id}`);
-                    try {
-                        await playerDocRef.update({
-                            totalScore: existingPlayer.totalScore + puzzleScore,
-                            puzzlesSolved: existingPlayer.puzzlesSolved + 1,
-                            totalTime: existingPlayer.totalTime + timeInSeconds,
+                    if (!querySnapshot.empty) {
+                        // Player exists, update their document
+                        const playerDoc = querySnapshot.docs[0];
+                        const playerData = playerDoc.data();
+                        
+                        await playerDoc.ref.update({
+                            totalScore: (playerData.totalScore || 0) + puzzleScore,
+                            puzzlesSolved: (playerData.puzzlesSolved || 0) + 1,
+                            totalTime: (playerData.totalTime || 0) + timeInSeconds,
                             lastPlayed: new Date().toISOString()
                         });
-                    } catch (error) {
-                        console.error("Error updating player score:", error);
+                    } else {
+                        // Player does not exist, create a new entry
+                        const newEntry = {
+                            name: playerName,
+                            totalScore: puzzleScore,
+                            puzzlesSolved: 1,
+                            totalTime: timeInSeconds,
+                            lastPlayed: new Date().toISOString()
+                        };
+                        await leaderboardRef.add(newEntry);
                     }
-                } else {
-                    // Player does not exist, create a new entry
-                    const newEntry = {
-                        name: playerName,
-                        totalScore: puzzleScore,
-                        puzzlesSolved: 1,
-                        totalTime: timeInSeconds,
-                        lastPlayed: new Date().toISOString()
-                    };
-                    try {
-                        await db.collection(leaderboardPath).add(newEntry);
-                    } catch (error) {
-                        console.error("Error adding new player to leaderboard:", error);
-                    }
+                } catch (error) {
+                    console.error("Error updating leaderboard:", error);
                 }
             };
             
@@ -363,12 +361,12 @@
                                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-yellow-600' : 'bg-slate-400'}`}>{index + 1}</div>
                                                 <div>
                                                     <p className="font-semibold text-slate-800">{entry.name}</p>
-                                                    <p className="text-xs text-slate-500">{`الألغاز المحلولة: ${entry.puzzlesSolved} | الوقت الإجمالي: ${entry.totalTime}ث`}</p>
+                                                    <p className="text-xs text-slate-500">{`الألغاز المحلولة: ${entry.puzzlesSolved || 0} | الوقت الإجمالي: ${entry.totalTime || 0}ث`}</p>
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-bold text-lg text-blue-600">{entry.totalScore}</p>
-                                                <p className="text-xs text-slate-500">{new Date(entry.lastPlayed).toLocaleString()}</p>
+                                                <p className="font-bold text-lg text-blue-600">{entry.totalScore || 0}</p>
+                                                <p className="text-xs text-slate-500">{entry.lastPlayed ? new Date(entry.lastPlayed).toLocaleString() : 'N/A'}</p>
                                             </div>
                                         </div>
                                     ))
