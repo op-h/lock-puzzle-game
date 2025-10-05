@@ -113,7 +113,7 @@
 
                 const unsubscribe = db.collection(leaderboardPath).onSnapshot(snapshot => {
                     const leaderboardData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    const sortedLeaderboard = leaderboardData.sort((a, b) => b.score - a.score).slice(0, 20);
+                    const sortedLeaderboard = leaderboardData.sort((a, b) => b.totalScore - a.totalScore).slice(0, 20);
                     setLeaderboard(sortedLeaderboard);
                 }, error => {
                     console.error("Error fetching leaderboard: ", error);
@@ -205,7 +205,7 @@
                 setStartTime(Date.now());
             };
             
-            const calculateScore = (attemptCount, timeInSeconds) => {
+            const calculatePuzzleScore = (attemptCount, timeInSeconds) => {
                 const baseScore = 1000;
                 const attemptPenalty = attemptCount * 50;
                 const timePenalty = Math.floor(timeInSeconds / 10) * 5;
@@ -214,24 +214,41 @@
                 return hintUsedForScore ? Math.floor(score / 2) : score;
             };
 
-            const addToLeaderboard = async (score, timeInSeconds) => {
+            const addToLeaderboard = async (puzzleScore, timeInSeconds) => {
                 if (!db || !isOnlineMode) return;
                 const appId = 'lock-puzzle-game';
                 const leaderboardPath = `artifacts/${appId}/public/data/leaderboard`;
-                
-                const newEntry = {
-                    name: playerName,
-                    score: score,
-                    attempts: attempts.length + 1,
-                    time: timeInSeconds,
-                    puzzle: puzzleNumber,
-                    timestamp: new Date().toISOString()
-                };
 
-                try {
-                    await db.collection(leaderboardPath).add(newEntry);
-                } catch (error) {
-                    console.error("Error adding to leaderboard:", error);
+                // Find if player already exists in the current session's leaderboard state
+                const existingPlayer = leaderboard.find(p => p.name === playerName);
+
+                if (existingPlayer) {
+                    // Player exists, update their score
+                    const playerDocRef = db.doc(`${leaderboardPath}/${existingPlayer.id}`);
+                    try {
+                        await playerDocRef.update({
+                            totalScore: existingPlayer.totalScore + puzzleScore,
+                            puzzlesSolved: existingPlayer.puzzlesSolved + 1,
+                            totalTime: existingPlayer.totalTime + timeInSeconds,
+                            lastPlayed: new Date().toISOString()
+                        });
+                    } catch (error) {
+                        console.error("Error updating player score:", error);
+                    }
+                } else {
+                    // Player does not exist, create a new entry
+                    const newEntry = {
+                        name: playerName,
+                        totalScore: puzzleScore,
+                        puzzlesSolved: 1,
+                        totalTime: timeInSeconds,
+                        lastPlayed: new Date().toISOString()
+                    };
+                    try {
+                        await db.collection(leaderboardPath).add(newEntry);
+                    } catch (error) {
+                        console.error("Error adding new player to leaderboard:", error);
+                    }
                 }
             };
             
@@ -254,7 +271,7 @@
                 if (isCorrect) {
                     setIsComplete(true);
                     const timeInSeconds = Math.floor((Date.now() - startTime) / 1000);
-                    const score = calculateScore(updatedAttempts.length, timeInSeconds);
+                    const score = calculatePuzzleScore(updatedAttempts.length, timeInSeconds);
                     addToLeaderboard(score, timeInSeconds);
                 }
             };
@@ -346,12 +363,12 @@
                                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-yellow-600' : 'bg-slate-400'}`}>{index + 1}</div>
                                                 <div>
                                                     <p className="font-semibold text-slate-800">{entry.name}</p>
-                                                    <p className="text-xs text-slate-500">{`المحاولات: ${entry.attempts} | الوقت: ${entry.time}ث | اللغز: ${entry.puzzle}`}</p>
+                                                    <p className="text-xs text-slate-500">{`الألغاز المحلولة: ${entry.puzzlesSolved} | الوقت الإجمالي: ${entry.totalTime}ث`}</p>
                                                 </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-bold text-lg text-blue-600">{entry.score}</p>
-                                                <p className="text-xs text-slate-500">{new Date(entry.timestamp).toLocaleString()}</p>
+                                                <p className="font-bold text-lg text-blue-600">{entry.totalScore}</p>
+                                                <p className="text-xs text-slate-500">{new Date(entry.lastPlayed).toLocaleString()}</p>
                                             </div>
                                         </div>
                                     ))
@@ -401,7 +418,7 @@
                                 <p className="text-green-800 font-bold">🎉 مبروك! فتحت القفل!</p>
                                 <p className="text-green-700">Congratulations! You opened the lock!</p>
                                 <p className="text-green-600 text-sm mt-2">{`الجواب كان: ${currentPuzzle.answer.join('')} / Answer was: ${currentPuzzle.answer.join('')}`}</p>
-                                <p className="text-blue-600 text-sm mt-1 font-semibold">{`نقاطك: ${calculateScore(attempts.length, Math.floor((Date.now() - startTime) / 1000))}`}</p>
+                                <p className="text-blue-600 text-sm mt-1 font-semibold">{`نقاط هذا اللغز: ${calculatePuzzleScore(attempts.length, Math.floor((Date.now() - startTime) / 1000))}`}</p>
                             </div>
                         }
 
