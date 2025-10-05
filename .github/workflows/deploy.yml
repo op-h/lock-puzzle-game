@@ -5,6 +5,9 @@ on:
     branches:
       - main # أو الفرع الرئيسي الذي تستخدمه
 
+permissions:
+  contents: write # This line grants the action permission to write to the repository
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
