@@ -65,8 +65,8 @@
             // --- Firebase Initialization and Auth ---
             useEffect(() => {
                 try {
-                    const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
-                    if (!firebaseConfigStr || firebaseConfigStr === '{}') {
+                    const firebaseConfigStr = `__FIREBASE_CONFIG_PLACEHOLDER__`;
+                    if (firebaseConfigStr.includes('PLACEHOLDER')) {
                         console.warn("Firebase config is missing. Running in offline mode.");
                         setIsOnlineMode(false);
                         setIsAuthReady(true); // Allow game to start in offline mode
@@ -91,12 +91,8 @@
                     const unsubscribe = auth.onAuthStateChanged(async (user) => {
                         if (!user) {
                            try {
-                                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-                                if (token) {
-                                    await auth.signInWithCustomToken(token);
-                                } else {
-                                    await auth.signInAnonymously();
-                                }
+                                // For GitHub Pages, anonymous sign-in is sufficient
+                                await auth.signInAnonymously();
                             } catch (error) {
                                 console.error("Firebase sign-in failed:", error);
                                 setIsOnlineMode(false); // Fallback to offline if auth fails
@@ -116,7 +112,7 @@
             useEffect(() => {
                 if (!isAuthReady || !db || !isOnlineMode) return;
                 
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const appId = 'lock-puzzle-game'; // A static ID for GitHub Pages version
                 const leaderboardPath = `artifacts/${appId}/public/data/leaderboard`;
 
                 const unsubscribe = db.collection(leaderboardPath).onSnapshot(snapshot => {
@@ -227,7 +223,7 @@
 
             const addToLeaderboard = async (score, timeInSeconds) => {
                 if (!db || !isOnlineMode) return;
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const appId = 'lock-puzzle-game';
                 const leaderboardPath = `artifacts/${appId}/public/data/leaderboard`;
                 
                 const newEntry = {
