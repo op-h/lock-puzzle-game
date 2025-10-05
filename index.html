@@ -65,20 +65,14 @@
             // --- Firebase Initialization and Auth ---
             useEffect(() => {
                 try {
-                    const firebaseConfigStr = `__FIREBASE_CONFIG_PLACEHOLDER__`;
-                    if (firebaseConfigStr.includes('PLACEHOLDER')) {
-                        console.warn("Firebase config is missing. Running in offline mode.");
+                    // This placeholder will be replaced by the GitHub Action.
+                    // It's designed to be a JS object, not a string to parse.
+                    const firebaseConfig = __FIREBASE_CONFIG_PLACEHOLDER__;
+
+                    if (typeof firebaseConfig === 'undefined' || Object.keys(firebaseConfig).length === 0) {
+                        console.warn("Firebase config is missing or empty. Running in offline mode.");
                         setIsOnlineMode(false);
                         setIsAuthReady(true); // Allow game to start in offline mode
-                        return;
-                    }
-                    
-                    const firebaseConfig = JSON.parse(firebaseConfigStr);
-
-                    if (Object.keys(firebaseConfig).length === 0) {
-                        console.warn("Firebase config is empty. Running in offline mode.");
-                        setIsOnlineMode(false);
-                        setIsAuthReady(true);
                         return;
                     }
 
@@ -91,18 +85,22 @@
                     const unsubscribe = auth.onAuthStateChanged(async (user) => {
                         if (!user) {
                            try {
-                                // For GitHub Pages, anonymous sign-in is sufficient
                                 await auth.signInAnonymously();
                             } catch (error) {
                                 console.error("Firebase sign-in failed:", error);
-                                setIsOnlineMode(false); // Fallback to offline if auth fails
+                                setIsOnlineMode(false);
                             }
                         }
                         setIsAuthReady(true);
                     });
                     return () => unsubscribe();
                 } catch (e) {
-                    console.error("Error initializing Firebase:", e);
+                    // This will catch reference errors if the placeholder is not replaced.
+                    if (e instanceof ReferenceError) {
+                         console.warn("Firebase placeholder not replaced. Running in offline mode.");
+                    } else {
+                        console.error("Error initializing Firebase:", e);
+                    }
                     setIsOnlineMode(false);
                     setIsAuthReady(true);
                 }
@@ -112,7 +110,7 @@
             useEffect(() => {
                 if (!isAuthReady || !db || !isOnlineMode) return;
                 
-                const appId = 'lock-puzzle-game'; // A static ID for GitHub Pages version
+                const appId = 'lock-puzzle-game'; 
                 const leaderboardPath = `artifacts/${appId}/public/data/leaderboard`;
 
                 const unsubscribe = db.collection(leaderboardPath).onSnapshot(snapshot => {
@@ -174,27 +172,22 @@
             const generatePuzzle = () => {
                 const answer = generateRandomAnswer();
                 const clues = [];
-                const requiredAnalyses = [
-                    { cp: 0, cdwp: 0 }, { cp: 1, cdwp: 0 }, { cp: 0, cdwp: 1 }, { cp: 0, cdwp: 2 }, { cp: 1, cdwp: 1 }
-                ];
-                let createdAnalyses = new Set();
+                const createdAnalyses = new Set();
                 
                 while (clues.length < 5) {
                     let combination = generateRandomCombination(answer);
                     let analysis = analyzeClue(combination, answer);
                     let analysisKey = `${analysis.correctPosition}-${analysis.correctDigitWrongPosition}`;
 
-                    // Try to get varied clues
-                    if (!createdAnalyses.has(analysisKey) || clues.length >= requiredAnalyses.length) {
+                    if (!createdAnalyses.has(analysisKey) || clues.length >= 4) { // Get more variety
                         const clueDesc = generateClueDescription(analysis);
                         clues.push({ digits: combination, hint: clueDesc.hint, translation: clueDesc.translation });
                         createdAnalyses.add(analysisKey);
                     }
                 }
-                return { answer: answer, clues: clues };
+                return { answer: answer, clues: clues.sort(() => Math.random() - 0.5) }; // Shuffle clues
             };
 
-            // Initialize puzzle on name set
             useEffect(() => {
                 if (isNameSet && !currentPuzzle) {
                     setCurrentPuzzle(generatePuzzle());
