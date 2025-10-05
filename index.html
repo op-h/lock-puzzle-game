@@ -63,6 +63,8 @@
             const [startTime, setStartTime] = useState(null);
 
             const [hintText, setHintText] = useState('');
+            const [hintCount, setHintCount] = useState(0);
+            const [hintUsedForScore, setHintUsedForScore] = useState(false);
             
             const [db, setDb] = useState(null);
             const [isAuthReady, setIsAuthReady] = useState(false);
@@ -198,6 +200,8 @@
                 setIsComplete(false);
                 setShowHint(false);
                 setHintText('');
+                setHintCount(0);
+                setHintUsedForScore(false);
                 setStartTime(Date.now());
             };
             
@@ -205,7 +209,9 @@
                 const baseScore = 1000;
                 const attemptPenalty = attemptCount * 50;
                 const timePenalty = Math.floor(timeInSeconds / 10) * 5;
-                return Math.max(100, baseScore - attemptPenalty - timePenalty);
+                const score = Math.max(100, baseScore - attemptPenalty - timePenalty);
+                // If a hint was used, halve the score for this puzzle.
+                return hintUsedForScore ? Math.floor(score / 2) : score;
             };
 
             const addToLeaderboard = async (score, timeInSeconds) => {
@@ -269,12 +275,26 @@
                 }
             };
 
-            // --- Simple Hint Generation ---
-            const getHint = () => {
-                if (!currentPuzzle) return;
+            // --- Simple Hint Generation with Penalty ---
+            const handleHintToggle = () => {
+                // If the hint is already visible, just hide it.
+                if (showHint) {
+                    setShowHint(false);
+                    return;
+                }
+
+                // If no hints are left, show a message and do nothing else.
+                if (hintCount >= 1) {
+                    setHintText("لقد استنفدت تلميحك لهذا اللغز. / You have used your hint for this puzzle.");
+                    setShowHint(true);
+                    return;
+                }
+
+                // Generate and show hint, applying penalties.
                 setShowHint(true);
-                
-                // Simple hint: reveal one random digit and its position.
+                setHintUsedForScore(true); // Apply score penalty.
+                setHintCount(prev => prev + 1); // Use up the hint.
+
                 const hintPositionIndex = Math.floor(Math.random() * 3);
                 const hintDigit = currentPuzzle.answer[hintPositionIndex];
                 const positionWordArabic = ['الأول', 'الثاني', 'الثالث'][hintPositionIndex];
@@ -419,13 +439,26 @@
                         }
                         
                         <div className="text-center border-t pt-4 mt-4">
-                             <button onClick={getHint} className="text-blue-600 hover:text-blue-800 text-sm font-semibold flex items-center justify-center gap-2 mx-auto">
+                             {hintCount < 1 ? (
+                                <p className="text-sm text-slate-500 mb-2">
+                                    تلميح واحد متاح (يخصم 50% من النقاط). / 1 hint available (costs 50% of score).
+                                </p>
+                            ) : (
+                                <p className="text-sm text-red-500 mb-2">
+                                    لقد استخدمت تلميحك لهذا اللغز. / You have used your hint for this puzzle.
+                                </p>
+                            )}
+                            <button 
+                                onClick={handleHintToggle} 
+                                disabled={isComplete || (hintCount >= 1 && !showHint)}
+                                className="text-blue-600 hover:text-blue-800 text-sm font-semibold flex items-center justify-center gap-2 mx-auto disabled:text-gray-400 disabled:cursor-not-allowed">
                                 <Lightbulb size={16} />
                                 {showHint ? 'إخفاء التلميح / Hide Hint' : 'احصل على تلميح / Get Hint'}
                             </button>
                             {showHint && hintText &&
                                 <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm transition-all">
                                     <p className="text-yellow-800">{`💡 ${hintText}`}</p>
+                                    {hintUsedForScore && <p className="text-red-600 text-xs mt-1 font-semibold">تم خصم 50% من نقاطك النهائية لهذا اللغز. / 50% of your final score for this puzzle has been deducted.</p>}
                                 </div>
                             }
                         </div>
