@@ -24,16 +24,17 @@ jobs:
           fi
           echo "Secret is present."
           
+          # Prepare the secret to be safely injected as a JSON string
           CONFIG_JSON=$(echo "${{ secrets.FIREBASE_CONFIG }}" | tr -d '\n\r')
           
           echo "Attempting to replace placeholder..."
-          # Replace the placeholder token with the actual JS object string.
-          sed -i "s#__FIREBASE_CONFIG_PLACEHOLDER__#${CONFIG_JSON}#g" index.html
+          # Replace the placeholder. Using a different delimiter (#) to avoid issues with special characters.
+          sed -i "s#\`__FIREBASE_CONFIG_JSON_PLACEHOLDER__\`#\`${CONFIG_JSON}\`#g" index.html
           
           echo "Verifying replacement..."
           # Check if the placeholder still exists. If it does, the replacement failed.
-          if grep -q "__FIREBASE_CONFIG_PLACEHOLDER__" index.html; then
-            echo "::error::Placeholder replacement failed. Please check your FIREBASE_CONFIG secret in GitHub settings. It might be formatted incorrectly."
+          if grep -q "__FIREBASE_CONFIG_JSON_PLACEHOLDER__" index.html; then
+            echo "::error::Placeholder replacement failed. Check your FIREBASE_CONFIG secret format."
             exit 1
           else
             echo "Placeholder was replaced successfully."
