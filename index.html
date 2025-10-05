@@ -23,16 +23,9 @@
     <div id="root"></div>
 
     <script>
-        // Firebase configuration is now hardcoded directly into the application.
-        window.firebaseConfig = {
-          apiKey: "AIzaSyAHXQMCBK6NdEdBO4-msM7M0Mm6x-cDxNY",
-          authDomain: "lock-puzzle-game.firebaseapp.com",
-          projectId: "lock-puzzle-game",
-          storageBucket: "lock-puzzle-game.firebasestorage.app",
-          messagingSenderId: "884071011603",
-          appId: "1:884071011603:web:0a6cd0efaef45d3ba7f6e6",
-          measurementId: "G-X5GHFKLZDD"
-        };
+        // This placeholder object will be replaced by the GitHub Action.
+        // It must be a string so that the replacement is reliable.
+        window.firebaseConfig = "%%FIREBASE_CONFIG%%";
     </script>
 
     <script type="text/babel">
@@ -73,10 +66,20 @@
             // --- Firebase Initialization and Auth ---
             useEffect(() => {
                 try {
-                    const config = window.firebaseConfig;
+                    let config = window.firebaseConfig;
+
+                    // If the placeholder is still a string, it means replacement failed or is running locally.
+                    // We must try to parse it.
+                    if (typeof config === 'string') {
+                        try {
+                            config = JSON.parse(config);
+                        } catch (e) {
+                            throw new Error("Firebase config is a string but not valid JSON.");
+                        }
+                    }
 
                     if (typeof config !== 'object' || config === null || !config.apiKey) {
-                        throw new Error("Firebase config is not a valid object.");
+                        throw new Error("Firebase config is not a valid object. It might be an un-replaced placeholder.");
                     }
 
                     if (!firebase.apps.length) {
