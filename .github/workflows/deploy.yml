@@ -20,9 +20,10 @@ jobs:
           # The Firebase config secret can have newlines, which break sed.
           # This command removes newlines and carriage returns to make it a single line.
           CONFIG_JSON=$(echo "${{ secrets.FIREBASE_CONFIG }}" | tr -d '\n\r')
-          # Now, replace the placeholder in index.html with the single-line JSON config.
-          # Note: We are using backticks in the search pattern to match the JS template literal.
-          sed -i "s|\`__FIREBASE_CONFIG_PLACEHOLDER__\`|\`$CONFIG_JSON\`|g" index.html
+          
+          # Replace the placeholder token with the actual JS object string.
+          # We use a different delimiter (#) for sed to avoid conflicts with characters in the JSON string.
+          sed -i "s#__FIREBASE_CONFIG_PLACEHOLDER__#${CONFIG_JSON}#g" index.html
 
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@v4
