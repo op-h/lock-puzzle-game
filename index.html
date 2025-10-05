@@ -64,18 +64,24 @@
 
             // --- Firebase Initialization and Auth ---
             useEffect(() => {
+                // This placeholder will be replaced by the GitHub Action with a JSON string.
+                const firebaseConfigJSON = `__FIREBASE_CONFIG_JSON_PLACEHOLDER__`;
+                let firebaseConfig = {};
+
                 try {
-                    // This placeholder will be replaced by the GitHub Action.
-                    // It's designed to be a JS object, not a string to parse.
-                    const firebaseConfig = apiKey: AIzaSyAHXQMCBK6NdEdBO4-msM7M0Mm6x-cDxNY,  authDomain: lock-puzzle-game.firebaseapp.com,  projectId: lock-puzzle-game,  storageBucket: lock-puzzle-game.firebasestorage.app,  messagingSenderId: 884071011603,  appId: 1:884071011603:web:0a6cd0efaef45d3ba7f6e6,  measurementId: G-X5GHFKLZDD;
-
-                    if (typeof firebaseConfig === 'undefined' || Object.keys(firebaseConfig).length === 0) {
-                        console.warn("Firebase config is missing or empty. Running in offline mode.");
-                        setIsOnlineMode(false);
-                        setIsAuthReady(true); // Allow game to start in offline mode
-                        return;
+                    if (firebaseConfigJSON.startsWith("__FIREBASE")) {
+                        throw new Error("Placeholder not replaced");
                     }
+                    // Safely parse the JSON string. This prevents syntax errors.
+                    firebaseConfig = JSON.parse(firebaseConfigJSON);
+                } catch (e) {
+                    console.warn("Could not parse Firebase config. Running in offline mode.", e.message);
+                    setIsOnlineMode(false);
+                    setIsAuthReady(true);
+                    return;
+                }
 
+                try {
                     if (!firebase.apps.length) {
                         firebase.initializeApp(firebaseConfig);
                     }
@@ -95,12 +101,7 @@
                     });
                     return () => unsubscribe();
                 } catch (e) {
-                    // This will catch reference errors if the placeholder is not replaced.
-                    if (e instanceof ReferenceError) {
-                         console.warn("Firebase placeholder not replaced. Running in offline mode.");
-                    } else {
-                        console.error("Error initializing Firebase:", e);
-                    }
+                    console.error("Error initializing Firebase:", e);
                     setIsOnlineMode(false);
                     setIsAuthReady(true);
                 }
