@@ -7,7 +7,7 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' stroke-width='2' stroke='%233B82F6' fill='none' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='11' width='18' height='11' rx='2' ry='2'/><path d='M7 11V7a5 5 0 0 1 10 0v4'/></svg>">
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com//@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
@@ -23,8 +23,16 @@
     <div id="root"></div>
 
     <script>
-        // This Base64 placeholder will be replaced by the GitHub Action.
-        window.firebaseConfigEncoded = "%%FIREBASE_CONFIG_B64%%";
+        // Firebase configuration is now hardcoded directly into the application.
+        window.firebaseConfig = {
+          apiKey: "AIzaSyAHXQMCBK6NdEdBO4-msM7M0Mm6x-cDxNY",
+          authDomain: "lock-puzzle-game.firebaseapp.com",
+          projectId: "lock-puzzle-game",
+          storageBucket: "lock-puzzle-game.firebasestorage.app",
+          messagingSenderId: "884071011603",
+          appId: "1:884071011603:web:0a6cd0efaef45d3ba7f6e6",
+          measurementId: "G-X5GHFKLZDD"
+        };
     </script>
 
     <script type="text/babel">
@@ -62,17 +70,10 @@
 
             useEffect(() => {
                 try {
-                    let encodedConfig = window.firebaseConfigEncoded;
-                    if (!encodedConfig || encodedConfig.startsWith("%%")) {
-                        throw new Error("Firebase config placeholder not replaced.");
-                    }
-                    
-                    // Decode the Base64 string, then parse it as JSON
-                    const decodedConfig = atob(encodedConfig);
-                    const config = JSON.parse(decodedConfig);
+                    const config = window.firebaseConfig;
 
                     if (typeof config !== 'object' || !config.apiKey) {
-                        throw new Error("Decoded Firebase config is not a valid object.");
+                        throw new Error("Firebase config is not valid.");
                     }
 
                     if (!firebase.apps.length) {
@@ -117,7 +118,7 @@
                 return () => unsubscribe();
             }, [isAuthReady, db, isOnlineMode]);
 
-            // Game Logic... (omitted for brevity, no changes)
+            // Game Logic...
             const generateRandomAnswer = () => Array.from({length: 3}, () => Math.floor(Math.random() * 10).toString());
             const generateRandomCombination = (answer) => {
                 let combo;
