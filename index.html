@@ -3,710 +3,463 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lock Puzzle Game</title>
+    <title>Lock Puzzle Game - AI Edition</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+
     <style>
-        body { margin: 0; padding: 0; }
+        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+         @keyframes pulse {
+            50% { opacity: .5; }
+        }
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
+
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useMemo } = React;
         
-        // Lucide React icons as simple components
-        const Lock = ({ size = 24, className = "" }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-        );
-        
-        const Check = ({ size = 24, className = "" }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                <polyline points="20,6 9,17 4,12"/>
-            </svg>
-        );
-        
-        const X = ({ size = 24, className = "" }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                <path d="M18 6 6 18"/>
-                <path d="M6 6l12 12"/>
-            </svg>
-        );
-        
-        const RotateCcw = ({ size = 24, className = "" }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                <path d="M3 3v5h5"/>
-            </svg>
-        );
-
-        const Shuffle = ({ size = 24, className = "" }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                <polyline points="16,3 21,3 21,8"/>
-                <path d="M4 20 21 3"/>
-                <polyline points="21,16 21,21 16,21"/>
-                <path d="M15 15 21 21"/>
-                <path d="M4 4 9 9"/>
-            </svg>
-        );
-
-        const Trophy = ({ size = 24, className = "" }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
-                <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
-                <path d="M4 22h16"/>
-                <path d="M10 14.66V17c0 .55.47.98.97 1.21C12.04 18.75 13 20.24 13 22"/>
-                <path d="M14 14.66V17c0 .55-.47.98-.97 1.21C11.96 18.75 11 20.24 11 22"/>
-                <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
-            </svg>
-        );
-
-        const User = ({ size = 24, className = "" }) => (
-            <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                <circle cx="12" cy="7" r="4"/>
-            </svg>
-        );
+        // --- Icon Components ---
+        const Lock = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
+        const Check = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="20,6 9,17 4,12"/></svg>;
+        const X = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>;
+        const RotateCcw = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>;
+        const Shuffle = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="16,3 21,3 21,8"/><path d="M4 20 21 3"/><polyline points="21,16 21,21 16,21"/><path d="M15 15 21 21"/><path d="M4 4 9 9"/></svg>;
+        const Trophy = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55.47.98.97 1.21C12.04 18.75 13 20.24 13 22"/><path d="M14 14.66V17c0 .55-.47.98-.97 1.21C11.96 18.75 11 20.24 11 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>;
+        const User = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+        const Sparkles = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>;
 
         const LockPuzzleGame = () => {
-          const [playerName, setPlayerName] = useState('');
-          const [isNameSet, setIsNameSet] = useState(false);
-          const [userGuess, setUserGuess] = useState(['', '', '']);
-          const [attempts, setAttempts] = useState([]);
-          const [isComplete, setIsComplete] = useState(false);
-          const [showHint, setShowHint] = useState(false);
-          const [currentPuzzle, setCurrentPuzzle] = useState(null);
-          const [puzzleNumber, setPuzzleNumber] = useState(1);
-          const [showLeaderboard, setShowLeaderboard] = useState(false);
-          const [leaderboard, setLeaderboard] = useState([]);
-          const [startTime, setStartTime] = useState(null);
+            const [playerName, setPlayerName] = useState('');
+            const [isNameSet, setIsNameSet] = useState(false);
+            const [userGuess, setUserGuess] = useState(['', '', '']);
+            const [attempts, setAttempts] = useState([]);
+            const [isComplete, setIsComplete] = useState(false);
+            const [showHint, setShowHint] = useState(false);
+            const [currentPuzzle, setCurrentPuzzle] = useState(null);
+            const [puzzleNumber, setPuzzleNumber] = useState(1);
+            const [showLeaderboard, setShowLeaderboard] = useState(false);
+            const [leaderboard, setLeaderboard] = useState([]);
+            const [startTime, setStartTime] = useState(null);
 
-          // Load leaderboard from memory on component mount
-          useEffect(() => {
-            const savedLeaderboard = window.gameLeaderboard || [];
-            setLeaderboard(savedLeaderboard);
-          }, []);
+            // AI Hint State
+            const [aiHint, setAiHint] = useState('');
+            const [isHintLoading, setIsHintLoading] = useState(false);
+            
+            // Firebase State
+            const [db, setDb] = useState(null);
+            const [isAuthReady, setIsAuthReady] = useState(false);
 
-          // Save leaderboard to memory
-          const saveLeaderboard = (newLeaderboard) => {
-            window.gameLeaderboard = newLeaderboard;
-            setLeaderboard(newLeaderboard);
-          };
+            // --- Firebase Initialization and Auth ---
+            useEffect(() => {
+                try {
+                    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+                    if (Object.keys(firebaseConfig).length === 0) {
+                        console.error("Firebase config is missing or empty.");
+                        return;
+                    }
+                    if (!firebase.apps.length) {
+                        firebase.initializeApp(firebaseConfig);
+                    }
+                    setDb(firebase.firestore());
 
-          // Generate random 3-digit answer
-          const generateRandomAnswer = () => {
-            return [
-              Math.floor(Math.random() * 10).toString(),
-              Math.floor(Math.random() * 10).toString(),
-              Math.floor(Math.random() * 10).toString()
-            ];
-          };
-
-          // Generate random 3-digit combination different from answer
-          const generateRandomCombination = (answer) => {
-            let combo;
-            do {
-              combo = [
-                Math.floor(Math.random() * 10).toString(),
-                Math.floor(Math.random() * 10).toString(),
-                Math.floor(Math.random() * 10).toString()
-              ];
-            } while (combo.join('') === answer.join(''));
-            return combo;
-          };
-
-          // Analyze a combination against the correct answer
-          const analyzeClue = (combination, answer) => {
-            let correctPosition = 0;
-            let correctDigitWrongPosition = 0;
-            let usedAnswerIndices = [];
-            let usedComboIndices = [];
-
-            // First pass: find exact position matches
-            for (let i = 0; i < 3; i++) {
-              if (combination[i] === answer[i]) {
-                correctPosition++;
-                usedAnswerIndices.push(i);
-                usedComboIndices.push(i);
-              }
-            }
-
-            // Second pass: find correct digits in wrong positions
-            for (let i = 0; i < 3; i++) {
-              if (!usedComboIndices.includes(i)) {
-                for (let j = 0; j < 3; j++) {
-                  if (!usedAnswerIndices.includes(j) && combination[i] === answer[j]) {
-                    correctDigitWrongPosition++;
-                    usedAnswerIndices.push(j);
-                    break;
-                  }
+                    const auth = firebase.auth();
+                    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+                        if (!user) {
+                           try {
+                                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                                if (token) {
+                                    await auth.signInWithCustomToken(token);
+                                } else {
+                                    await auth.signInAnonymously();
+                                }
+                            } catch (error) {
+                                console.error("Firebase sign-in failed:", error);
+                            }
+                        }
+                        setIsAuthReady(true);
+                    });
+                    return () => unsubscribe();
+                } catch (e) {
+                    console.error("Error initializing Firebase:", e);
                 }
-              }
-            }
+            }, []);
 
-            return { correctPosition, correctDigitWrongPosition };
-          };
-
-          // Generate clue description based on analysis
-          const generateClueDescription = (analysis) => {
-            const { correctPosition, correctDigitWrongPosition } = analysis;
-            
-            if (correctPosition === 0 && correctDigitWrongPosition === 0) {
-              return {
-                hint: 'لا شيء صحيح',
-                translation: 'Nothing is correct'
-              };
-            } else if (correctPosition === 1 && correctDigitWrongPosition === 0) {
-              return {
-                hint: 'رقم واحد صحيح وفي المكان الصحيح',
-                translation: 'One digit correct and in right place'
-              };
-            } else if (correctPosition === 0 && correctDigitWrongPosition === 1) {
-              return {
-                hint: 'رقم واحد صحيح ولكن في المكان الخطأ',
-                translation: 'One digit correct but in wrong place'
-              };
-            } else if (correctPosition === 0 && correctDigitWrongPosition === 2) {
-              return {
-                hint: 'رقمان صحيحان ولكن في المكان الخطأ',
-                translation: 'Two digits correct but in wrong place'
-              };
-            } else if (correctPosition === 1 && correctDigitWrongPosition === 1) {
-              return {
-                hint: 'رقم واحد صحيح وفي المكان الصحيح، ورقم آخر صحيح ولكن في المكان الخطأ',
-                translation: 'One digit correct and in right place, one correct but in wrong place'
-              };
-            } else if (correctPosition === 2 && correctDigitWrongPosition === 0) {
-              return {
-                hint: 'رقمان صحيحان وفي المكان الصحيح',
-                translation: 'Two digits correct and in right place'
-              };
-            } else if (correctPosition === 0 && correctDigitWrongPosition === 3) {
-              return {
-                hint: 'كل الأرقام صحيحة ولكن في المكان الخطأ',
-                translation: 'All digits correct but in wrong places'
-              };
-            } else {
-              return {
-                hint: 'تحليل معقد',
-                translation: 'Complex analysis'
-              };
-            }
-          };
-
-          // Generate a complete puzzle
-          const generatePuzzle = () => {
-            const answer = generateRandomAnswer();
-            const clues = [];
-            
-            // Generate 5 different clue combinations
-            const clueTypes = [
-              'nothing_correct',
-              'one_correct_right_place', 
-              'one_correct_wrong_place',
-              'two_correct_wrong_place',
-              'mixed'
-            ];
-
-            for (let i = 0; i < 5; i++) {
-              let combination;
-              let analysis;
-              let attempts = 0;
-              
-              do {
-                combination = generateRandomCombination(answer);
-                analysis = analyzeClue(combination, answer);
-                attempts++;
+            // --- Real-time Leaderboard Listener ---
+            useEffect(() => {
+                if (!isAuthReady || !db) return;
                 
-                // Prevent infinite loop
-                if (attempts > 100) break;
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const leaderboardPath = `artifacts/${appId}/public/data/leaderboard`;
+
+                const unsubscribe = db.collection(leaderboardPath).onSnapshot(snapshot => {
+                    const leaderboardData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    const sortedLeaderboard = leaderboardData
+                        .sort((a, b) => b.score - a.score)
+                        .slice(0, 20);
+                    setLeaderboard(sortedLeaderboard);
+                }, error => {
+                    console.error("Error fetching leaderboard: ", error);
+                });
+
+                return () => unsubscribe();
+            }, [isAuthReady, db]);
+
+            // --- Game Logic (unchanged) ---
+            const generateRandomAnswer = () => Array.from({length: 3}, () => Math.floor(Math.random() * 10).toString());
+            const generateRandomCombination = (answer) => {
+                let combo;
+                do { combo = generateRandomAnswer(); } while (combo.join('') === answer.join(''));
+                return combo;
+            };
+            const analyzeClue = (combination, answer) => {
+                let correctPosition = 0;
+                let correctDigitWrongPosition = 0;
+                let usedAnswerIndices = [];
+                let usedComboIndices = [];
+                for (let i = 0; i < 3; i++) {
+                    if (combination[i] === answer[i]) {
+                        correctPosition++;
+                        usedAnswerIndices.push(i);
+                        usedComboIndices.push(i);
+                    }
+                }
+                for (let i = 0; i < 3; i++) {
+                    if (!usedComboIndices.includes(i)) {
+                        for (let j = 0; j < 3; j++) {
+                            if (!usedAnswerIndices.includes(j) && combination[i] === answer[j]) {
+                                correctDigitWrongPosition++;
+                                usedAnswerIndices.push(j);
+                                break;
+                            }
+                        }
+                    }
+                }
+                return { correctPosition, correctDigitWrongPosition };
+            };
+            const generateClueDescription = (analysis) => {
+                const { correctPosition, correctDigitWrongPosition } = analysis;
+                if (correctPosition === 0 && correctDigitWrongPosition === 0) return { hint: 'لا شيء صحيح', translation: 'Nothing is correct' };
+                if (correctPosition === 1 && correctDigitWrongPosition === 0) return { hint: 'رقم واحد صحيح وفي المكان الصحيح', translation: 'One digit correct and in right place' };
+                if (correctPosition === 0 && correctDigitWrongPosition === 1) return { hint: 'رقم واحد صحيح ولكن في المكان الخطأ', translation: 'One digit correct but in wrong place' };
+                if (correctPosition === 0 && correctDigitWrongPosition === 2) return { hint: 'رقمان صحيحان ولكن في المكان الخطأ', translation: 'Two digits correct but in wrong place' };
+                if (correctPosition === 1 && correctDigitWrongPosition === 1) return { hint: 'رقم واحد صحيح وفي المكان الصحيح، ورقم آخر صحيح ولكن في المكان الخطأ', translation: 'One correct and in right place, one correct but in wrong place' };
+                if (correctPosition === 2 && correctDigitWrongPosition === 0) return { hint: 'رقمان صحيحان وفي المكان الصحيح', translation: 'Two digits correct and in right place' };
+                if (correctPosition === 0 && correctDigitWrongPosition === 3) return { hint: 'كل الأرقام صحيحة ولكن في المكان الخطأ', translation: 'All digits correct but in wrong places' };
+                return { hint: 'تحليل معقد', translation: 'Complex analysis' };
+            };
+            const generatePuzzle = () => {
+                const answer = generateRandomAnswer();
+                const clues = [];
+                const requiredAnalyses = [
+                    { cp: 0, cdwp: 0 }, { cp: 1, cdwp: 0 }, { cp: 0, cdwp: 1 }, { cp: 0, cdwp: 2 }, { cp: 1, cdwp: 1 }
+                ];
+                let createdAnalyses = new Set();
                 
-              } while (
-                // Try to get varied clue types
-                (i === 0 && !(analysis.correctPosition === 0 && analysis.correctDigitWrongPosition === 0)) ||
-                (i === 1 && !(analysis.correctPosition === 1 && analysis.correctDigitWrongPosition === 0)) ||
-                (i === 2 && !(analysis.correctPosition === 0 && analysis.correctDigitWrongPosition === 1)) ||
-                (i === 3 && !(analysis.correctPosition === 0 && analysis.correctDigitWrongPosition === 2))
-              );
+                while (clues.length < 5) {
+                    let combination = generateRandomCombination(answer);
+                    let analysis = analyzeClue(combination, answer);
+                    let analysisKey = `${analysis.correctPosition}-${analysis.correctDigitWrongPosition}`;
 
-              const clueDesc = generateClueDescription(analysis);
-              clues.push({
-                digits: combination,
-                hint: clueDesc.hint,
-                translation: clueDesc.translation,
-                analysis: analysis
-              });
-            }
-
-            return {
-              answer: answer,
-              clues: clues,
-              encodedAnswer: btoa(answer.join(''))
-            };
-          };
-
-          // Initialize puzzle on name set
-          useEffect(() => {
-            if (isNameSet && !currentPuzzle) {
-              const newPuzzle = generatePuzzle();
-              setCurrentPuzzle(newPuzzle);
-              setStartTime(Date.now());
-            }
-          }, [isNameSet, currentPuzzle]);
-
-          // Generate new puzzle
-          const generateNewPuzzle = () => {
-            const newPuzzle = generatePuzzle();
-            setCurrentPuzzle(newPuzzle);
-            setPuzzleNumber(prev => prev + 1);
-            setUserGuess(['', '', '']);
-            setAttempts([]);
-            setIsComplete(false);
-            setShowHint(false);
-            setStartTime(Date.now());
-          };
-
-          // Calculate score based on attempts and time
-          const calculateScore = (attemptCount, timeInSeconds) => {
-            const baseScore = 1000;
-            const attemptPenalty = attemptCount * 50;
-            const timePenalty = Math.floor(timeInSeconds / 10) * 5;
-            return Math.max(100, baseScore - attemptPenalty - timePenalty);
-          };
-
-          // Add player to leaderboard
-          const addToLeaderboard = (score, timeInSeconds) => {
-            const newEntry = {
-              name: playerName,
-              score: score,
-              attempts: attempts.length + 1, // +1 for the successful attempt
-              time: timeInSeconds,
-              puzzle: puzzleNumber,
-              timestamp: new Date().toLocaleString()
+                    // Try to get varied clues
+                    if (!createdAnalyses.has(analysisKey) || clues.length >= requiredAnalyses.length) {
+                        const clueDesc = generateClueDescription(analysis);
+                        clues.push({ digits: combination, hint: clueDesc.hint, translation: clueDesc.translation });
+                        createdAnalyses.add(analysisKey);
+                    }
+                }
+                return { answer: answer, clues: clues };
             };
 
-            const updatedLeaderboard = [...leaderboard, newEntry]
-              .sort((a, b) => b.score - a.score)
-              .slice(0, 20); // Keep top 20
+            // Initialize puzzle on name set
+            useEffect(() => {
+                if (isNameSet && !currentPuzzle) {
+                    setCurrentPuzzle(generatePuzzle());
+                    setStartTime(Date.now());
+                }
+            }, [isNameSet, currentPuzzle]);
 
-            saveLeaderboard(updatedLeaderboard);
-          };
-
-          const handleDigitChange = (index, value) => {
-            if (value.length <= 1 && /^[0-9]*$/.test(value)) {
-              const newGuess = [...userGuess];
-              newGuess[index] = value;
-              setUserGuess(newGuess);
-            }
-          };
-
-          const checkAnswer = () => {
-            if (!currentPuzzle || userGuess.some(digit => digit === '')) return;
-            
-            const isCorrect = userGuess.every((digit, index) => digit === currentPuzzle.answer[index]);
-            
-            const newAttempt = {
-              guess: [...userGuess],
-              correct: isCorrect,
-              timestamp: new Date().toLocaleTimeString()
+            // --- Game Actions ---
+            const generateNewPuzzle = () => {
+                setCurrentPuzzle(generatePuzzle());
+                setPuzzleNumber(prev => prev + 1);
+                setUserGuess(['', '', '']);
+                setAttempts([]);
+                setIsComplete(false);
+                setShowHint(false);
+                setAiHint('');
+                setStartTime(Date.now());
             };
             
-            const updatedAttempts = [...attempts, newAttempt];
-            setAttempts(updatedAttempts);
+            const calculateScore = (attemptCount, timeInSeconds) => {
+                const baseScore = 1000;
+                const attemptPenalty = attemptCount * 50;
+                const timePenalty = Math.floor(timeInSeconds / 10) * 5;
+                return Math.max(100, baseScore - attemptPenalty - timePenalty);
+            };
+
+            const addToLeaderboard = async (score, timeInSeconds) => {
+                if (!db) return;
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const leaderboardPath = `artifacts/${appId}/public/data/leaderboard`;
+                
+                const newEntry = {
+                    name: playerName,
+                    score: score,
+                    attempts: attempts.length + 1,
+                    time: timeInSeconds,
+                    puzzle: puzzleNumber,
+                    timestamp: new Date().toISOString()
+                };
+
+                try {
+                    await db.collection(leaderboardPath).add(newEntry);
+                } catch (error) {
+                    console.error("Error adding to leaderboard:", error);
+                }
+            };
             
-            if (isCorrect) {
-              setIsComplete(true);
-              const timeInSeconds = Math.floor((Date.now() - startTime) / 1000);
-              const score = calculateScore(updatedAttempts.length, timeInSeconds);
-              addToLeaderboard(score, timeInSeconds);
+            const handleDigitChange = (index, value) => {
+                if (value.length <= 1 && /^[0-9]*$/.test(value)) {
+                    const newGuess = [...userGuess];
+                    newGuess[index] = value;
+                    setUserGuess(newGuess);
+                }
+            };
+
+            const checkAnswer = () => {
+                if (!currentPuzzle || userGuess.some(digit => digit === '')) return;
+                const isCorrect = userGuess.join('') === currentPuzzle.answer.join('');
+                
+                const newAttempt = { guess: [...userGuess], correct: isCorrect, timestamp: new Date().toLocaleTimeString() };
+                const updatedAttempts = [...attempts, newAttempt];
+                setAttempts(updatedAttempts);
+                
+                if (isCorrect) {
+                    setIsComplete(true);
+                    const timeInSeconds = Math.floor((Date.now() - startTime) / 1000);
+                    const score = calculateScore(updatedAttempts.length, timeInSeconds);
+                    addToLeaderboard(score, timeInSeconds);
+                }
+            };
+
+            const resetGame = () => {
+                setUserGuess(['', '', '']);
+                setAttempts([]);
+                setIsComplete(false);
+                setShowHint(false);
+                setAiHint('');
+                setStartTime(Date.now());
+            };
+
+            const handleNameSubmit = (e) => {
+                e.preventDefault();
+                if (playerName.trim()) {
+                    setIsNameSet(true);
+                }
+            };
+
+            // --- AI Hint Generation ---
+            const getAiHint = async () => {
+                if (isHintLoading || !currentPuzzle) return;
+                setShowHint(true);
+                setAiHint('');
+                setIsHintLoading(true);
+
+                const systemPrompt = "You are a master puzzle solver for a logic game called 'Lock Puzzle'. Your goal is to give a single, clever, deductive hint to the player to help them solve a 3-digit code. Do not reveal the answer or any specific digits of the answer. The hint should be based on the provided clues and the player's previous guesses. The hint must be in Arabic, followed by an English translation separated by ' / '. For example: 'فكر في القرينة الثالثة ومحاولتك الأخيرة، يمكنك استبعاد رقم معين. / Based on the third clue and your last attempt, you can eliminate a certain number.'";
+                const cluesText = currentPuzzle.clues.map((c, i) => `Clue ${i+1}: Combination ${c.digits.join('')} -> ${c.translation}`).join('\n');
+                const attemptsText = attempts.length > 0 ? attempts.map((a, i) => `Attempt ${i+1}: ${a.guess.join('')}`).join('\n') : "No attempts yet.";
+                const userQuery = `Here is the puzzle information:\n\nClues:\n${cluesText}\n\nMy previous attempts:\n${attemptsText}\n\nBased on all this information, give me one logical hint to guide my next guess.`;
+                
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                const payload = {
+                    contents: [{ parts: [{ text: userQuery }] }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                };
+
+                try {
+                    let response;
+                    let delay = 1000;
+                    for (let i = 0; i < 5; i++) { // Retry with exponential backoff
+                        response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                        if (response.ok) break;
+                        if (response.status === 429 || response.status >= 500) {
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            delay *= 2;
+                        } else { break; }
+                    }
+                    if (!response.ok) throw new Error(`API call failed with status: ${response.status}`);
+                    
+                    const result = await response.json();
+                    const hintText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    setAiHint(hintText || "لم أتمكن من إنشاء تلميح. حاول مرة أخرى. / Could not generate a hint. Please try again.");
+                } catch (error) {
+                    console.error("AI Hint Error:", error);
+                    setAiHint("حدث خطأ أثناء الحصول على التلميح. / An error occurred while fetching the hint.");
+                } finally {
+                    setIsHintLoading(false);
+                }
+            };
+            
+            // --- UI Rendering ---
+            if (!isAuthReady) {
+                 return <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-4 text-white text-xl">Connecting to server...</div>;
             }
-          };
 
-          const resetGame = () => {
-            setUserGuess(['', '', '']);
-            setAttempts([]);
-            setIsComplete(false);
-            setShowHint(false);
-            setStartTime(Date.now());
-          };
-
-          const handleNameSubmit = (e) => {
-            e.preventDefault();
-            if (playerName.trim()) {
-              setIsNameSet(true);
+            if (!isNameSet) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
+                            <div className="flex justify-center mb-6"><div className="bg-slate-700 p-4 rounded-full"><User size={48} className="text-white" /></div></div>
+                            <h1 className="text-2xl font-bold text-slate-800 mb-2">مرحباً بك في لعبة القفل</h1>
+                            <p className="text-slate-600 mb-6">Welcome to Lock Puzzle Game</p>
+                            <form onSubmit={handleNameSubmit}>
+                                <input type="text" value={playerName} onChange={(e) => setPlayerName(e.target.value)} placeholder="أدخل اسمك / Enter your name" className="w-full px-4 py-3 text-center border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none mb-4 text-lg" maxLength="20" />
+                                <button type="submit" disabled={!playerName.trim()} className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-3 rounded-lg font-semibold text-lg transition-colors">ابدأ اللعب / Start Playing</button>
+                            </form>
+                            {leaderboard.length > 0 && <button onClick={() => setShowLeaderboard(true)} className="mt-4 text-blue-600 hover:text-blue-800 text-sm underline flex items-center justify-center gap-2 mx-auto"><Trophy size={16} />عرض المتصدرين / View Leaderboard</button>}
+                        </div>
+                    </div>
+                );
             }
-          };
 
-          // Name input screen
-          if (!isNameSet) {
-            return React.createElement('div', {
-              className: "min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-4"
-            },
-              React.createElement('div', {
-                className: "bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center"
-              },
-                React.createElement('div', {
-                  className: "flex justify-center mb-6"
-                },
-                  React.createElement('div', {
-                    className: "bg-slate-700 p-4 rounded-full"
-                  },
-                    React.createElement(User, {
-                      size: 48,
-                      className: "text-white"
-                    })
-                  )
-                ),
-                React.createElement('h1', {
-                  className: "text-2xl font-bold text-slate-800 mb-2"
-                }, 'مرحباً بك في لعبة القفل'),
-                React.createElement('p', {
-                  className: "text-slate-600 mb-6"
-                }, 'Welcome to Lock Puzzle Game'),
-                React.createElement('form', {
-                  onSubmit: handleNameSubmit
-                },
-                  React.createElement('input', {
-                    type: "text",
-                    value: playerName,
-                    onChange: (e) => setPlayerName(e.target.value),
-                    placeholder: "أدخل اسمك / Enter your name",
-                    className: "w-full px-4 py-3 text-center border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none mb-4 text-lg",
-                    maxLength: "20"
-                  }),
-                  React.createElement('button', {
-                    type: "submit",
-                    disabled: !playerName.trim(),
-                    className: "w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-3 rounded-lg font-semibold text-lg transition-colors"
-                  }, 'ابدأ اللعب / Start Playing')
-                ),
-                leaderboard.length > 0 && React.createElement('button', {
-                  onClick: () => setShowLeaderboard(true),
-                  className: "mt-4 text-blue-600 hover:text-blue-800 text-sm underline flex items-center justify-center gap-2 mx-auto"
-                },
-                  React.createElement(Trophy, { size: 16 }),
-                  'عرض المتصدرين / View Leaderboard'
-                )
-              )
+            if (showLeaderboard) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full">
+                            <div className="text-center mb-6">
+                                <div className="flex justify-center mb-4"><div className="bg-yellow-500 p-4 rounded-full"><Trophy size={48} className="text-white" /></div></div>
+                                <h1 className="text-2xl font-bold text-slate-800 mb-2">لوحة المتصدرين / Leaderboard</h1>
+                            </div>
+                            <div className="max-h-96 overflow-y-auto mb-6">
+                                {leaderboard.length === 0 ? <p className="text-center text-slate-500">لا توجد نتائج بعد / No results yet</p> :
+                                    leaderboard.map((entry, index) => (
+                                        <div key={entry.id} className={`flex items-center justify-between p-3 rounded-lg mb-2 ${index < 3 ? 'bg-gradient-to-r from-yellow-50 to-yellow-100 border-2 border-yellow-200' : 'bg-slate-50'}`}>
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-yellow-600' : 'bg-slate-400'}`}>{index + 1}</div>
+                                                <div>
+                                                    <p className="font-semibold text-slate-800">{entry.name}</p>
+                                                    <p className="text-xs text-slate-500">{`المحاولات: ${entry.attempts} | الوقت: ${entry.time}ث | اللغز: ${entry.puzzle}`}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-bold text-lg text-blue-600">{entry.score}</p>
+                                                <p className="text-xs text-slate-500">{new Date(entry.timestamp).toLocaleString()}</p>
+                                            </div>
+                                        </div>
+                                    ))
+                                }
+                            </div>
+                            <button onClick={() => setShowLeaderboard(false)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors">العودة للعبة / Back to Game</button>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (!currentPuzzle) {
+                return <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center"><div className="text-white text-xl">جاري تحضير اللغز... / Loading puzzle...</div></div>;
+            }
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+                        <div className="text-center mb-8">
+                            <div className="flex justify-center mb-4"><div className="bg-slate-700 p-4 rounded-full"><Lock size={48} className="text-white" /></div></div>
+                            <h1 className="text-2xl font-bold text-slate-800 mb-2">هل تستطيع فتح القفل؟</h1>
+                            <p className="text-slate-600">Can you open the lock?</p>
+                            <div className="bg-blue-50 rounded-lg p-2 mt-3">
+                                <p className="text-blue-800 font-semibold">{`🎮 اللاعب: ${playerName} | Player: ${playerName}`}</p>
+                                <p className="text-blue-600 text-sm">{`لغز رقم ${puzzleNumber} | Puzzle #${puzzleNumber}`}</p>
+                            </div>
+                        </div>
+
+                        <div className="mb-6">
+                            <div className="flex justify-center gap-4 mb-4">
+                                {userGuess.map((digit, index) => <input key={index} type="text" value={digit} onChange={(e) => handleDigitChange(index, e.target.value)} className="w-16 h-16 text-2xl font-bold text-center border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none" maxLength="1" disabled={isComplete} />)}
+                            </div>
+                            <div className="flex gap-2 justify-center flex-wrap">
+                                <button onClick={checkAnswer} disabled={userGuess.some(d => d === '') || isComplete} className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-semibold transition-colors">تحقق / Check</button>
+                                <button onClick={resetGame} className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"><RotateCcw size={20} /></button>
+                                <button onClick={generateNewPuzzle} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2"><Shuffle size={16} /><span className="text-sm">لغز جديد</span></button>
+                                <button onClick={() => setShowLeaderboard(true)} className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2"><Trophy size={16} /><span className="text-sm">المتصدرين</span></button>
+                            </div>
+                        </div>
+
+                        {isComplete &&
+                            <div className="bg-green-100 border-2 border-green-400 rounded-lg p-4 mb-6 text-center">
+                                <Check className="mx-auto mb-2 text-green-600" size={32} />
+                                <p className="text-green-800 font-bold">🎉 مبروك! فتحت القفل!</p>
+                                <p className="text-green-700">Congratulations! You opened the lock!</p>
+                                <p className="text-green-600 text-sm mt-2">{`الجواب كان: ${currentPuzzle.answer.join('')} / Answer was: ${currentPuzzle.answer.join('')}`}</p>
+                                <p className="text-blue-600 text-sm mt-1 font-semibold">{`نقاطك: ${calculateScore(attempts.length, Math.floor((Date.now() - startTime) / 1000))}`}</p>
+                            </div>
+                        }
+
+                        <div className="mb-6">
+                            <h3 className="text-lg font-bold text-slate-800 mb-4 text-center">القرائن / Clues</h3>
+                            <div className="space-y-3">
+                                {currentPuzzle.clues.map((clue, index) =>
+                                    <div key={index} className="bg-slate-50 rounded-lg p-3">
+                                        <div className="flex justify-center gap-2 mb-2">
+                                            {clue.digits.map((digit, i) => <div key={i} className="w-10 h-10 bg-white border-2 border-slate-300 rounded flex items-center justify-center font-bold text-slate-700">{digit}</div>)}
+                                        </div>
+                                        <p className="text-sm text-slate-600 text-center font-semibold">{clue.hint}</p>
+                                        <p className="text-xs text-slate-500 text-center">{clue.translation}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {attempts.length > 0 &&
+                            <div className="mb-4">
+                                <h3 className="text-lg font-bold text-slate-800 mb-2">المحاولات / Attempts</h3>
+                                <div className="space-y-2 max-h-32 overflow-y-auto p-2 bg-gray-50 rounded-md">
+                                    {attempts.slice().reverse().map((attempt, index) =>
+                                        <div key={index} className="flex items-center justify-between text-sm">
+                                            <div className="flex items-center gap-2">
+                                               <span className="text-xs text-gray-400">#{attempts.length - index}</span>
+                                               <div className="flex gap-1 font-mono tracking-widest">{attempt.guess.join('')}</div>
+                                               {attempt.correct ? <Check size={16} className="text-green-600" /> : <X size={16} className="text-red-600" />}
+                                            </div>
+                                            <span className="text-slate-500 text-xs">{attempt.timestamp}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        }
+                        
+                        <div className="text-center border-t pt-4 mt-4">
+                            <button onClick={getAiHint} disabled={isHintLoading} className="text-blue-600 hover:text-blue-800 disabled:text-gray-400 text-sm font-semibold flex items-center justify-center gap-2 mx-auto">
+                                <Sparkles size={16} className={isHintLoading ? 'animate-pulse' : ''}/>
+                                {isHintLoading ? 'جاري التفكير... / Thinking...' : 'احصل على تلميح ذكي / Get AI Hint'}
+                            </button>
+                            {showHint &&
+                                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm transition-all">
+                                    {isHintLoading ? <p className="text-yellow-800 animate-pulse">...AI يولد تلميحًا / AI is generating a hint...</p> :
+                                     aiHint ? <p className="text-yellow-800">{`💡 ${aiHint}`}</p> :
+                                     <p className="text-yellow-800">انقر فوق الزر للحصول على تلميح من الذكاء الاصطناعي. / Click the button to get a hint from the AI.</p>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
             );
-          }
-
-          // Leaderboard screen
-          if (showLeaderboard) {
-            return React.createElement('div', {
-              className: "min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-4"
-            },
-              React.createElement('div', {
-                className: "bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full"
-              },
-                React.createElement('div', {
-                  className: "text-center mb-6"
-                },
-                  React.createElement('div', {
-                    className: "flex justify-center mb-4"
-                  },
-                    React.createElement('div', {
-                      className: "bg-yellow-500 p-4 rounded-full"
-                    },
-                      React.createElement(Trophy, {
-                        size: 48,
-                        className: "text-white"
-                      })
-                    )
-                  ),
-                  React.createElement('h1', {
-                    className: "text-2xl font-bold text-slate-800 mb-2"
-                  }, 'لوحة المتصدرين / Leaderboard')
-                ),
-                React.createElement('div', {
-                  className: "max-h-96 overflow-y-auto mb-6"
-                },
-                  leaderboard.length === 0 ? 
-                    React.createElement('p', {
-                      className: "text-center text-slate-500"
-                    }, 'لا توجد نتائج بعد / No results yet') :
-                    leaderboard.map((entry, index) =>
-                      React.createElement('div', {
-                        key: index,
-                        className: `flex items-center justify-between p-3 rounded-lg mb-2 ${
-                          index < 3 ? 'bg-gradient-to-r from-yellow-50 to-yellow-100 border-2 border-yellow-200' : 'bg-slate-50'
-                        }`
-                      },
-                        React.createElement('div', {
-                          className: "flex items-center gap-3"
-                        },
-                          React.createElement('div', {
-                            className: `w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
-                              index === 0 ? 'bg-yellow-500' : 
-                              index === 1 ? 'bg-gray-400' : 
-                              index === 2 ? 'bg-yellow-600' : 'bg-slate-400'
-                            }`
-                          }, index + 1),
-                          React.createElement('div', {},
-                            React.createElement('p', {
-                              className: "font-semibold text-slate-800"
-                            }, entry.name),
-                            React.createElement('p', {
-                              className: "text-xs text-slate-500"
-                            }, `المحاولات: ${entry.attempts} | الوقت: ${entry.time}ث | اللغز: ${entry.puzzle}`)
-                          )
-                        ),
-                        React.createElement('div', {
-                          className: "text-right"
-                        },
-                          React.createElement('p', {
-                            className: "font-bold text-lg text-blue-600"
-                          }, entry.score),
-                          React.createElement('p', {
-                            className: "text-xs text-slate-500"
-                          }, entry.timestamp)
-                        )
-                      )
-                    )
-                ),
-                React.createElement('button', {
-                  onClick: () => setShowLeaderboard(false),
-                  className: "w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors"
-                }, 'العودة للعبة / Back to Game')
-              )
-            );
-          }
-
-          if (!currentPuzzle) {
-            return React.createElement('div', {
-              className: "min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center"
-            },
-              React.createElement('div', {
-                className: "text-white text-xl"
-              }, 'جاري تحضير اللغز... / Loading puzzle...')
-            );
-          }
-
-          return React.createElement('div', {
-            className: "min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-4"
-          }, 
-            React.createElement('div', {
-              className: "bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full"
-            },
-              // Header with player info
-              React.createElement('div', {
-                className: "text-center mb-8"
-              },
-                React.createElement('div', {
-                  className: "flex justify-center mb-4"
-                },
-                  React.createElement('div', {
-                    className: "bg-slate-700 p-4 rounded-full"
-                  },
-                    React.createElement(Lock, {
-                      size: 48,
-                      className: "text-white"
-                    })
-                  )
-                ),
-                React.createElement('h1', {
-                  className: "text-2xl font-bold text-slate-800 mb-2"
-                }, 'هل تستطيع فتح القفل؟'),
-                React.createElement('p', {
-                  className: "text-slate-600"
-                }, 'Can you open the lock?'),
-                React.createElement('div', {
-                  className: "bg-blue-50 rounded-lg p-2 mt-3"
-                },
-                  React.createElement('p', {
-                    className: "text-blue-800 font-semibold"
-                  }, `🎮 اللاعب: ${playerName} | Player: ${playerName}`),
-                  React.createElement('p', {
-                    className: "text-blue-600 text-sm"
-                  }, `لغز رقم ${puzzleNumber} | Puzzle #${puzzleNumber}`)
-                ),
-                React.createElement('p', {
-                  className: "text-xs text-slate-400 mt-2"
-                }, 'Created by OPH')
-              ),
-
-              // Input Section
-              React.createElement('div', {
-                className: "mb-6"
-              },
-                React.createElement('div', {
-                  className: "flex justify-center gap-4 mb-4"
-                },
-                  ...userGuess.map((digit, index) =>
-                    React.createElement('input', {
-                      key: index,
-                      type: "text",
-                      value: digit,
-                      onChange: (e) => handleDigitChange(index, e.target.value),
-                      className: "w-16 h-16 text-2xl font-bold text-center border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none",
-                      maxLength: "1",
-                      disabled: isComplete
-                    })
-                  )
-                ),
-                React.createElement('div', {
-                  className: "flex gap-2 justify-center flex-wrap"
-                },
-                  React.createElement('button', {
-                    onClick: checkAnswer,
-                    disabled: userGuess.some(digit => digit === '') || isComplete,
-                    className: "bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
-                  }, 'تحقق / Check'),
-                  React.createElement('button', {
-                    onClick: resetGame,
-                    className: "bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-                  },
-                    React.createElement(RotateCcw, { size: 20 })
-                  ),
-                  React.createElement('button', {
-                    onClick: generateNewPuzzle,
-                    className: "bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2"
-                  },
-                    React.createElement(Shuffle, { size: 16 }),
-                    React.createElement('span', { className: "text-sm" }, 'لغز جديد')
-                  ),
-                  React.createElement('button', {
-                    onClick: () => setShowLeaderboard(true),
-                    className: "bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2"
-                  },
-                    React.createElement(Trophy, { size: 16 }),
-                    React.createElement('span', { className: "text-sm" }, 'المتصدرين')
-                  )
-                )
-              ),
-
-              // Success Message
-              isComplete && React.createElement('div', {
-                className: "bg-green-100 border-2 border-green-400 rounded-lg p-4 mb-6 text-center"
-              },
-                React.createElement(Check, {
-                  className: "mx-auto mb-2 text-green-600",
-                  size: 32
-                }),
-                React.createElement('p', {
-                  className: "text-green-800 font-bold"
-                }, '🎉 مبروك! فتحت القفل!'),
-                React.createElement('p', {
-                  className: "text-green-700"
-                }, 'Congratulations! You opened the lock!'),
-                React.createElement('p', {
-                  className: "text-green-600 text-sm mt-2"
-                }, `الجواب كان: ${currentPuzzle.answer.join('')} / Answer was: ${currentPuzzle.answer.join('')}`),
-                React.createElement('p', {
-                  className: "text-blue-600 text-sm mt-1 font-semibold"
-                }, `نقاطك: ${calculateScore(attempts.length + 1, Math.floor((Date.now() - startTime) / 1000))} / Your Score: ${calculateScore(attempts.length + 1, Math.floor((Date.now() - startTime) / 1000))}`)
-              ),
-
-              // Clues Section
-              React.createElement('div', {
-                className: "mb-6"
-              },
-                React.createElement('h3', {
-                  className: "text-lg font-bold text-slate-800 mb-4 text-center"
-                }, 'القرائن / Clues'),
-                React.createElement('div', {
-                  className: "space-y-3"
-                },
-                  ...currentPuzzle.clues.map((clue, index) =>
-                    React.createElement('div', {
-                      key: index,
-                      className: "bg-slate-50 rounded-lg p-3"
-                    },
-                      React.createElement('div', {
-                        className: "flex justify-center gap-2 mb-2"
-                      },
-                        ...clue.digits.map((digit, digitIndex) =>
-                          React.createElement('div', {
-                            key: digitIndex,
-                            className: "w-10 h-10 bg-white border-2 border-slate-300 rounded flex items-center justify-center font-bold text-slate-700"
-                          }, digit)
-                        )
-                      ),
-                      React.createElement('p', {
-                        className: "text-sm text-slate-600 text-center font-semibold"
-                      }, clue.hint),
-                      React.createElement('p', {
-                        className: "text-xs text-slate-500 text-center"
-                      }, clue.translation)
-                    )
-                  )
-                )
-              ),
-
-              // Attempts History
-              attempts.length > 0 && React.createElement('div', {
-                className: "mb-4"
-              },
-                React.createElement('h3', {
-                  className: "text-lg font-bold text-slate-800 mb-2"
-                }, 'المحاولات / Attempts'),
-                React.createElement('div', {
-                  className: "space-y-2 max-h-32 overflow-y-auto"
-                },
-                  ...attempts.slice(-5).map((attempt, index) =>
-                    React.createElement('div', {
-                      key: index,
-                      className: "flex items-center gap-2 text-sm"
-                    },
-                      React.createElement('div', {
-                        className: "flex gap-1"
-                      },
-                        ...attempt.guess.map((digit, digitIndex) =>
-                          React.createElement('span', {
-                            key: digitIndex,
-                            className: "w-6 h-6 bg-slate-200 rounded text-center text-xs flex items-center justify-center"
-                          }, digit)
-                        )
-                      ),
-                      attempt.correct ? 
-                        React.createElement(Check, {
-                          size: 16,
-                          className: "text-green-600"
-                        }) :
-                        React.createElement(X, {
-                          size: 16,
-                          className: "text-red-600"
-                        }),
-                      React.createElement('span', {
-                        className: "text-slate-500"
-                      }, attempt.timestamp)
-                    )
-                  )
-                )
-              ),
-
-              // Hint Button
-              React.createElement('div', {
-                className: "text-center"
-              },
-                React.createElement('button', {
-                  onClick: () => setShowHint(!showHint),
-                  className: "text-blue-600 hover:text-blue-800 text-sm underline"
-                }, showHint ? 'إخفاء التلميح / Hide Hint' : 'إظهار التلميح / Show Hint'),
-                showHint && React.createElement('div', {
-                  className: "mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm"
-                },
-                  React.createElement('p', {
-                    className: "text-yellow-800"
-                  }, '💡 فكر في كل قرينة بعناية. ابدأ بالقرائن التي تعطي معلومات أكثر تحديداً.'),
-                  React.createElement('p', {
-                    className: "text-yellow-700 text-xs mt-1"
-                  }, 'Think about each clue carefully. Start with clues that give more specific information.'),
-                  React.createElement('p', {
-                    className: "text-blue-700 text-xs mt-2 font-semibold"
-                  }, `نصيحة: الجواب الحالي يبدأ بالرقم ${currentPuzzle.answer[0]} / Current answer starts with ${currentPuzzle.answer[0]}`)
-                )
-              )
-            )
-          );
         };
 
-        ReactDOM.render(React.createElement(LockPuzzleGame), document.getElementById('root'));
+        ReactDOM.render(<LockPuzzleGame />, document.getElementById('root'));
     </script>
 </body>
 </html>
