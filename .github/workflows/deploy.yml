@@ -15,15 +15,29 @@ jobs:
       - name: Checkout 🛎️
         uses: actions/checkout@v3
 
-      - name: Replace Firebase Config ⚙️
+      - name: Replace Firebase Config and Verify ⚙️
         run: |
-          # The Firebase config secret can have newlines, which break sed.
-          # This command removes newlines and carriage returns to make it a single line.
+          echo "Checking if secret is set..."
+          if [ -z "${{ secrets.FIREBASE_CONFIG }}" ]; then
+            echo "::error::FIREBASE_CONFIG secret is not set or is empty."
+            exit 1
+          fi
+          echo "Secret is present."
+          
           CONFIG_JSON=$(echo "${{ secrets.FIREBASE_CONFIG }}" | tr -d '\n\r')
           
+          echo "Attempting to replace placeholder..."
           # Replace the placeholder token with the actual JS object string.
-          # We use a different delimiter (#) for sed to avoid conflicts with characters in the JSON string.
           sed -i "s#__FIREBASE_CONFIG_PLACEHOLDER__#${CONFIG_JSON}#g" index.html
+          
+          echo "Verifying replacement..."
+          # Check if the placeholder still exists. If it does, the replacement failed.
+          if grep -q "__FIREBASE_CONFIG_PLACEHOLDER__" index.html; then
+            echo "::error::Placeholder replacement failed. Please check your FIREBASE_CONFIG secret in GitHub settings. It might be formatted incorrectly."
+            exit 1
+          else
+            echo "Placeholder was replaced successfully."
+          fi
 
       - name: Deploy 🚀
         uses: JamesIves/github-pages-deploy-action@v4
