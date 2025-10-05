@@ -60,15 +60,28 @@
             // Firebase State
             const [db, setDb] = useState(null);
             const [isAuthReady, setIsAuthReady] = useState(false);
+            const [isOnlineMode, setIsOnlineMode] = useState(true); // Track online status
 
             // --- Firebase Initialization and Auth ---
             useEffect(() => {
                 try {
-                    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-                    if (Object.keys(firebaseConfig).length === 0) {
-                        console.error("Firebase config is missing or empty.");
+                    const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
+                    if (!firebaseConfigStr || firebaseConfigStr === '{}') {
+                        console.warn("Firebase config is missing. Running in offline mode.");
+                        setIsOnlineMode(false);
+                        setIsAuthReady(true); // Allow game to start in offline mode
                         return;
                     }
+                    
+                    const firebaseConfig = JSON.parse(firebaseConfigStr);
+
+                    if (Object.keys(firebaseConfig).length === 0) {
+                        console.warn("Firebase config is empty. Running in offline mode.");
+                        setIsOnlineMode(false);
+                        setIsAuthReady(true);
+                        return;
+                    }
+
                     if (!firebase.apps.length) {
                         firebase.initializeApp(firebaseConfig);
                     }
@@ -86,6 +99,7 @@
                                 }
                             } catch (error) {
                                 console.error("Firebase sign-in failed:", error);
+                                setIsOnlineMode(false); // Fallback to offline if auth fails
                             }
                         }
                         setIsAuthReady(true);
@@ -93,12 +107,14 @@
                     return () => unsubscribe();
                 } catch (e) {
                     console.error("Error initializing Firebase:", e);
+                    setIsOnlineMode(false);
+                    setIsAuthReady(true);
                 }
             }, []);
 
             // --- Real-time Leaderboard Listener ---
             useEffect(() => {
-                if (!isAuthReady || !db) return;
+                if (!isAuthReady || !db || !isOnlineMode) return;
                 
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
                 const leaderboardPath = `artifacts/${appId}/public/data/leaderboard`;
@@ -114,7 +130,7 @@
                 });
 
                 return () => unsubscribe();
-            }, [isAuthReady, db]);
+            }, [isAuthReady, db, isOnlineMode]);
 
             // --- Game Logic (unchanged) ---
             const generateRandomAnswer = () => Array.from({length: 3}, () => Math.floor(Math.random() * 10).toString());
@@ -210,7 +226,7 @@
             };
 
             const addToLeaderboard = async (score, timeInSeconds) => {
-                if (!db) return;
+                if (!db || !isOnlineMode) return;
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
                 const leaderboardPath = `artifacts/${appId}/public/data/leaderboard`;
                 
@@ -315,7 +331,7 @@
             
             // --- UI Rendering ---
             if (!isAuthReady) {
-                 return <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-4 text-white text-xl">Connecting to server...</div>;
+                 return <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-4 text-white text-xl">Loading Game...</div>;
             }
 
             if (!isNameSet) {
@@ -329,7 +345,10 @@
                                 <input type="text" value={playerName} onChange={(e) => setPlayerName(e.target.value)} placeholder="أدخل اسمك / Enter your name" className="w-full px-4 py-3 text-center border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none mb-4 text-lg" maxLength="20" />
                                 <button type="submit" disabled={!playerName.trim()} className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-3 rounded-lg font-semibold text-lg transition-colors">ابدأ اللعب / Start Playing</button>
                             </form>
-                            {leaderboard.length > 0 && <button onClick={() => setShowLeaderboard(true)} className="mt-4 text-blue-600 hover:text-blue-800 text-sm underline flex items-center justify-center gap-2 mx-auto"><Trophy size={16} />عرض المتصدرين / View Leaderboard</button>}
+                            <button onClick={() => setShowLeaderboard(true)} className="mt-4 text-blue-600 hover:text-blue-800 text-sm underline flex items-center justify-center gap-2 mx-auto disabled:text-gray-400 disabled:cursor-not-allowed" disabled={!isOnlineMode}>
+                                <Trophy size={16} />
+                                {isOnlineMode ? 'عرض المتصدرين / View Leaderboard' : 'المتصدرين (غير متصل) / Leaderboard (Offline)'}
+                            </button>
                         </div>
                     </div>
                 );
@@ -393,7 +412,10 @@
                                 <button onClick={checkAnswer} disabled={userGuess.some(d => d === '') || isComplete} className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-semibold transition-colors">تحقق / Check</button>
                                 <button onClick={resetGame} className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"><RotateCcw size={20} /></button>
                                 <button onClick={generateNewPuzzle} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2"><Shuffle size={16} /><span className="text-sm">لغز جديد</span></button>
-                                <button onClick={() => setShowLeaderboard(true)} className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2"><Trophy size={16} /><span className="text-sm">المتصدرين</span></button>
+                                <button onClick={() => setShowLeaderboard(true)} className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed" disabled={!isOnlineMode}>
+                                    <Trophy size={16} />
+                                    <span className="text-sm">{isOnlineMode ? 'المتصدرين' : 'غير متصل'}</span>
+                                </button>
                             </div>
                         </div>
 
@@ -463,3 +485,4 @@
     </script>
 </body>
 </html>
+
