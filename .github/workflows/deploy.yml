@@ -15,7 +15,7 @@ jobs:
       - name: Checkout 🛎️
         uses: actions/checkout@v3
 
-      - name: Replace Firebase Config and Verify ⚙️
+      - name: Debug Secret Content 🕵️
         run: |
           echo "Checking if secret is set..."
           if [ -z "${{ secrets.FIREBASE_CONFIG }}" ]; then
@@ -23,19 +23,25 @@ jobs:
             exit 1
           fi
           echo "Secret is present."
-          
+          SECRET_CONTENT="${{ secrets.FIREBASE_CONFIG }}"
+          echo "Secret content length: ${#SECRET_CONTENT}"
+          FIRST_CHARS=$(echo "$SECRET_CONTENT" | cut -c 1-15)
+          LAST_CHARS=$(echo "$SECRET_CONTENT" | rev | cut -c 1-15 | rev)
+          echo "Secret starts with: '$FIRST_CHARS...'"
+          echo "Secret ends with: '...$LAST_CHARS'"
+
+      - name: Replace Firebase Config and Verify ⚙️
+        run: |
           # Prepare the secret to be safely injected as a JSON object
           CONFIG_JSON=$(echo "${{ secrets.FIREBASE_CONFIG }}" | tr -d '\n\r')
           
           echo "Attempting to replace placeholder..."
           # Replace the simple placeholder string with the JSON object.
-          # Note we are replacing the version with quotes around it.
           sed -i "s|\"%%FIREBASE_CONFIG%%\"|${CONFIG_JSON}|g" index.html
           
           echo "Verifying replacement..."
-          # Check if the placeholder still exists. If it does, the replacement failed.
           if grep -q "%%FIREBASE_CONFIG%%" index.html; then
-            echo "::error::Placeholder replacement failed. Check your FIREBASE_CONFIG secret format."
+            echo "::error::Placeholder replacement failed. The secret's format is likely incorrect."
             exit 1
           else
             echo "Placeholder was replaced successfully."
