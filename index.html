@@ -1,488 +1,544 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="en" dir="ltr" data-boot="pending">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lock Puzzle Game</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' stroke-width='2' stroke='%233B82F6' fill='none' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='11' width='18' height='11' rx='2' ry='2'/><path d='M7 11V7a5 5 0 0 1 10 0v4'/></svg>">
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <!-- SENTRY. CSP must precede every script/stylesheet it governs. Meta CSP cannot carry frame-ancestors, report-uri or sandbox (GitHub Pages sends no headers); see docs/qa.md. The sha256 is the inline pre-paint script below: if that script changes by one byte, recompute it (recipe in docs/seo.md section 3). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-VJ6ocaVW/BWlbOUIOwLiQN8XvxOywRW1dEmTKoxMvsQ='; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://firestore.googleapis.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <!-- Sets lang/dir before first paint. Byte-exact: SENTRY hashes it for the CSP, so never reformat (docs/seo.md). -->
+  <script>try{var l=localStorage.getItem('lp1.lang')||(/^ar/i.test(navigator.language)?'ar':'en');document.documentElement.lang=l;document.documentElement.dir=l==='ar'?'rtl':'ltr'}catch(e){}</script>
+  <title>Lock Puzzle: Code-Cracking Logic Puzzle Game</title>
+  <meta name="description" content="Crack the code from logic clues in a pixel-art puzzle game. Play Classic at your own pace or race the clock in 3-minute Blood mode. English and Arabic.">
+  <link rel="canonical" href="https://op-h.github.io/lock-puzzle-game/">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <meta name="author" content="OPH">
+  <meta name="application-name" content="Lock Puzzle">
+  <meta name="theme-color" content="#12151C" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#D9DEEA" media="(prefers-color-scheme: light)">
+  <meta name="color-scheme" content="dark light">
 
-    <style>
-        body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
-        @keyframes pulse { 50% { opacity: .5; } }
-        .animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-    </style>
+  <link rel="icon" href="./assets/icons/favicon.svg" type="image/svg+xml" sizes="any">
+  <link rel="icon" href="./assets/icons/icon-192.png" type="image/png" sizes="192x192">
+  <link rel="icon" href="./assets/icons/icon-512.png" type="image/png" sizes="512x512">
+  <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" sizes="180x180">
+  <link rel="manifest" href="./manifest.webmanifest">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Lock Puzzle">
+  <meta property="og:title" content="Lock Puzzle: Code-Cracking Logic Puzzle Game">
+  <meta property="og:description" content="Crack the code from logic clues in a pixel-art puzzle game. Play Classic at your own pace or race the clock in 3-minute Blood mode. English and Arabic.">
+  <meta property="og:url" content="https://op-h.github.io/lock-puzzle-game/">
+  <meta property="og:image" content="https://op-h.github.io/lock-puzzle-game/assets/og.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Pixel-art vault door: a steel plate with four corner bolts, an amber four-spoke wheel and a green lamp, beside the words Lock Puzzle and Made by OPH on a dark blue background.">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="ar_AR">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Lock Puzzle: Code-Cracking Logic Puzzle Game">
+  <meta name="twitter:description" content="Crack the code from logic clues in a pixel-art puzzle game. Play Classic at your own pace or race the clock in 3-minute Blood mode. English and Arabic.">
+  <meta name="twitter:image" content="https://op-h.github.io/lock-puzzle-game/assets/og.png">
+  <meta name="twitter:image:alt" content="Pixel-art vault door: a steel plate with four corner bolts, an amber four-spoke wheel and a green lamp, beside the words Lock Puzzle and Made by OPH on a dark blue background.">
+
+  <!-- Same-origin font: crossorigin is required for font preloads or the file is fetched twice. -->
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/pixelify-sans-latin.woff2">
+  <link rel="modulepreload" href="./js/main.js">
+  <link rel="modulepreload" href="./js/i18n/en.js">
+  <link rel="modulepreload" href="./js/sync/sync.js">
+  <link rel="modulepreload" href="./js/sync/merge.js">
+  <link rel="modulepreload" href="./js/sync/identity.js">
+  <link rel="modulepreload" href="./js/ui/auth.js">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "@id": "https://op-h.github.io/lock-puzzle-game/#game",
+    "name": "Lock Puzzle",
+    "url": "https://op-h.github.io/lock-puzzle-game/",
+    "description": "A code-cracking logic puzzle game in pixel-art style that runs in the browser, with a Classic mode and a 3-minute Blood mode.",
+    "image": "https://op-h.github.io/lock-puzzle-game/assets/og.png",
+    "applicationCategory": "Game",
+    "gamePlatform": "Web browser",
+    "genre": ["Puzzle", "Logic"],
+    "playMode": "https://schema.org/SinglePlayer",
+    "inLanguage": ["en", "ar"],
+    "isAccessibleForFree": true,
+    "author": {
+      "@type": "Person",
+      "name": "OPH",
+      "sameAs": "https://github.com/op-h"
+    },
+    "creator": {
+      "@type": "Person",
+      "name": "OPH",
+      "sameAs": "https://github.com/op-h"
+    }
+  }
+  </script>
+
+  <link rel="stylesheet" href="./css/main.css">
+  <script type="module" src="./js/main.js"></script>
 </head>
 <body>
-    <div id="root"></div>
+  <!--
+    GRANITE markup notes (kept short; contract lives in docs/architecture.md):
+    - Every `div` below carries a comment saying why no native element fits.
+    - Dynamic sinks (data-out) and slots (data-slot) carry NO data-i18n: CIRCUIT writes their text via t().
+    - Class names used: .skip-link and .visually-hidden only (PRISM defines both).
+    - PRISM: an empty [data-error] / [data-out="msg"] must collapse (:empty { display: none }).
+  -->
+  <a class="skip-link" href="#main" data-i18n="chrome.skip">Skip to Main Content</a>
 
-    <script>
-        // Firebase configuration is now hardcoded directly into the application.
-        window.firebaseConfig = {
-          apiKey: "AIzaSyAHXQMCBK6NdEdBO4-msM7M0Mm6x-cDxNY",
-          authDomain: "lock-puzzle-game.firebaseapp.com",
-          projectId: "lock-puzzle-game",
-          storageBucket: "lock-puzzle-game.firebasestorage.app",
-          messagingSenderId: "884071011603",
-          appId: "1:884071011603:web:0a6cd0efaef45d3ba7f6e6",
-          measurementId: "G-X5GHFKLZDD"
-        };
-    </script>
+  <header>
+    <!-- TODO(content): "Lock Puzzle" is a working title, not a brand. Replace when a name is chosen. -->
+    <p class="lp-brand">
+      <svg class="lp-sprite" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-lock-closed"/></svg>
+      <span translate="no" data-i18n="brand.name">Lock Puzzle</span>
+    </p>
 
-    <script type="text/babel">
-        const { useState, useEffect } = React;
-        
-        // --- Icon Components ---
-        const Lock = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
-        const Check = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="20,6 9,17 4,12"/></svg>;
-        const X = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>;
-        const RotateCcw = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>;
-        const Shuffle = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polyline points="16,3 21,3 21,8"/><path d="M4 20 21 3"/><polyline points="21,16 21,21 16,21"/><path d="M15 15 21 21"/><path d="M4 4 9 9"/></svg>;
-        const Trophy = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55.47.98.97 1.21C12.04 18.75 13 20.24 13 22"/><path d="M14 14.66V17c0 .55-.47.98-.97 1.21C11.96 18.75 11 20.24 11 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>;
-        const User = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
-        const Lightbulb = ({ size = 24, className = "" }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lightbulb"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>;
+    <!-- lang attr is the TARGET language of the label; CIRCUIT must flip it together with the text. -->
+    <button type="button" data-action="lang" lang="ar" data-i18n="chrome.lang.toggle">العربية</button>
 
+    <!-- data-icon-on / data-icon-off: the <use href> CIRCUIT sets when sound is on / off. Shipped as speaker-off until JS reads the saved setting. -->
+    <button type="button" data-action="mute" aria-pressed="false" data-icon-on="./assets/sprites.svg#lp-speaker-on" data-icon-off="./assets/sprites.svg#lp-speaker-off">
+      <svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-speaker-off"/></svg>
+      <span data-i18n="chrome.mute">Sound</span>
+    </button>
 
-        const LockPuzzleGame = () => {
-            const [playerName, setPlayerName] = useState('');
-            const [isNameSet, setIsNameSet] = useState(false);
-            const [userGuess, setUserGuess] = useState(['', '', '']);
-            const [attempts, setAttempts] = useState([]);
-            const [isComplete, setIsComplete] = useState(false);
-            const [showHint, setShowHint] = useState(false);
-            const [currentPuzzle, setCurrentPuzzle] = useState(null);
-            const [puzzleNumber, setPuzzleNumber] = useState(1);
-            const [showLeaderboard, setShowLeaderboard] = useState(false);
-            const [leaderboard, setLeaderboard] = useState([]);
-            const [startTime, setStartTime] = useState(null);
+    <p class="lp-chip">
+      <svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-clock"/></svg>
+      <span data-i18n="chrome.sync.label">Save status:</span>
+      <!-- <output> has implicit role=status, so status changes are announced politely. -->
+      <output data-out="status"></output>
+    </p>
 
-            const [hintText, setHintText] = useState('');
-            const [hintCount, setHintCount] = useState(0);
-            const [hintUsedForScore, setHintUsedForScore] = useState(false);
-            
-            const [db, setDb] = useState(null);
-            const [isAuthReady, setIsAuthReady] = useState(false);
-            const [isOnlineMode, setIsOnlineMode] = useState(true);
+    <!-- Hidden while signed out; CIRCUIT removes `hidden` after sign-in. Native disclosure: works by keyboard with no JS. -->
+    <details data-account hidden>
+      <summary>
+        <svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-user"/></svg>
+        <span class="visually-hidden" data-i18n="chrome.account.label">Account:</span>
+        <span data-out="name"></span>
+      </summary>
+      <button type="button" data-action="logout" data-i18n="chrome.account.logout">Log Out</button>
+    </details>
+  </header>
 
-            // --- Firebase Initialization and Auth ---
-            useEffect(() => {
-                try {
-                    const config = window.firebaseConfig;
+  <main id="main" tabindex="-1">
 
-                    if (typeof config !== 'object' || !config.apiKey) {
-                        throw new Error("Firebase config is not valid.");
-                    }
+    <noscript>
+      <section aria-labelledby="noscript-title">
+        <h1 id="noscript-title">This game needs JavaScript to play</h1>
+        <p>Lock Puzzle is a code-cracking game that runs in your browser. Turn JavaScript on for this site and reload the page to play. The rules are below so you can read them without it.</p>
 
-                    if (!firebase.apps.length) {
-                        firebase.initializeApp(config);
-                    }
-                    setDb(firebase.firestore());
+        <h2>The Goal</h2>
+        <p>Every puzzle hides a code made of digits (3, 4, or 5&nbsp;digits, depending on difficulty). A set of clues is given. Exactly one code fits every clue. Work it out and enter it. Only the Agent difficulty can repeat a digit within a code; in every other difficulty all the digits are different. A guess that repeats a digit in those difficulties is not counted and costs nothing.</p>
 
-                    const auth = firebase.auth();
-                    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-                        if (!user) {
-                           try {
-                                await auth.signInAnonymously();
-                            } catch (error) {
-                                console.error("Firebase sign-in failed:", error);
-                                setIsOnlineMode(false);
-                            }
-                        }
-                        setIsAuthReady(true);
-                    });
-                    return () => unsubscribe();
-                } catch (e) {
-                    console.warn(`Could not initialize Firebase. Running in offline mode. Reason: ${e.message}`);
-                    setIsOnlineMode(false);
-                    setIsAuthReady(true);
-                }
-            }, []);
+        <h2>Reading the Clues</h2>
+        <dl>
+          <dt>Feedback clue</dt>
+          <dd>Shows a guess and how it scored, with pips and in words: how many of its digits are in the code and in the right place, and how many are in the code but in a different place. A digit that is not in the code scores nothing.</dd>
+          <dt>Sum clue</dt>
+          <dd>The digits of the code add up to the number shown.</dd>
+          <dt>Parity clue</dt>
+          <dd>The digit in the stated position is even or odd. Zero is even.</dd>
+          <dt>Compare clue</dt>
+          <dd>The digit in one position is greater than, or less than, the digit in another position.</dd>
+          <dt>Even-count clue</dt>
+          <dd>The number shown is how many digits of the code are even. Zero counts as even.</dd>
+        </dl>
+        <p>Positions count from the left, starting at 1: the first dial is the leftmost one.</p>
+        <p>Rookie puzzles use feedback clues only. Agent adds parity and sum clues. Hacker and Master use every clue type.</p>
 
-            // --- Real-time Leaderboard Listener ---
-            useEffect(() => {
-                if (!isAuthReady || !db || !isOnlineMode) return;
-                
-                const appId = 'lock-puzzle-game'; 
-                const leaderboardPath = `artifacts/${appId}/public/data/leaderboard`;
+        <h2>Worked Example</h2>
+        <p>A Rookie-style puzzle has 3 different digits and feedback clues only. This one has 4 clues.</p>
+        <ol>
+          <li>Guess 7 2 9: No digit is correct.</li>
+          <li>Guess 6 8 2: 1 digit is correct and in the right place.</li>
+          <li>Guess 1 5 9: 1 digit is correct and in the right place.</li>
+          <li>Guess 4 2 1: 2 digits are correct but in the wrong place.</li>
+        </ol>
+        <p>The first clue rules out 7, 2 and 9. In the fourth clue the 2 is already out, so the two correct digits are 4 and 1, and neither is where the guess put it: 4 is not first and 1 is not third. The third clue has one correct digit, in the right place, and its 9 is out. The 1 is in the code, so the 1 is that digit, and it is in the right place: first. That also means 5 is not in the code. The second clue has one correct digit, in the right place, and its 2 is out. The 6 cannot be first, because the 1 is there, and nothing in this clue is in a different place, so the 6 is not in the code. That leaves the 8, and it is second. The code starts 1 8, and the missing digit is the 4, third. The answer is 184.</p>
 
-                const unsubscribe = db.collection(leaderboardPath).onSnapshot(snapshot => {
-                    const leaderboardData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                    const sortedLeaderboard = leaderboardData.sort((a, b) => (b.totalScore || 0) - (a.totalScore || 0)).slice(0, 20);
-                    setLeaderboard(sortedLeaderboard);
-                }, error => {
-                    console.error("Error fetching leaderboard: ", error);
-                });
+        <h2>Scoring</h2>
+        <p>Each solved puzzle earns the base points for its difficulty, multiplied by a speed bonus, an accuracy factor and a hint factor.</p>
+        <ul>
+          <li>Speed bonus: starts at 2 and shrinks as time passes, but never falls below 0.5. The clock never stops while you play: switching tabs does not pause it.</li>
+          <li>Accuracy: each wrong guess lowers the factor by 8&nbsp;percentage points, to a minimum of 40&nbsp;percent.</li>
+          <li>Hint: using a hint cuts your points to 50&nbsp;percent.</li>
+        </ul>
+        <p>Illustrative numbers only: with base points of 100, a solve at the target time (the speed bonus is then 1.25) with one wrong guess (accuracy 0.92) and no hint scores 100&nbsp;×&nbsp;1.25&nbsp;×&nbsp;0.92 = 115&nbsp;points.</p>
+        <p>Classic points, Blood points (from Blood mode) and total points are always shown separately.</p>
 
-                return () => unsubscribe();
-            }, [isAuthReady, db, isOnlineMode]);
+        <h2>Blood Mode</h2>
+        <ul>
+          <li>A 3:00 countdown. Solve as many puzzles as you can before it reaches zero.</li>
+          <li>Every solve is worth ×2&nbsp;points.</li>
+          <li>A wrong guess takes 5&nbsp;seconds off the clock.</li>
+          <li>Skipping a puzzle takes 10&nbsp;seconds off the clock.</li>
+          <li>Hints are off.</li>
+          <li>Puzzles get harder as you solve more of them.</li>
+          <li>The puzzle in play when the clock hits zero is lost. Points for puzzles you already solved are kept.</li>
+        </ul>
 
-            // --- Game Logic ---
-            const generateRandomAnswer = () => Array.from({length: 3}, () => Math.floor(Math.random() * 10).toString());
-            const generateRandomCombination = (answer) => {
-                let combo;
-                do { combo = generateRandomAnswer(); } while (combo.join('') === answer.join(''));
-                return combo;
-            };
-            const analyzeClue = (combination, answer) => {
-                let correctPosition = 0;
-                let correctDigitWrongPosition = 0;
-                let usedAnswerIndices = [];
-                let usedComboIndices = [];
-                for (let i = 0; i < 3; i++) {
-                    if (combination[i] === answer[i]) {
-                        correctPosition++;
-                        usedAnswerIndices.push(i);
-                        usedComboIndices.push(i);
-                    }
-                }
-                for (let i = 0; i < 3; i++) {
-                    if (!usedComboIndices.includes(i)) {
-                        for (let j = 0; j < 3; j++) {
-                            if (!usedAnswerIndices.includes(j) && combination[i] === answer[j]) {
-                                correctDigitWrongPosition++;
-                                usedAnswerIndices.push(j);
-                                break;
-                            }
-                        }
-                    }
-                }
-                return { correctPosition, correctDigitWrongPosition };
-            };
-            const generateClueDescription = (analysis) => {
-                const { correctPosition, correctDigitWrongPosition } = analysis;
-                if (correctPosition === 0 && correctDigitWrongPosition === 0) return { hint: 'لا شيء صحيح', translation: 'Nothing is correct' };
-                if (correctPosition === 1 && correctDigitWrongPosition === 0) return { hint: 'رقم واحد صحيح وفي المكان الصحيح', translation: 'One digit correct and in right place' };
-                if (correctPosition === 0 && correctDigitWrongPosition === 1) return { hint: 'رقم واحد صحيح ولكن في المكان الخطأ', translation: 'One digit correct but in wrong place' };
-                if (correctPosition === 0 && correctDigitWrongPosition === 2) return { hint: 'رقمان صحيحان ولكن في المكان الخطأ', translation: 'Two digits correct but in wrong place' };
-                if (correctPosition === 1 && correctDigitWrongPosition === 1) return { hint: 'رقم واحد صحيح وفي المكان الصحيح، ورقم آخر صحيح ولكن في المكان الخطأ', translation: 'One correct and in right place, one correct but in wrong place' };
-                if (correctPosition === 2 && correctDigitWrongPosition === 0) return { hint: 'رقمان صحيحان وفي المكان الصحيح', translation: 'Two digits correct and in right place' };
-                if (correctPosition === 0 && correctDigitWrongPosition === 3) return { hint: 'كل الأرقام صحيحة ولكن في المكان الخطأ', translation: 'All digits correct but in wrong places' };
-                return { hint: 'تحليل معقد', translation: 'Complex analysis' };
-            };
-            const generatePuzzle = () => {
-                const answer = generateRandomAnswer();
-                const clues = [];
-                const createdAnalyses = new Set();
-                
-                while (clues.length < 5) {
-                    let combination = generateRandomCombination(answer);
-                    let analysis = analyzeClue(combination, answer);
-                    let analysisKey = `${analysis.correctPosition}-${analysis.correctDigitWrongPosition}`;
+        <p>Made by <a href="https://github.com/op-h" rel="noopener" translate="no">OPH</a></p>
+      </section>
+    </noscript>
 
-                    if (!createdAnalyses.has(analysisKey) || clues.length >= 4) { // Get more variety
-                        const clueDesc = generateClueDescription(analysis);
-                        clues.push({ digits: combination, hint: clueDesc.hint, translation: clueDesc.translation });
-                        createdAnalyses.add(analysisKey);
-                    }
-                }
-                return { answer: answer, clues: clues.sort(() => Math.random() - 0.5) }; // Shuffle clues
-            };
+    <!-- ===== AUTH (visible by default so first paint is never blank) ===== -->
+    <section data-screen="auth" aria-labelledby="auth-title">
+      <h1 id="auth-title" tabindex="-1" data-i18n="auth.title">Welcome to Lock Puzzle</h1>
+      <!-- Decorative hero. -->
+      <span class="lp-vault-door" aria-hidden="true"><svg class="lp-sprite" aria-hidden="true" focusable="false" width="96" height="96"><use href="./assets/sprites.svg#lp-vault-door"/></svg></span>
+      <p data-i18n="auth.intro">Create a player with just a name. You get a 6-digit code that lets you continue on any device.</p>
+      <p id="auth-privacy" data-i18n="auth.privacy">Use a nickname, not your full real name. Your name can be seen on the leaderboard.</p>
 
-            useEffect(() => {
-                if (isNameSet && !currentPuzzle) {
-                    setCurrentPuzzle(generatePuzzle());
-                    setStartTime(Date.now());
-                }
-            }, [isNameSet, currentPuzzle]);
+      <form data-form="signup" novalidate aria-labelledby="signup-title">
+        <h2 id="signup-title" data-i18n="auth.signup.title">Create a Player</h2>
+        <p>
+          <label for="signup-name" data-i18n="auth.name.label">Player name</label>
+          <input id="signup-name" name="name" type="text" data-field="name" autocomplete="username" maxlength="20" required spellcheck="false" autocapitalize="off" aria-describedby="signup-name-hint signup-error">
+        </p>
+        <p id="signup-name-hint" data-i18n="auth.name.hint">Up to 20&nbsp;characters. Pick a nickname, not your full real name.</p>
+        <!-- Icon is a sibling of the live region, never inside it: CIRCUIT writes the region via textContent. PRISM shows it only while the region is non-empty. -->
+        <p class="lp-error"><svg class="lp-icon lp-icon--when-error" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-x"/></svg><span id="signup-error" data-error role="alert"></span></p>
+        <p>
+          <button type="submit" data-action="signup" data-i18n="auth.signup.submit">Create Player and Get Code</button>
+        </p>
+        <p>
+          <button type="button" data-action="show-signin" data-i18n="auth.signup.toSignin">Sign In With a Code</button>
+        </p>
+      </form>
 
-            // --- Game Actions ---
-            const generateNewPuzzle = () => {
-                setCurrentPuzzle(generatePuzzle());
-                setPuzzleNumber(prev => prev + 1);
-                setUserGuess(['', '', '']);
-                setAttempts([]);
-                setIsComplete(false);
-                setShowHint(false);
-                setHintText('');
-                setHintCount(0);
-                setHintUsedForScore(false);
-                setStartTime(Date.now());
-            };
-            
-            const calculatePuzzleScore = (attemptCount, timeInSeconds) => {
-                const baseScore = 1000;
-                const attemptPenalty = attemptCount * 50;
-                const timePenalty = Math.floor(timeInSeconds / 10) * 5;
-                const score = Math.max(100, baseScore - attemptPenalty - timePenalty);
-                // If a hint was used, halve the score for this puzzle.
-                return hintUsedForScore ? Math.floor(score / 2) : score;
-            };
+      <form data-form="signin" novalidate hidden aria-labelledby="signin-title">
+        <h2 id="signin-title" data-i18n="auth.signin.title">Sign In</h2>
+        <p>
+          <label for="signin-name" data-i18n="auth.name.label">Player name</label>
+          <input id="signin-name" name="name" type="text" data-field="name" autocomplete="username" maxlength="20" required spellcheck="false" autocapitalize="off" aria-describedby="signin-error">
+        </p>
+        <p>
+          <label for="signin-code" data-i18n="auth.code.label">6-digit code</label>
+          <input id="signin-code" name="code" type="text" data-field="code" inputmode="numeric" maxlength="12" autocomplete="one-time-code" required spellcheck="false" autocapitalize="off" aria-describedby="signin-code-hint signin-error">
+        </p>
+        <p id="signin-code-hint" data-i18n="auth.code.hint">The code you were given when you created this player. It cannot be recovered.</p>
+        <!-- Icon is a sibling of the live region, never inside it: CIRCUIT writes the region via textContent. PRISM shows it only while the region is non-empty. -->
+        <p class="lp-error"><svg class="lp-icon lp-icon--when-error" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-x"/></svg><span id="signin-error" data-error role="alert"></span></p>
+        <p>
+          <button type="submit" data-action="signin" data-i18n="auth.signin.submit">Sign In</button>
+        </p>
+        <p>
+          <button type="button" data-action="show-signup" data-i18n="auth.signin.toSignup">Create a New Player Instead</button>
+        </p>
+      </form>
 
-            const addToLeaderboard = async (puzzleScore, timeInSeconds) => {
-                if (!db || !isOnlineMode) return;
-                const appId = 'lock-puzzle-game';
-                const leaderboardRef = db.collection(`artifacts/${appId}/public/data/leaderboard`);
+      <p>
+        <button type="button" data-action="show-help" data-i18n="auth.help">How to Play</button>
+      </p>
+    </section>
 
-                try {
-                    // Query for an existing player with the same name
-                    const querySnapshot = await leaderboardRef.where("name", "==", playerName).limit(1).get();
+    <!-- ===== HOME ===== -->
+    <section data-screen="home" hidden aria-labelledby="home-title">
+      <h1 id="home-title" tabindex="-1" data-i18n="home.title">Pick a Mode</h1>
+      <span class="lp-vault-door" aria-hidden="true"><svg class="lp-sprite" aria-hidden="true" focusable="false" width="96" height="96"><use href="./assets/sprites.svg#lp-vault-door"/></svg></span>
+      <p>
+        <span data-i18n="home.signedInAs">Signed in as</span>
+        <strong data-out="name"></strong>
+      </p>
 
-                    if (!querySnapshot.empty) {
-                        // Player exists, update their document
-                        const playerDoc = querySnapshot.docs[0];
-                        const playerData = playerDoc.data();
-                        
-                        await playerDoc.ref.update({
-                            totalScore: (playerData.totalScore || 0) + puzzleScore,
-                            puzzlesSolved: (playerData.puzzlesSolved || 0) + 1,
-                            totalTime: (playerData.totalTime || 0) + timeInSeconds,
-                            lastPlayed: new Date().toISOString()
-                        });
-                    } else {
-                        // Player does not exist, create a new entry
-                        const newEntry = {
-                            name: playerName,
-                            totalScore: puzzleScore,
-                            puzzlesSolved: 1,
-                            totalTime: timeInSeconds,
-                            lastPlayed: new Date().toISOString()
-                        };
-                        await leaderboardRef.add(newEntry);
-                    }
-                } catch (error) {
-                    console.error("Error updating leaderboard:", error);
-                }
-            };
-            
-            const handleDigitChange = (index, value) => {
-                if (value.length <= 1 && /^[0-9]*$/.test(value)) {
-                    const newGuess = [...userGuess];
-                    newGuess[index] = value;
-                    setUserGuess(newGuess);
-                }
-            };
+      <section aria-labelledby="home-points-title">
+        <h2 id="home-points-title" data-i18n="home.points.title">Your Points</h2>
+        <dl>
+          <dt data-i18n="home.points.classic">Classic points</dt>
+          <dd><span data-out="classic">0</span></dd>
+          <dt data-mode="blood"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-drop"/></svg><span data-i18n="home.points.blood">Blood points (from Blood mode)</span></dt>
+          <dd data-mode="blood"><span data-out="blood">0</span></dd>
+          <dt><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-trophy"/></svg><span data-i18n="home.points.total">Total points</span></dt>
+          <dd><span data-out="total">0</span></dd>
+        </dl>
+      </section>
 
-            const checkAnswer = () => {
-                if (!currentPuzzle || userGuess.some(digit => digit === '')) return;
-                const isCorrect = userGuess.join('') === currentPuzzle.answer.join('');
-                
-                const newAttempt = { guess: [...userGuess], correct: isCorrect, timestamp: new Date().toLocaleTimeString() };
-                const updatedAttempts = [...attempts, newAttempt];
-                setAttempts(updatedAttempts);
-                
-                if (isCorrect) {
-                    setIsComplete(true);
-                    const timeInSeconds = Math.floor((Date.now() - startTime) / 1000);
-                    const score = calculatePuzzleScore(updatedAttempts.length, timeInSeconds);
-                    addToLeaderboard(score, timeInSeconds);
-                }
-            };
+      <section aria-labelledby="home-play-title">
+        <h2 id="home-play-title" data-i18n="home.play.title">Play</h2>
 
-            const resetGame = () => {
-                setUserGuess(['', '', '']);
-                setAttempts([]);
-                setIsComplete(false);
-                setShowHint(false);
-                setHintText('');
-                setStartTime(Date.now());
-            };
+        <fieldset>
+          <legend data-i18n="home.difficulty.legend">Difficulty (Classic mode)</legend>
+          <!-- CIRCUIT renders <li><input type="radio"> + <label></li> here. -->
+          <ul data-slot="difficulty-picker"></ul>
+          <p data-i18n="home.difficulty.note">Blood mode picks difficulty for you and gets harder as you solve.</p>
+        </fieldset>
 
-            const handleNameSubmit = (e) => {
-                e.preventDefault();
-                if (playerName.trim()) {
-                    setIsNameSet(true);
-                }
-            };
+        <ul>
+          <li>
+            <button type="button" data-action="play-classic" aria-describedby="home-classic-desc" data-i18n="home.classic.button">Play Classic</button>
+            <p id="home-classic-desc" data-i18n="home.classic.desc">No time limit. Faster solves, fewer wrong guesses and no hint score more points.</p>
+          </li>
+          <li>
+            <button type="button" data-action="play-blood" data-mode="blood" aria-describedby="home-blood-desc"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-skull"/></svg><span data-i18n="home.blood.button">Play Blood</span></button>
+            <p id="home-blood-desc" data-i18n="home.blood.desc">3:00 countdown, ×2&nbsp;points, wrong guess −5&nbsp;s, skip −10&nbsp;s, no hints.</p>
+          </li>
+        </ul>
+      </section>
 
-            // --- Simple Hint Generation with Penalty ---
-            const handleHintToggle = () => {
-                // If the hint is already visible, just hide it.
-                if (showHint) {
-                    setShowHint(false);
-                    return;
-                }
+      <section aria-labelledby="home-history-title">
+        <h2 id="home-history-title" data-i18n="home.history.title">Recent Rounds</h2>
+        <!-- CIRCUIT renders <li>; each line must name its source (Classic or Blood points (from Blood mode)). -->
+        <ul data-slot="history"></ul>
+      </section>
 
-                // If no hints are left, show a message and do nothing else.
-                if (hintCount >= 1) {
-                    setHintText("لقد استنفدت تلميحك لهذا اللغز. / You have used your hint for this puzzle.");
-                    setShowHint(true);
-                    return;
-                }
+      <nav aria-labelledby="home-more-title">
+        <h2 id="home-more-title" class="visually-hidden" data-i18n="home.more.title">More</h2>
+        <ul>
+          <li><button type="button" data-action="show-board"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-trophy"/></svg><span data-i18n="home.more.board">Leaderboard</span></button></li>
+          <li><button type="button" data-action="show-help" data-i18n="home.more.help">How to Play</button></li>
+        </ul>
+      </nav>
+    </section>
 
-                // Generate and show hint, applying penalties.
-                setShowHint(true);
-                setHintUsedForScore(true); // Apply score penalty.
-                setHintCount(prev => prev + 1); // Use up the hint.
+    <!-- ===== PLAY ===== -->
+    <section data-screen="play" hidden aria-labelledby="play-title">
+      <h1 id="play-title" tabindex="-1" data-i18n="play.title">Crack the Lock</h1>
+      <!-- The wrapper owns the frame; [data-mode-badge] stays a pure text sink. Skull shows only in Blood (PRISM, via body[data-mode]). -->
+      <p class="lp-badge"><svg class="lp-icon lp-icon--when-blood" data-mode="blood" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-skull"/></svg><span data-mode-badge></span></p>
 
-                const hintPositionIndex = Math.floor(Math.random() * 3);
-                const hintDigit = currentPuzzle.answer[hintPositionIndex];
-                const positionWordArabic = ['الأول', 'الثاني', 'الثالث'][hintPositionIndex];
-                const positionWordEnglish = ['first', 'second', 'third'][hintPositionIndex];
+      <dl>
+        <dt data-i18n="play.puzzle">Puzzle</dt>
+        <dd><span data-out="puzzle-no"></span></dd>
+        <dt data-i18n="play.difficulty">Difficulty</dt>
+        <dd><span data-out="difficulty"></span></dd>
+        <dt id="play-timer-label" data-i18n="play.timer">Time</dt>
+        <dd>
+          <!-- Both glyphs shipped; PRISM shows the clock, and the skull while [data-timer-bar][data-phase="last30|last10"]. -->
+          <svg class="lp-icon lp-timer-icon" aria-hidden="true" focusable="false" width="32" height="32"><use class="lp-timer-icon__clock" href="./assets/sprites.svg#lp-clock"/><use class="lp-timer-icon__skull" href="./assets/sprites.svg#lp-skull"/></svg>
+          <output data-out="timer" role="timer" aria-labelledby="play-timer-label">0:00</output>
+          <!-- Graphic only. CIRCUIT sets --lp-timer-left (0..18) and data-phase; CSS draws the 18 segments. -->
+          <span data-timer-bar data-phase="normal" aria-hidden="true"></span>
+        </dd>
+        <dt data-i18n="play.attempts">Wrong guesses</dt>
+        <dd><span data-out="attempts-left"></span></dd>
+      </dl>
+      <!-- Announces the clock only at 2:00, 1:00, 0:30, 0:10 and 0:00. Visually hidden on purpose. -->
+      <p class="visually-hidden" data-live="timer-sr" aria-live="polite" aria-atomic="true"></p>
 
-                const hint = `الرقم في المكان الـ${positionWordArabic} هو ${hintDigit}. / The digit in the ${positionWordEnglish} position is ${hintDigit}.`;
-                
-                setHintText(hint);
-            };
-            
-            // --- UI Rendering ---
-            if (!isAuthReady) {
-                 return <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-4 text-white text-xl">Loading Game...</div>;
-            }
+      <section aria-labelledby="play-clues-title">
+        <h2 id="play-clues-title" data-i18n="play.clues.title">Clues</h2>
+        <ol data-slot="clues" aria-labelledby="play-clues-title"></ol>
+      </section>
 
-            if (!isNameSet) {
-                return (
-                    <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
-                            <div className="flex justify-center mb-6"><div className="bg-slate-700 p-4 rounded-full"><User size={48} className="text-white" /></div></div>
-                            <h1 className="text-2xl font-bold text-slate-800 mb-2">مرحباً بك في لعبة القفل</h1>
-                            <p className="text-slate-600 mb-6">Welcome to Lock Puzzle Game</p>
-                            <form onSubmit={handleNameSubmit}>
-                                <input type="text" value={playerName} onChange={(e) => setPlayerName(e.target.value)} placeholder="أدخل اسمك / Enter your name" className="w-full px-4 py-3 text-center border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none mb-4 text-lg" maxLength="20" />
-                                <button type="submit" disabled={!playerName.trim()} className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-3 rounded-lg font-semibold text-lg transition-colors">ابدأ اللعب / Start Playing</button>
-                            </form>
-                            <button onClick={() => setShowLeaderboard(true)} className="mt-4 text-blue-600 hover:text-blue-800 text-sm underline flex items-center justify-center gap-2 mx-auto disabled:text-gray-400 disabled:cursor-not-allowed" disabled={!isOnlineMode}>
-                                <Trophy size={16} />
-                                {isOnlineMode ? 'عرض المتصدرين / View Leaderboard' : 'المتصدرين (غير متصل) / Leaderboard (Offline)'}
-                            </button>
-                        </div>
-                    </div>
-                );
-            }
+      <!-- Sits before the guess dock because that is where it is drawn (narrow layout), so Tab order matches what you see. -->
+      <p>
+        <button type="button" data-action="quit" data-i18n="play.quit">Quit Round</button>
+      </p>
 
-            if (showLeaderboard) {
-                return (
-                    <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full">
-                            <div className="text-center mb-6">
-                                <div className="flex justify-center mb-4"><div className="bg-yellow-500 p-4 rounded-full"><Trophy size={48} className="text-white" /></div></div>
-                                <h1 className="text-2xl font-bold text-slate-800 mb-2">لوحة المتصدرين / Leaderboard</h1>
-                            </div>
-                            <div className="max-h-96 overflow-y-auto mb-6">
-                                {leaderboard.length === 0 ? <p className="text-center text-slate-500">لا توجد نتائج بعد / No results yet</p> :
-                                    leaderboard.map((entry, index) => (
-                                        <div key={entry.id} className={`flex items-center justify-between p-3 rounded-lg mb-2 ${index < 3 ? 'bg-gradient-to-r from-yellow-50 to-yellow-100 border-2 border-yellow-200' : 'bg-slate-50'}`}>
-                                            <div className="flex items-center gap-3">
-                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-yellow-600' : 'bg-slate-400'}`}>{index + 1}</div>
-                                                <div>
-                                                    <p className="font-semibold text-slate-800">{entry.name}</p>
-                                                    <p className="text-xs text-slate-500">{`الألغاز المحلولة: ${entry.puzzlesSolved || 0} | الوقت الإجمالي: ${entry.totalTime || 0}ث`}</p>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="font-bold text-lg text-blue-600">{entry.totalScore || 0}</p>
-                                                <p className="text-xs text-slate-500">{entry.lastPlayed ? new Date(entry.lastPlayed).toLocaleString() : 'N/A'}</p>
-                                            </div>
-                                        </div>
-                                    ))
-                                }
-                            </div>
-                            <button onClick={() => setShowLeaderboard(false)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors">العودة للعبة / Back to Game</button>
-                        </div>
-                    </div>
-                );
-            }
+      <section aria-labelledby="play-guess-title">
+        <h2 id="play-guess-title" data-i18n="play.guess.title">Your Guess</h2>
+        <p id="play-guess-help" data-i18n="play.guess.help">Tap a dial, then use the keypad. With a keyboard, type digits, use the arrow keys to move between dials, Backspace to delete and Enter to check.</p>
+        <!-- div: CIRCUIT replaces this slot's children with dial buttons, so a fieldset/legend would be wiped. role=group names the set. -->
+        <div role="group" aria-labelledby="play-guess-title" aria-describedby="play-guess-help" data-slot="dials"></div>
+        <!-- Static so the list keeps one stable name. CIRCUIT fills it with <li> and sets the same aria-label again on render. PRISM: an empty list should take no space. -->
+        <ol data-slot="attempts" data-i18n-attr="aria-label:play.attempts.list" aria-label="Wrong guesses so far"></ol>
+        <!-- div: same reason as above (slot content is fully rendered by CIRCUIT). -->
+        <div role="group" data-i18n-attr="aria-label:play.keypad.label" aria-label="Keypad" data-slot="keypad"></div>
 
-            if (!currentPuzzle) {
-                return <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center"><div className="text-white text-xl">جاري تحضير اللغز... / Loading puzzle...</div></div>;
-            }
+        <!-- <menu> is the semantic list of commands. -->
+        <menu>
+          <li><button type="button" data-action="clear" data-i18n="play.clear">Clear</button></li>
+          <li><button type="button" data-action="check" data-i18n="play.check">Check</button></li>
+          <li><button type="button" data-action="skip" data-i18n="play.skip">Skip Puzzle</button></li>
+          <li><button type="button" data-action="hint"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-bulb"/></svg><span data-i18n="play.hint">Hint (Half Points)</span></button></li>
+        </menu>
 
-            return (
-                <div className="min-h-screen bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
-                        <div className="text-center mb-8">
-                            <div className="flex justify-center mb-4"><div className="bg-slate-700 p-4 rounded-full"><Lock size={48} className="text-white" /></div></div>
-                            <h1 className="text-2xl font-bold text-slate-800 mb-2">هل تستطيع فتح القفل؟</h1>
-                            <p className="text-slate-600">Can you open the lock?</p>
-                            <div className="bg-blue-50 rounded-lg p-2 mt-3">
-                                <p className="text-blue-800 font-semibold">{`🎮 اللاعب: ${playerName} | Player: ${playerName}`}</p>
-                                <p className="text-blue-600 text-sm">{`لغز رقم ${puzzleNumber} | Puzzle #${puzzleNumber}`}</p>
-                            </div>
-                        </div>
+        <!-- Lock host: both symbols present, CSS shows one by data-lock (idle|success|fail). -->
+        <span data-lock="idle" class="lp-lock" aria-hidden="true"><svg class="lp-sprite" aria-hidden="true" focusable="false" width="64" height="64"><use class="lp-lock__closed" href="./assets/sprites.svg#lp-lock-closed"/><use class="lp-lock__open" href="./assets/sprites.svg#lp-lock-open"/></svg></span>
+        <p data-live="status" aria-live="polite" aria-atomic="true"><span data-out="msg"></span></p>
+      </section>
+    </section>
 
-                        <div className="mb-6">
-                            <div className="flex justify-center gap-4 mb-4">
-                                {userGuess.map((digit, index) => <input key={index} type="text" value={digit} onChange={(e) => handleDigitChange(index, e.target.value)} className="w-16 h-16 text-2xl font-bold text-center border-2 border-slate-300 rounded-lg focus:border-blue-500 focus:outline-none" maxLength="1" disabled={isComplete} />)}
-                            </div>
-                            <div className="flex gap-2 justify-center flex-wrap">
-                                <button onClick={checkAnswer} disabled={userGuess.some(d => d === '') || isComplete} className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-semibold transition-colors">تحقق / Check</button>
-                                <button onClick={resetGame} className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"><RotateCcw size={20} /></button>
-                                <button onClick={generateNewPuzzle} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2"><Shuffle size={16} /><span className="text-sm">لغز جديد</span></button>
-                                <button onClick={() => setShowLeaderboard(true)} className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2 disabled:bg-gray-400 disabled:cursor-not-allowed" disabled={!isOnlineMode}>
-                                    <Trophy size={16} />
-                                    <span className="text-sm">{isOnlineMode ? 'المتصدرين' : 'غير متصل'}</span>
-                                </button>
-                            </div>
-                        </div>
+    <!-- ===== RESULT (classic puzzle result and Blood run summary) ===== -->
+    <section data-screen="result" hidden aria-labelledby="result-title">
+      <h1 id="result-title" tabindex="-1" data-i18n="result.title">Round Result</h1>
+      <span data-lock="idle" class="lp-lock" aria-hidden="true"><svg class="lp-sprite" aria-hidden="true" focusable="false" width="64" height="64"><use class="lp-lock__closed" href="./assets/sprites.svg#lp-lock-closed"/><use class="lp-lock__open" href="./assets/sprites.svg#lp-lock-open"/></svg></span>
+      <!-- The wrapper owns the frame; [data-mode-badge] stays a pure text sink. Skull shows only in Blood (PRISM, via body[data-mode]). -->
+      <p class="lp-badge"><svg class="lp-icon lp-icon--when-blood" data-mode="blood" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-skull"/></svg><span data-mode-badge></span></p>
+      <!-- Stamp icon: CIRCUIT retargets the <use href> to data-icon-ok (Classic) / data-icon-blood (Blood run) by mode. -->
+      <p class="lp-stamp"><svg class="lp-icon" data-icon-ok="./assets/sprites.svg#lp-check" data-icon-blood="./assets/sprites.svg#lp-skull" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-check"/></svg><span data-out="msg"></span></p>
 
-                        {isComplete &&
-                            <div className="bg-green-100 border-2 border-green-400 rounded-lg p-4 mb-6 text-center">
-                                <Check className="mx-auto mb-2 text-green-600" size={32} />
-                                <p className="text-green-800 font-bold">🎉 مبروك! فتحت القفل!</p>
-                                <p className="text-green-700">Congratulations! You opened the lock!</p>
-                                <p className="text-green-600 text-sm mt-2">{`الجواب كان: ${currentPuzzle.answer.join('')} / Answer was: ${currentPuzzle.answer.join('')}`}</p>
-                                <p className="text-blue-600 text-sm mt-1 font-semibold">{`نقاط هذا اللغز: ${calculatePuzzleScore(attempts.length, Math.floor((Date.now() - startTime) / 1000))}`}</p>
-                            </div>
-                        }
+      <section aria-labelledby="result-lines-title">
+        <h2 id="result-lines-title" data-i18n="result.lines.title">Points Earned</h2>
+        <!-- CIRCUIT renders <li>; every line states its source: "Classic" or "Blood points (from Blood mode)". -->
+        <ul data-slot="result-lines"></ul>
+      </section>
 
-                        <div className="mb-6">
-                            <h3 className="text-lg font-bold text-slate-800 mb-4 text-center">القرائن / Clues</h3>
-                            <div className="space-y-3">
-                                {currentPuzzle.clues.map((clue, index) =>
-                                    <div key={index} className="bg-slate-50 rounded-lg p-3">
-                                        <div className="flex justify-center gap-2 mb-2">
-                                            {clue.digits.map((digit, i) => <div key={i} className="w-10 h-10 bg-white border-2 border-slate-300 rounded flex items-center justify-center font-bold text-slate-700">{digit}</div>)}
-                                        </div>
-                                        <p className="text-sm text-slate-600 text-center font-semibold">{clue.hint}</p>
-                                        <p className="text-xs text-slate-500 text-center">{clue.translation}</p>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                        
-                        {attempts.length > 0 &&
-                            <div className="mb-4">
-                                <h3 className="text-lg font-bold text-slate-800 mb-2">المحاولات / Attempts</h3>
-                                <div className="space-y-2 max-h-32 overflow-y-auto p-2 bg-gray-50 rounded-md">
-                                    {attempts.slice().reverse().map((attempt, index) =>
-                                        <div key={index} className="flex items-center justify-between text-sm">
-                                            <div className="flex items-center gap-2">
-                                               <span className="text-xs text-gray-400">#{attempts.length - index}</span>
-                                               <div className="flex gap-1 font-mono tracking-widest">{attempt.guess.join('')}</div>
-                                               {attempt.correct ? <Check size={16} className="text-green-600" /> : <X size={16} className="text-red-600" />}
-                                            </div>
-                                            <span className="text-slate-500 text-xs">{attempt.timestamp}</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        }
-                        
-                        <div className="text-center border-t pt-4 mt-4">
-                             {hintCount < 1 ? (
-                                <p className="text-sm text-slate-500 mb-2">
-                                    تلميح واحد متاح (يخصم 50% من النقاط). / 1 hint available (costs 50% of score).
-                                </p>
-                            ) : (
-                                <p className="text-sm text-red-500 mb-2">
-                                    لقد استخدمت تلميحك لهذا اللغز. / You have used your hint for this puzzle.
-                                </p>
-                            )}
-                            <button 
-                                onClick={handleHintToggle} 
-                                disabled={isComplete || (hintCount >= 1 && !showHint)}
-                                className="text-blue-600 hover:text-blue-800 text-sm font-semibold flex items-center justify-center gap-2 mx-auto disabled:text-gray-400 disabled:cursor-not-allowed">
-                                <Lightbulb size={16} />
-                                {showHint ? 'إخفاء التلميح / Hide Hint' : 'احصل على تلميح / Get Hint'}
-                            </button>
-                            {showHint && hintText &&
-                                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm transition-all">
-                                    <p className="text-yellow-800">{`💡 ${hintText}`}</p>
-                                    {hintUsedForScore && <p className="text-red-600 text-xs mt-1 font-semibold">تم خصم 50% من نقاطك النهائية لهذا اللغز. / 50% of your final score for this puzzle has been deducted.</p>}
-                                </div>
-                            }
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-        ReactDOM.render(<LockPuzzleGame />, document.getElementById('root'));
-    </script>
+      <dl>
+        <dt data-i18n="result.score">Score this round</dt>
+        <dd><span data-out="score">0</span></dd>
+        <dt data-mode="blood"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-drop"/></svg><span data-i18n="result.bloodpoints">Blood points (from Blood mode)</span></dt>
+        <dd data-mode="blood"><span data-out="bloodpoints">0</span></dd>
+      </dl>
+
+      <menu>
+        <li><button type="button" data-action="next" data-i18n="result.nextClassic">Next Puzzle</button></li>
+        <li><button type="button" data-action="retry" data-i18n="result.retryBlood">Start a New Run</button></li>
+        <li><button type="button" data-action="go-home" data-i18n="result.home">Back to Home</button></li>
+      </menu>
+    </section>
+
+    <!-- ===== BOARD ===== -->
+    <section data-screen="board" hidden aria-labelledby="board-title">
+      <h1 id="board-title" tabindex="-1"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-trophy"/></svg><span data-i18n="board.title">Leaderboard</span></h1>
+      <p data-i18n="board.note">Scores are reported by players’ own devices and are not verified.</p>
+
+      <!-- div: no native element has the tablist role. Roving tabindex: only the selected tab has tabindex=0. -->
+      <div role="tablist" data-i18n-attr="aria-label:board.tabs.label" aria-label="Leaderboard views">
+        <button type="button" role="tab" id="board-tab-all" data-tab="all" aria-selected="true" aria-controls="board-panel" tabindex="0"><svg class="lp-icon lp-icon--when-selected" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-check"/></svg><span data-i18n="board.tab.all">All-time</span></button>
+        <button type="button" role="tab" id="board-tab-blood" data-tab="blood" data-mode="blood" aria-selected="false" aria-controls="board-panel" tabindex="-1"><svg class="lp-icon lp-icon--when-selected" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-check"/></svg><span data-i18n="board.tab.blood">Blood</span></button>
+      </div>
+
+      <!-- One shared panel: CIRCUIT swaps aria-labelledby, the caption and the last column header with the tab. -->
+      <section role="tabpanel" id="board-panel" aria-labelledby="board-tab-all" tabindex="0">
+        <p data-out="msg" aria-live="polite"></p>
+        <table>
+          <caption data-i18n="board.caption.all">All-time leaderboard, ranked by total points</caption>
+          <thead>
+            <tr>
+              <th scope="col" data-i18n="board.col.rank">Rank</th>
+              <th scope="col" data-i18n="board.col.player">Player</th>
+              <th scope="col" data-i18n="board.col.points">Total points</th>
+            </tr>
+          </thead>
+          <!-- Rows: rank in <td>, player name in <th scope="row">, points in <td>. -->
+          <tbody data-slot="board-rows"></tbody>
+        </table>
+      </section>
+
+      <p>
+        <button type="button" data-action="back"><svg class="lp-icon lp-icon--flip" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-arrow-left"/></svg><span data-i18n="board.back">Back</span></button>
+      </p>
+    </section>
+
+    <!-- ===== HELP ===== -->
+    <section data-screen="help" hidden aria-labelledby="help-title">
+      <h1 id="help-title" tabindex="-1" data-i18n="help.title">How to Play</h1>
+
+      <section aria-labelledby="help-goal-title">
+        <h2 id="help-goal-title" data-i18n="help.goal.title">The Goal</h2>
+        <p data-i18n="help.goal.body">Every puzzle hides a code made of digits (3, 4, or 5&nbsp;digits, depending on difficulty). A set of clues is given. Exactly one code fits every clue. Work it out and enter it. Only the Agent difficulty can repeat a digit within a code; in every other difficulty all the digits are different. A guess that repeats a digit in those difficulties is not counted and costs nothing.</p>
+      </section>
+
+      <section aria-labelledby="help-clues-title">
+        <h2 id="help-clues-title" data-i18n="help.clues.title">Reading the Clues</h2>
+        <dl>
+          <dt><span data-pip="right" aria-hidden="true"></span><span data-pip="wrong" aria-hidden="true"></span> <span data-i18n="help.clues.feedback.term">Feedback clue</span></dt>
+          <dd data-i18n="help.clues.feedback.body">Shows a guess and how it scored, with pips and in words: how many of its digits are in the code and in the right place, and how many are in the code but in a different place. A digit that is not in the code scores nothing.</dd>
+          <dt><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-sum"/></svg><span data-i18n="help.clues.sum.term">Sum clue</span></dt>
+          <dd data-i18n="help.clues.sum.body">The digits of the code add up to the number shown.</dd>
+          <dt><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-parity"/></svg><span data-i18n="help.clues.parity.term">Parity clue</span></dt>
+          <dd data-i18n="help.clues.parity.body">The digit in the stated position is even or odd. Zero is even.</dd>
+          <dt><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-compare"/></svg><span data-i18n="help.clues.compare.term">Compare clue</span></dt>
+          <dd data-i18n="help.clues.compare.body">The digit in one position is greater than, or less than, the digit in another position.</dd>
+          <dt><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-even-count"/></svg><span data-i18n="help.clues.evencount.term">Even-count clue</span></dt>
+          <dd data-i18n="help.clues.evencount.body">The number shown is how many digits of the code are even. Zero counts as even.</dd>
+        </dl>
+        <p data-i18n="help.clues.positions">Positions count from the left, starting at 1: the first dial is the leftmost one.</p>
+        <p data-i18n="help.clues.byDifficulty">Rookie puzzles use feedback clues only. Agent adds parity and sum clues. Hacker and Master use every clue type.</p>
+      </section>
+
+      <section aria-labelledby="help-example-title">
+        <h2 id="help-example-title" data-i18n="help.example.title">Worked Example</h2>
+        <p data-i18n="help.example.intro">A Rookie-style puzzle has 3 different digits and feedback clues only. This one has 4 clues.</p>
+        <ol>
+          <li data-i18n="help.example.clue1">Guess 7 2 9: No digit is correct.</li>
+          <li data-i18n="help.example.clue2">Guess 6 8 2: 1 digit is correct and in the right place.</li>
+          <li data-i18n="help.example.clue3">Guess 1 5 9: 1 digit is correct and in the right place.</li>
+          <li data-i18n="help.example.clue4">Guess 4 2 1: 2 digits are correct but in the wrong place.</li>
+        </ol>
+        <p data-i18n="help.example.solution">The first clue rules out 7, 2 and 9. In the fourth clue the 2 is already out, so the two correct digits are 4 and 1, and neither is where the guess put it: 4 is not first and 1 is not third. The third clue has one correct digit, in the right place, and its 9 is out. The 1 is in the code, so the 1 is that digit, and it is in the right place: first. That also means 5 is not in the code. The second clue has one correct digit, in the right place, and its 2 is out. The 6 cannot be first, because the 1 is there, and nothing in this clue is in a different place, so the 6 is not in the code. That leaves the 8, and it is second. The code starts 1 8, and the missing digit is the 4, third. The answer is 184.</p>
+      </section>
+
+      <section aria-labelledby="help-scoring-title">
+        <h2 id="help-scoring-title" data-i18n="help.scoring.title">Scoring</h2>
+        <p data-i18n="help.scoring.body">Each solved puzzle earns the base points for its difficulty, multiplied by a speed bonus, an accuracy factor and a hint factor.</p>
+        <ul>
+          <li data-i18n="help.scoring.speed">Speed bonus: starts at 2 and shrinks as time passes, but never falls below 0.5. The clock never stops while you play: switching tabs does not pause it.</li>
+          <li data-i18n="help.scoring.accuracy">Accuracy: each wrong guess lowers the factor by 8&nbsp;percentage points, to a minimum of 40&nbsp;percent.</li>
+          <li data-i18n="help.scoring.hint">Hint: using a hint cuts your points to 50&nbsp;percent.</li>
+        </ul>
+        <p data-i18n="help.scoring.example">Illustrative numbers only: with base points of 100, a solve at the target time (the speed bonus is then 1.25) with one wrong guess (accuracy 0.92) and no hint scores 100&nbsp;×&nbsp;1.25&nbsp;×&nbsp;0.92 = 115&nbsp;points.</p>
+        <p data-i18n="help.scoring.totals">Classic points, Blood points (from Blood mode) and total points are always shown separately.</p>
+      </section>
+
+      <section data-mode="blood" aria-labelledby="help-blood-title">
+        <h2 id="help-blood-title"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-skull"/></svg><span data-i18n="help.blood.title">Blood Mode</span></h2>
+        <ul>
+          <li data-i18n="help.blood.clock">A 3:00 countdown. Solve as many puzzles as you can before it reaches zero.</li>
+          <li data-i18n="help.blood.points">Every solve is worth ×2&nbsp;points.</li>
+          <li data-i18n="help.blood.wrong">A wrong guess takes 5&nbsp;seconds off the clock.</li>
+          <li data-i18n="help.blood.skip">Skipping a puzzle takes 10&nbsp;seconds off the clock.</li>
+          <li data-i18n="help.blood.hints">Hints are off.</li>
+          <li data-i18n="help.blood.ramp">Puzzles get harder as you solve more of them.</li>
+          <li data-i18n="help.blood.forfeit">The puzzle in play when the clock hits zero is lost. Points for puzzles you already solved are kept.</li>
+        </ul>
+      </section>
+
+      <p>
+        <button type="button" data-action="back"><svg class="lp-icon lp-icon--flip" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-arrow-left"/></svg><span data-i18n="help.back">Back</span></button>
+      </p>
+    </section>
+
+  </main>
+
+  <footer>
+    <p data-credit><span data-i18n="footer.credit">Made by</span> <a href="https://github.com/op-h" rel="noopener" translate="no">OPH</a></p>
+  </footer>
+
+  <!-- ===== DIALOGS (native <dialog>; CIRCUIT calls showModal()/close()) ===== -->
+
+  <!-- Must not be dismissible by Esc: CIRCUIT should preventDefault the `cancel` event until the box is ticked. -->
+  <dialog data-dialog="code" aria-labelledby="code-dialog-title" aria-describedby="code-dialog-desc code-dialog-code">
+    <h2 id="code-dialog-title" data-i18n="dialog.code.title">Your Secret Code</h2>
+    <p id="code-dialog-desc" data-i18n="dialog.code.desc">Write this code down now. You need it, with your name, to sign in on another device.</p>
+    <p>
+      <!-- Also in the dialog description so a screen reader speaks the one-time code the moment the dialog opens. -->
+      <output id="code-dialog-code" data-out="code" translate="no">------</output>
+    </p>
+    <p>
+      <button type="button" data-action="copy-code" data-i18n="dialog.code.copy">Copy Code</button>
+    </p>
+    <p data-out="msg" aria-live="polite"></p>
+    <p data-i18n="dialog.code.warning">This code cannot be recovered. If you lose it, nobody can reopen your save, not even the maker of this game.</p>
+    <p>
+      <input id="code-ack" type="checkbox" required>
+      <label for="code-ack" data-i18n="dialog.code.ack">I saved my code</label>
+    </p>
+    <p id="code-ack-hint" data-i18n="dialog.code.ackHint">Tick the box to continue.</p>
+    <p>
+      <button type="button" data-action="ack-code" disabled aria-describedby="code-ack-hint" data-i18n="dialog.code.continue">Continue to Game</button>
+    </p>
+  </dialog>
+
+  <dialog data-dialog="confirm-logout" aria-labelledby="logout-dialog-title" aria-describedby="logout-dialog-desc">
+    <form method="dialog">
+      <h2 id="logout-dialog-title" data-i18n="dialog.logout.title">Log Out?</h2>
+      <p id="logout-dialog-desc" data-i18n="dialog.logout.desc">This removes your save from this device. Progress that has already synced stays in the cloud, and you can get it back with your name and 6-digit code. Changes that have not synced yet will be lost.</p>
+      <menu>
+        <li><button value="cancel" data-i18n="dialog.logout.cancel">Stay Signed In</button></li>
+        <!-- Same data-action as the header button; CIRCUIT tells them apart with closest('dialog'). -->
+        <li><button type="button" data-action="logout" data-i18n="dialog.logout.confirm">Log Out</button></li>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog data-dialog="confirm-quit" aria-labelledby="quit-dialog-title" aria-describedby="quit-dialog-desc">
+    <form method="dialog">
+      <h2 id="quit-dialog-title" data-i18n="dialog.quit.title">Quit This Round?</h2>
+      <p id="quit-dialog-desc" data-i18n="dialog.quit.desc">The puzzle in play will not score. In Blood mode the run ends, and points for puzzles you already solved are kept.</p>
+      <menu>
+        <li><button value="cancel" data-i18n="dialog.quit.cancel">Keep Playing</button></li>
+        <!-- Same data-action as the play-screen Quit button; CIRCUIT tells them apart with closest('dialog'). -->
+        <li><button type="button" data-action="quit" data-i18n="dialog.quit.confirm">Quit Round</button></li>
+      </menu>
+    </form>
+  </dialog>
 </body>
 </html>
-

@@ -1,0 +1,70 @@
+# Deploy to GitHub Pages (project site). Owner: SENTRY. Nothing here is shipped to the site.
+# Third-party actions are pinned to full commit SHAs (verified with `gh api repos/actions/<name>/git/ref/tags/<tag>`);
+# the tag is kept in the trailing comment. Dependabot or a monthly manual bump keeps them fresh.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer push waits instead of cancelling a deploy that is already uploading.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dev dependencies (playwright-core only, no browser download)
+        run: npm ci
+      - name: Unit tests
+        env:
+          PUZZLE_SEEDS: '300'
+        run: npm run test:unit
+      - name: Stage (stamps the release id into sw.js) and verify the exact file set that will be deployed
+        run: |
+          .github/scripts/stage-site.sh _site
+          node .github/scripts/verify-site.mjs _site
+      - name: End-to-end tests (Chromium from the runner image)
+        env:
+          # ubuntu-latest ships Google Chrome; playwright-core drives it, nothing is downloaded.
+          CHROMIUM_PATH: /usr/bin/google-chrome
+        run: npm run test:e2e
+      - name: Hosting smoke test against the staged _site
+        env:
+          CHROMIUM_PATH: /usr/bin/google-chrome
+          E2E_ROOT: ${{ github.workspace }}/_site
+        run: node --test tests/e2e/09-hosting.spec.mjs
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - name: Stage site files from an allow-list (no tests, docs, package files or rules)
+        run: |
+          .github/scripts/stage-site.sh _site
+          node .github/scripts/verify-site.mjs _site
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

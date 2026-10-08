@@ -1,0 +1,1202 @@
+/* =============================================================================
+   LOCK PUZZLE: main.css  (PRISM)   Spec: docs/design.md ("VAULT PANEL")
+
+   WHY ONE FILE (decision, replaces the architecture.md tokens/base/components/screens
+   split): GitHub Pages has no build step. Partials need @import, and every @import
+   level is a serial round trip that blocks first paint (CSS is render-blocking, so
+   two partials on 4G add ~2 x RTT = 300-600 ms to LCP). One hand-maintained file
+   keeps a single request and lets cascade layers do the separation the partials
+   were for. Sections below are in layer order; search for "@layer NAME". Expected
+   size is well under the 18 KB gzip budget (QUARTZ to confirm).
+
+   THEMING: `color-scheme` + light-dark() gives the four schemes from two token
+   blocks (Classic, Blood) instead of four. Light/dark follows the OS by default and
+   `html[data-theme="light|dark"]` overrides it. Mode = body[data-mode="classic|blood"]
+   or any element carrying data-mode. light-dark() needs Chrome 123 / Safari 17.5 /
+   Firefox 120 (all Baseline 2024).
+   ============================================================================= */
+
+@layer reset, tokens, base, components, screens, utilities;
+
+/* @property: lets calc() treat the CIRCUIT-set value as a number and gives the bar a
+   defined fallback (full) if it is never set. --_pulse needs it to step in a keyframe. */
+@property --lp-timer-left { syntax: "<number>"; inherits: false; initial-value: 18; }
+@property --_pulse { syntax: "<color>"; inherits: false; initial-value: #888; }
+/* Non-inheriting, so a focusable child (a link inside a framed panel) never draws its parent's frame bars in its ring. */
+@property --_rf { syntax: "*"; inherits: false; }
+
+/* ===================================================================== reset */
+@layer reset {
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  body, h1, h2, h3, p, dl, dd, fieldset, legend, menu, ul, ol, figure { margin: 0; }
+  menu, ul, ol { padding: 0; list-style: none; }
+  legend { padding: 0; }
+  fieldset { border: 0; padding: 0; min-inline-size: 0; }
+  button, input, select, textarea { font: inherit; color: inherit; letter-spacing: inherit; margin: 0; }
+  button { background: none; border: 0; padding: 0; text-align: center; cursor: pointer; }
+  table { border-collapse: collapse; }
+  /* The author rule must beat any display value set below; svg[hidden] is NOT honoured
+     by UAs, so markup never relies on it (GRANITE). */
+  [hidden] { display: none !important; }
+}
+
+/* ==================================================================== tokens */
+@layer tokens {
+  /* Color-scheme plumbing (light-dark() reads the used scheme of the element). */
+  :root { color-scheme: dark light; }
+  :root[data-theme="dark"] { color-scheme: dark; }
+  :root[data-theme="light"] { color-scheme: light; }
+
+  /* Pixel grid. 4px from 320 to ~1279, 5px at ~1600, 6px from ~2000. round() keeps
+     it an integer; the @supports gate keeps 4px where round() is unknown (a custom
+     property cannot fall back by itself). vw shrinks with zoom: 200% zoom is 4px. */
+  :root {
+    --lp-px: 4px;
+    --lp-bw: var(--lp-px);
+    --lp-radius: 0;
+    --lp-dir: 1;
+    --lp-n: 4;
+    --lp-space-1: calc(var(--lp-px) * 1);
+    --lp-space-2: calc(var(--lp-px) * 2);
+    --lp-space-3: calc(var(--lp-px) * 3);
+    --lp-space-4: calc(var(--lp-px) * 4);
+    --lp-space-5: calc(var(--lp-px) * 6);
+    --lp-space-6: calc(var(--lp-px) * 8);
+    --lp-space-7: calc(var(--lp-px) * 12);
+    --lp-space-8: calc(var(--lp-px) * 16);
+    --lp-tap: calc(var(--lp-px) * 12);
+    --lp-icon: calc(var(--lp-px) * 8);
+    /* One symmetric value: env() insets are physical, max() of both keeps RTL safe. */
+    --lp-gutter: max(var(--lp-space-3), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+    --lp-container: calc(var(--lp-px) * 256);
+    /* Fallbacks only. ui/chrome.js measures the real header and dock and writes both on :root (inline wins).
+       Header = one 52px row on phones (44px targets + frame margins); dock fallback is deliberately generous. */
+    --lp-header-h: calc(var(--lp-px) * 13);
+    --lp-dock-h: calc(var(--lp-px) * 108);
+    --lp-dial-h: calc(var(--lp-px) * 16);
+    --lp-key-h: calc(var(--lp-px) * 13);
+    --lp-btn-h: var(--lp-tap);
+    --lp-seg: calc(var(--lp-px) * 3);
+    --lp-z-header: 10;
+    --lp-z-dock: 20;
+    --lp-z-toast: 40;
+    --lp-focus-in: #0A0C12;
+    --lp-focus-out: #FFFFFF;
+
+    --lp-dur-1: 80ms; --lp-dur-2: 160ms; --lp-dur-3: 360ms; --lp-dur-4: 720ms;
+    --lp-ease-step-2: steps(2, end); --lp-ease-step-4: steps(4, end); --lp-ease-hold: steps(1, end);
+
+    --lp-font-latin: "Pixelify Sans", "Pixelify Fallback", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --lp-font-arabic: "Pixelify Sans", "Pixelify Fallback", system-ui, "Segoe UI", Tahoma, "Noto Sans Arabic", "Droid Arabic Kufi", "Geeza Pro", sans-serif;
+    --lp-font-ui: var(--lp-font-latin);
+    --lp-text-scale: 1;
+    --lp-fs-0: calc(0.875rem * var(--lp-text-scale));
+    --lp-fs-1: calc(1rem * var(--lp-text-scale));
+    --lp-fs-2: calc(1.25rem * var(--lp-text-scale));
+    --lp-fs-3: calc(1.5rem * var(--lp-text-scale));
+    --lp-fs-4: 2rem;
+    --lp-fs-5: 2.5rem;
+    --lp-fs-6: 3rem;
+    --lp-fs-dial: var(--lp-fs-5);   /* Latin digits: never scaled by --lp-text-scale */
+    --lp-fs-key: 1.5rem;
+    --lp-lh-body: 1.4;
+    --lp-lh-tight: 1.15;
+    --lp-ls-caps: 0.06em;
+    --lp-fw-regular: 400;
+    --lp-fw-bold: 700;
+  }
+  @supports (width: round(down, 10px, 1px)) {
+    :root { --lp-px: round(down, clamp(4px, 0.25vw + 1px, 6px), 1px); }
+  }
+  :root[dir="rtl"] { --lp-dir: -1; }
+  html[lang="ar"] {
+    --lp-font-ui: var(--lp-font-arabic);
+    --lp-text-scale: 1.125;
+    --lp-lh-body: 1.7;
+    --lp-lh-tight: 1.5;
+  }
+
+  /* Classic: dark, light       (light-dark(LIGHT, DARK)) */
+  :root, [data-mode="classic"] {
+    --lp-bg-0: light-dark(#D9DEEA, #12151C);
+    --lp-bg-1: light-dark(#F3F5FA, #1B2030);
+    --lp-bg-2: light-dark(#C5CCDD, #262D44);
+    --lp-field: light-dark(#C5CCDD, #12151C);
+    --lp-text: light-dark(#151A2E, #ECEFF7);
+    --lp-text-dim: light-dark(#444C6B, #A9B1CC);
+    --lp-line: light-dark(#151A2E, #8E98BE);
+    --lp-line-soft: light-dark(#A3ABC2, #3A4466);
+    --lp-ledge: light-dark(#8F99B5, #0A0C12);
+    --lp-ink: light-dark(#151A2E, #12151C);
+    --lp-accent: light-dark(#F0A81C, #F5B942);
+    --lp-on-accent: light-dark(#151A2E, #12151C);
+    --lp-accent-text: light-dark(#6B4400, #F5B942);
+    --lp-meter: light-dark(#8A5600, #F5B942);
+    --lp-ok: light-dark(#125A34, #5BD68A);
+    --lp-bad: light-dark(#9E1B24, #FF7B7B);
+    --lp-info: light-dark(#1F4EA6, #7DB2FF);
+    --lp-danger: light-dark(#9E1B24, #FF7B7B);
+    --lp-on-danger: light-dark(#F3F5FA, #12151C);
+    --lp-inv-bg: light-dark(#151A2E, #ECEFF7);
+    --lp-inv-text: light-dark(#F3F5FA, #12151C);
+    --lp-spr-k: light-dark(#151A2E, #0A0C12);
+    --lp-spr-b: light-dark(#F0A81C, #F5B942);
+    --lp-spr-h: light-dark(#F3F5FA, #ECEFF7);
+    --lp-spr-s: light-dark(#444C6B, #8E98BE);
+  }
+  /* Blood Point: dark, light */
+  [data-mode="blood"] {
+    --lp-bg-0: light-dark(#F1D6D6, #160709);
+    --lp-bg-1: light-dark(#FFF1F0, #240E12);
+    --lp-bg-2: light-dark(#E5BDBE, #35161C);
+    --lp-field: light-dark(#E5BDBE, #160709);
+    --lp-text: light-dark(#2A0A0E, #FBEEEF);
+    --lp-text-dim: light-dark(#6B2A31, #D8A7AC);
+    --lp-line: light-dark(#2A0A0E, #C9707A);
+    --lp-line-soft: light-dark(#C99A9C, #5A2A31);
+    --lp-ledge: light-dark(#B58587, #0A0304);
+    --lp-ink: light-dark(#2A0A0E, #160709);
+    --lp-accent: light-dark(#C4202A, #FF5A5A);
+    --lp-on-accent: light-dark(#FFF1F0, #160709);
+    --lp-accent-text: light-dark(#9E1B24, #FF5A5A);
+    --lp-meter: light-dark(#C4202A, #FF5A5A);
+    --lp-ok: light-dark(#125A34, #5BD68A);
+    --lp-bad: light-dark(#9E1B24, #FF9A9A);
+    --lp-info: light-dark(#1F4EA6, #7DB2FF);
+    --lp-danger: light-dark(#9E1B24, #FF9A9A);
+    --lp-on-danger: light-dark(#FFF1F0, #160709);
+    --lp-inv-bg: light-dark(#2A0A0E, #FBEEEF);
+    --lp-inv-text: light-dark(#FFF1F0, #160709);
+    --lp-spr-k: light-dark(#2A0A0E, #0A0304);
+    --lp-spr-b: light-dark(#C4202A, #FF5A5A);
+    --lp-spr-h: light-dark(#FFF1F0, #FBEEEF);
+    --lp-spr-s: light-dark(#6B2A31, #C9707A);
+  }
+
+  /* Derived tokens must be re-declared wherever the base tokens change, otherwise a
+     data-mode child would inherit the PARENT's resolved colors. */
+  :root, [data-mode] {
+    --lp-dither: color-mix(in srgb, var(--lp-text) 8%, transparent);
+    --lp-scrim: color-mix(in srgb, var(--lp-bg-0) 86%, transparent);
+    --lp-spr-lamp: var(--lp-text-dim);
+    --lp-shadow-frame:
+      0 calc(var(--lp-bw) * -1) 0 0 var(--_c, var(--lp-line)),
+      0 var(--lp-bw) 0 0 var(--_c, var(--lp-line)),
+      calc(var(--lp-bw) * -1) 0 0 0 var(--_c, var(--lp-line)),
+      var(--lp-bw) 0 0 0 var(--_c, var(--lp-line));
+    --lp-shadow-ledge: 0 calc(var(--lp-bw) * 2) 0 0 var(--lp-ledge);
+    /* private helpers (2x2 checkers, dashed pixel rule) */
+    --_chk: conic-gradient(color-mix(in srgb, var(--lp-ink) 14%, transparent) 25%, transparent 0 50%, color-mix(in srgb, var(--lp-ink) 14%, transparent) 0 75%, transparent 0);
+    --_chk50: conic-gradient(color-mix(in srgb, var(--lp-ink) 50%, transparent) 25%, transparent 0 50%, color-mix(in srgb, var(--lp-ink) 50%, transparent) 0 75%, transparent 0);
+    --_rule: linear-gradient(to right, var(--lp-line-soft) 50%, transparent 0) bottom / calc(var(--lp-px) * 2) var(--lp-px) repeat-x;
+    --_scan: light-dark(transparent, color-mix(in srgb, var(--lp-ink) 18%, transparent));
+  }
+  [data-lock="success"] { --lp-spr-lamp: var(--lp-ok); }
+  [data-lock="fail"] { --lp-spr-lamp: var(--lp-bad); }
+
+  @media (prefers-reduced-transparency: reduce) {
+    :root, [data-mode] { --lp-scrim: var(--lp-bg-0); }
+  }
+  /* More contrast: thicker frames, no texture, dim text becomes full text. */
+  @media (prefers-contrast: more) {
+    :root { --lp-bw: calc(var(--lp-px) * 2); }
+    :root, [data-mode] {
+      --lp-dither: transparent;
+      --_scan: transparent;
+      --lp-text-dim: var(--lp-text);
+      --lp-line-soft: var(--lp-line);
+    }
+  }
+}
+
+/* ===================================================================== base */
+@layer base {
+  /* Font: one self-hosted subset (QUARTZ owns the file). swap = text paints at once
+     in the monospace fallback; the face is preloaded from <head>. */
+  @font-face {
+    font-family: "Pixelify Sans";
+    src: url("../assets/fonts/pixelify-sans-latin.woff2") format("woff2");
+    font-weight: 400 700;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+0020-007E, U+00A0, U+00B7, U+00D7, U+2013, U+2014, U+2019, U+201C, U+201D, U+2022, U+2026, U+2212;
+  }
+  /* Metric-matched local fallback (QUARTZ, docs/perf.md 2.2): keeps line breaks stable across the swap (CLS). */
+  @font-face {
+    font-family: "Pixelify Fallback";
+    src: local("Arial"), local("Helvetica"), local("Liberation Sans");
+    font-weight: 400;
+    size-adjust: 110.34%;
+    ascent-override: 83.38%;
+    descent-override: 25.38%;
+    line-gap-override: 0%;
+  }
+  @font-face {
+    font-family: "Pixelify Fallback";
+    src: local("Arial Bold"), local("Arial-BoldMT"), local("Helvetica-Bold"), local("Liberation Sans Bold");
+    font-weight: 700;
+    size-adjust: 105.96%;
+    ascent-override: 86.82%;
+    descent-override: 26.42%;
+    line-gap-override: 0%;
+  }
+
+  html {
+    font-family: var(--lp-font-ui);
+    font-size: 100%;
+    line-height: var(--lp-lh-body);
+    font-synthesis: none;
+    -webkit-tap-highlight-color: transparent;
+    /* WCAG 2.4.11: a focused control must not hide under the sticky header (and, on Play phones,
+       the dock: see the screens layer). The header's own controls cancel this with a negative
+       scroll-margin so focusing them does not scroll the page. */
+    scroll-padding-block-start: calc(var(--lp-header-h) + var(--lp-space-3));
+  }
+  header :is(button, a, summary, [tabindex]) { scroll-margin-block-start: calc((var(--lp-header-h) + var(--lp-space-3)) * -1); }
+  /* flex column (not grid): a sticky header/dock inside a grid item cannot leave its grid area. */
+  body {
+    min-block-size: 100dvh;
+    display: flex;
+    flex-direction: column;
+    font-size: var(--lp-fs-1);
+    background:
+      conic-gradient(var(--lp-dither) 25%, transparent 0 50%, var(--lp-dither) 0 75%, transparent 0)
+        0 0 / calc(var(--lp-px) * 2) calc(var(--lp-px) * 2),
+      var(--lp-bg-0);
+    /* break-word: whole words move to the next line first; only a word wider than its box splits.
+       `anywhere` is reserved for user content (names), below. */
+    overflow-wrap: break-word;
+    word-break: normal;
+  }
+  [data-out="name"], tbody th, [data-slot="attempts"], input { overflow-wrap: anywhere; }
+  [data-mode] { color: var(--lp-text); }
+  html[lang="ar"] { letter-spacing: 0; text-transform: none; }
+
+  h1, h2, h3 { font-weight: var(--lp-fw-bold); line-height: var(--lp-lh-tight); text-wrap: balance; }
+  h1 { font-size: var(--lp-fs-4); }
+  h2 { font-size: var(--lp-fs-2); padding-block-end: var(--lp-space-2); background: var(--_rule); }
+  h3 { font-size: var(--lp-fs-1); }
+  p, dd, li { text-wrap: pretty; }
+  strong { font-weight: var(--lp-fw-bold); }
+  label, legend { display: block; }
+  a {
+    color: var(--lp-accent-text);
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.2em;
+  }
+  @media (min-width: 48em) { h1 { font-size: var(--lp-fs-5); } }
+
+  /* ADR 0004: UI text is sentence case (the pixel face reads C as O, B as G in caps). Uppercase
+     survives only on the two-word mode badge and the "YOU" row marker. Arabic never gets either. */
+  .lp-badge:lang(en), tbody tr[data-self] th > span:lang(en) {
+    text-transform: uppercase;
+    letter-spacing: var(--lp-ls-caps);
+  }
+
+  /* ---- page chrome ---- */
+  header {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: var(--lp-z-header);
+    display: flex;
+    flex-wrap: wrap;           /* a 5th item at 320px wraps instead of overflowing */
+    align-items: center;
+    gap: 0 var(--lp-space-1);
+    min-block-size: var(--lp-header-h);
+    padding-inline: max(var(--lp-gutter), calc((100% - var(--lp-container)) / 2 + var(--lp-gutter)));
+    background: var(--_rule), var(--lp-bg-1);
+  }
+  main {
+    flex: 1 0 auto;
+    inline-size: min(100%, var(--lp-container));
+    margin-inline: auto;
+    padding-inline: var(--lp-gutter);
+    padding-block: var(--lp-space-4) max(var(--lp-space-4), env(safe-area-inset-bottom, 0px));
+  }
+  footer {
+    padding: var(--lp-space-3) var(--lp-gutter) max(var(--lp-space-3), env(safe-area-inset-bottom, 0px));
+    text-align: center;
+    color: var(--lp-text-dim);
+    background: linear-gradient(to right, var(--lp-line-soft) 50%, transparent 0) top / calc(var(--lp-px) * 2) var(--lp-px) repeat-x;
+  }
+  footer a { display: inline-flex; align-items: center; min-block-size: var(--lp-tap); padding-inline: var(--lp-space-2); }
+
+  .skip-link {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-start: 0;
+    z-index: calc(var(--lp-z-toast) + 1);
+    padding: var(--lp-space-3) var(--lp-space-4);
+    background: var(--lp-inv-bg);
+    color: var(--lp-inv-text);
+    font-weight: var(--lp-fw-bold);
+    translate: 0 -200%;          /* parked above the viewport but still focusable */
+  }
+  .skip-link:focus { translate: 0 0; }
+
+  /* Brand lock: 16x16 art. Phones: 48px (3px per art pixel) so the whole header is ONE 52px row.
+     From 48em: 64px (4px per art pixel, on the grid) and a 64px header. */
+  .lp-brand { display: flex; align-items: center; gap: var(--lp-space-2); margin-inline-end: auto; font-weight: var(--lp-fw-bold); font-size: var(--lp-fs-2); line-height: 1; }
+  .lp-brand .lp-sprite { inline-size: var(--lp-space-7); block-size: var(--lp-space-7); }
+  @media (min-width: 48em) {
+    :root { --lp-header-h: calc(var(--lp-px) * 16); }
+    .lp-brand .lp-sprite { inline-size: calc(var(--lp-px) * 16); block-size: calc(var(--lp-px) * 16); }
+  }
+
+  /* Sprites. Sized in CSS only; width/height attributes are the no-CLS fallback. */
+  .lp-icon, .lp-sprite { display: inline-block; flex: none; aspect-ratio: 1; color: inherit; shape-rendering: crispEdges; vertical-align: middle; }
+  .lp-icon { inline-size: var(--lp-icon); block-size: var(--lp-icon); }
+  .lp-sprite { inline-size: calc(var(--lp-px) * 16); block-size: calc(var(--lp-px) * 16); }
+  .lp-vault-door { display: grid; place-items: center; }
+  .lp-vault-door .lp-sprite { inline-size: calc(var(--lp-px) * 24); block-size: calc(var(--lp-px) * 24); }
+  [dir="rtl"] .lp-icon--flip { scale: -1 1; }
+}
+
+/* ================================================================ components */
+@layer components {
+  /* 8x8 pixel icons as masks, for the places a CSS pseudo-element must draw one
+     (dial corner marks, checked radio/checkbox). Everything else uses sprites.svg. */
+  :root {
+    --_ico-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Cpath d='M7 1h1v1H7zM6 2h2v1H6zM0 3h1v1H0zM5 3h2v1H5zM0 4h2v1H0zM4 4h2v1H4zM1 5h4v1H1zM2 6h2v1H2z'/%3E%3C/svg%3E");
+    --_ico-x: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h2v1H0zM6 0h2v1H6zM0 1h3v1H0zM5 1h3v1H5zM1 2h6v1H1zM2 3h4v2H2zM1 5h6v1H1zM0 6h3v1H0zM5 6h3v1H5zM0 7h2v1H0zM6 7h2v1H6z'/%3E%3C/svg%3E");
+  }
+
+  /* ---- stepped-corner frame (design 4.3): four edge bars as box-shadows, the corner
+     pixels are never painted. The bars live outside the box, so the margin reserves them. */
+  :where(button, summary, input, dialog, output[data-out="code"], .lp-chip, .lp-badge, .lp-stamp, [data-timer-bar], [data-toast],
+         [data-slot="difficulty-picker"] label, [data-screen="play"] > section[aria-labelledby="play-guess-title"],
+         section[aria-labelledby="home-points-title"], [data-screen="help"] [data-mode="blood"], noscript > section) {
+    --_c: var(--lp-line);
+    --lp-shadow-frame:
+      0 calc(var(--lp-bw) * -1) 0 0 var(--_c),
+      0 var(--lp-bw) 0 0 var(--_c),
+      calc(var(--lp-bw) * -1) 0 0 0 var(--_c),
+      var(--lp-bw) 0 0 0 var(--_c);
+    --_rf: var(--lp-shadow-frame);   /* non-inherited copy for the focus ring (see @property) */
+    box-shadow: var(--lp-shadow-frame);
+    margin: var(--lp-bw);
+    border: 0;
+    border-radius: 0;
+  }
+  :where(.lp-chip, [data-screen="play"] > section[aria-labelledby="play-guess-title"], section[aria-labelledby="home-points-title"], [data-screen="help"] [data-mode="blood"], noscript > section) {
+    --_c: var(--lp-line-soft);
+  }
+
+  /* ---- buttons ---- */
+  button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--lp-space-2);
+    inline-size: calc(100% - var(--lp-bw) * 2);   /* the frame margin is already outside this */
+    min-block-size: var(--lp-btn-h);
+    padding: var(--lp-space-2) var(--lp-space-4);
+    background: var(--lp-bg-2);
+    color: var(--lp-text);
+    font-weight: var(--lp-fw-bold);
+    line-height: var(--lp-lh-tight);
+    box-shadow: var(--lp-shadow-frame), var(--lp-shadow-ledge);
+    touch-action: manipulation;
+  }
+  /* ghost: frame always present, no fill, no ledge */
+  header button, nav button, [data-action="back"], [data-action="quit"], [data-action="show-help"] {
+    background: transparent;
+    box-shadow: var(--lp-shadow-frame);
+  }
+  /* primary */
+  [data-action="signup"], [data-action="signin"], [data-action="play-classic"], [data-action="check"],
+  [data-action="next"], [data-action="retry"], [data-action="ack-code"], button[data-mode="blood"] {
+    background: var(--lp-accent);
+    color: var(--lp-on-accent);
+  }
+  [data-action="play-classic"], [data-action="play-blood"], [data-action="check"] { min-block-size: calc(var(--lp-px) * 14); }
+  /* danger confirm inside dialogs */
+  dialog [data-action="logout"], dialog [data-action="quit"] {
+    background: var(--lp-danger);
+    color: var(--lp-on-danger);
+    box-shadow: var(--lp-shadow-frame), var(--lp-shadow-ledge);
+  }
+  /* header controls are 44px (11 units) so the whole header is one 52px row at 320px */
+  header button, header summary { flex: none; min-block-size: calc(var(--lp-px) * 11); min-inline-size: calc(var(--lp-px) * 11); }
+  header button { inline-size: auto; padding-inline: var(--lp-space-1); }
+  header summary { padding-inline: var(--lp-space-1); }
+  /* 320px row budget: brand 48 + lang ~72 + sound 52 + chip 40 + account 52 + 4 gaps x 4 = ~280 of 296 */
+  @media (max-width: 47.999em) { header .lp-chip { padding-inline-end: 0; } }
+
+  /* disabled: native attribute (out of tab order); checker + dim text, no ledge */
+  button:disabled, button[aria-disabled="true"] {
+    --_c: var(--lp-line-soft);
+    background: var(--_chk) 0 0 / calc(var(--lp-px) * 2) calc(var(--lp-px) * 2), var(--lp-bg-2);
+    color: var(--lp-text-dim);
+    box-shadow: var(--lp-shadow-frame);
+    cursor: not-allowed;
+  }
+  /* pressed: sinks one unit, loses the ledge, 14% ink checker */
+  button:not(:disabled):active, button[aria-pressed="true"], button[data-pressed] {
+    translate: 0 var(--lp-bw);
+    box-shadow: var(--lp-shadow-frame);
+    background-image: var(--_chk);
+    background-size: calc(var(--lp-px) * 2) calc(var(--lp-px) * 2);
+  }
+  @media (hover: hover) {
+    button:not(:disabled):hover, summary:hover { --_c: var(--lp-text); }
+  }
+  button[aria-busy="true"]::after { content: "..."; }
+
+  /* ---- inputs ---- */
+  input:not([type="checkbox"], [type="radio"]) {
+    display: block;
+    inline-size: calc(100% - var(--lp-bw) * 2);
+    min-block-size: var(--lp-tap);
+    padding: var(--lp-space-2) var(--lp-space-3);
+    background: var(--lp-field);
+    color: var(--lp-text);
+    font-size: max(1rem, var(--lp-fs-1));          /* >= 16px: no iOS focus zoom */
+    box-shadow: var(--lp-shadow-frame), inset 0 var(--lp-bw) 0 0 color-mix(in srgb, var(--lp-ink) 40%, transparent);
+    touch-action: manipulation;
+  }
+  input::placeholder { color: var(--lp-text-dim); opacity: 1; }
+  input:disabled { background: var(--_chk) 0 0 / calc(var(--lp-px) * 2) calc(var(--lp-px) * 2), var(--lp-field); color: var(--lp-text-dim); }
+  input[aria-invalid="true"] { --_c: var(--lp-bad); }
+  input[data-field="code"] {
+    font-size: var(--lp-fs-3);
+    letter-spacing: 0.3em;
+    direction: ltr;
+    text-align: start;
+  }
+  label:has(+ input) { margin-block-end: var(--lp-space-2); }
+
+  /* pixel checkbox */
+  input[type="checkbox"] {
+    appearance: none;
+    flex: none;
+    display: grid;
+    place-content: center;
+    inline-size: var(--lp-icon);
+    block-size: var(--lp-icon);
+    background: var(--lp-field);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  input[type="checkbox"]::before {
+    content: "";
+    inline-size: var(--lp-icon);
+    block-size: var(--lp-icon);
+    background-color: var(--lp-on-accent);
+    mask: var(--_ico-check) 0 0 / 100% 100% no-repeat;
+    visibility: hidden;
+  }
+  input[type="checkbox"]:checked { background: var(--lp-accent); }
+  input[type="checkbox"]:checked::before { visibility: visible; }
+  p:has(> input[type="checkbox"]) { display: flex; align-items: center; gap: var(--lp-space-2); }
+  p:has(> input[type="checkbox"]) > label { flex: 1; display: flex; align-items: center; min-block-size: var(--lp-tap); margin: 0; }
+
+  /* difficulty picker: native radios, visually replaced by the label (input stays
+     in the a11y tree as an invisible full-cell overlay, so the tap target is the cell) */
+  [data-slot="difficulty-picker"] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lp-space-1); }
+  [data-slot="difficulty-picker"] > li { position: relative; display: grid; }
+  [data-slot="difficulty-picker"] input { position: absolute; inset: 0; z-index: 1; inline-size: 100%; block-size: 100%; margin: 0; opacity: 0; box-shadow: none; cursor: pointer; }
+  [data-slot="difficulty-picker"] label {
+    --_c: var(--lp-line);
+    position: relative;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    row-gap: 0;
+    min-block-size: var(--lp-btn-h);
+    margin: var(--lp-bw);
+    padding: var(--lp-space-2) var(--lp-space-3);
+    line-height: var(--lp-lh-tight);
+    background: var(--lp-bg-2);
+    font-weight: var(--lp-fw-bold);
+    text-align: center;
+    box-shadow: var(--lp-shadow-frame), var(--lp-shadow-ledge);
+  }
+  [data-slot="difficulty-picker"] input:checked + label { background: var(--lp-accent); color: var(--lp-on-accent); }
+  /* two lines (name / digit count), each a whole-word block; the second is the smaller line */
+  [data-slot="difficulty-picker"] label > span:last-child { font-size: var(--lp-fs-0); font-weight: var(--lp-fw-regular); }
+  /* non-color cue for the checked option: a check in the top corner */
+  [data-slot="difficulty-picker"] input:checked + label::before {
+    content: "";
+    position: absolute;
+    inset-block-start: calc(var(--lp-px) / 2);
+    inset-inline-end: calc(var(--lp-px) / 2);
+    inline-size: var(--lp-space-4);
+    block-size: var(--lp-space-4);
+    background-color: currentColor;
+    mask: var(--_ico-check) 0 0 / 100% 100% no-repeat;
+  }
+  [data-slot="difficulty-picker"] input:disabled + label { color: var(--lp-text-dim); background: var(--_chk) 0 0 / calc(var(--lp-px) * 2) calc(var(--lp-px) * 2), var(--lp-bg-2); --_c: var(--lp-line-soft); }
+  @media (hover: hover) { [data-slot="difficulty-picker"] input:not(:disabled):hover + label { --_c: var(--lp-text); } }
+
+  /* ---- account disclosure (header) ---- */
+  /* The menu is positioned against the HEADER (sticky = containing block), not against the summary:
+     it hangs from the header's inline-end edge, so it stays inside the viewport whatever the summary's
+     position or direction (EN/AR, left/middle/right of a wrapped header). */
+  summary {
+    display: flex;
+    align-items: center;
+    gap: var(--lp-space-1);
+    min-block-size: var(--lp-tap);
+    min-inline-size: var(--lp-tap);
+    padding-inline: var(--lp-space-2);
+    list-style: none;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  summary::-webkit-details-marker { display: none; }
+  details[open] > summary { background: var(--lp-bg-2); }
+  details[data-account] > button {
+    position: absolute;
+    inset-block-start: 100%;
+    inset-inline-end: var(--lp-gutter);
+    z-index: 1;
+    inline-size: calc(100% - 2 * var(--lp-gutter) - 2 * var(--lp-bw));   /* phones: full-width row under the header */
+    margin-block-start: var(--lp-space-1);
+    background: var(--lp-bg-1);
+  }
+  @media (min-width: 30em) {
+    details[data-account] > button { inline-size: max-content; min-inline-size: 12rem; max-inline-size: calc(100% - 2 * var(--lp-gutter) - 2 * var(--lp-bw)); }
+  }
+
+  /* ---- chip, badge, stamp ---- */
+  .lp-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lp-space-2);
+    min-block-size: var(--lp-icon);
+    padding-inline-end: var(--lp-space-2);
+    background: var(--lp-bg-2);
+    font-size: var(--lp-fs-0);
+    line-height: 1;
+  }
+  .lp-chip .lp-icon { margin: 0; }
+  :is(.lp-chip[data-status="synced"], .lp-chip:has([data-status="synced"])) .lp-icon { color: var(--lp-ok); }
+  :is(.lp-chip[data-status="saving"], .lp-chip:has([data-status="saving"])) .lp-icon { color: var(--lp-info); }
+  :is(.lp-chip[data-status="offline"], .lp-chip:has([data-status="offline"])) .lp-icon { color: var(--lp-bad); }
+  :is(.lp-chip[data-status="local"], .lp-chip:has([data-status="local"])) .lp-icon { color: var(--lp-text-dim); }
+
+  .lp-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lp-space-2);
+    min-block-size: var(--lp-icon);
+    padding: var(--lp-space-1) var(--lp-space-3);
+    background: var(--lp-bg-2);
+    font-size: var(--lp-fs-0);
+    font-weight: var(--lp-fw-bold);
+    line-height: 1;
+  }
+  body[data-mode="blood"] .lp-badge, body[data-mode="blood"] .lp-badge .lp-icon { color: var(--lp-accent-text); }
+  .lp-icon--when-blood, .lp-icon--when-selected { display: none; }
+  body[data-mode="blood"] .lp-icon--when-blood, [aria-selected="true"] > .lp-icon--when-selected { display: inline-block; }
+
+  .lp-stamp {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--lp-space-3);
+    padding: var(--lp-space-4);
+    background: var(--lp-bg-1);
+    font-size: var(--lp-fs-4);
+    font-weight: var(--lp-fw-bold);
+    line-height: var(--lp-lh-tight);
+    text-align: center;
+  }
+  [data-screen="result"]:has([data-lock="success"]) .lp-stamp { --_c: var(--lp-ok); }
+  [data-screen="result"]:has([data-lock="fail"]) .lp-stamp { --_c: var(--lp-bad); }
+  [data-screen="result"]:has([data-lock="success"]) .lp-stamp .lp-icon { color: var(--lp-ok); }
+  [data-screen="result"]:has([data-lock="fail"]) .lp-stamp .lp-icon { color: var(--lp-bad); }
+
+  /* ---- error line: icon is a sibling of the live region, never inside it ---- */
+  .lp-error { display: flex; align-items: center; gap: var(--lp-space-2); color: var(--lp-bad); font-weight: var(--lp-fw-bold); }
+  /* Collapse with size, never display:none, so role=alert announcements stay reliable. */
+  .lp-error:has(> [data-error]:empty) { block-size: 0; overflow: hidden; margin-block-start: calc(var(--_g, 0px) * -1); }
+  .lp-error:has(> [data-error]:empty) .lp-icon--when-error { display: none; }
+  p[data-out="msg"]:empty { block-size: 0; overflow: hidden; margin-block-start: calc(var(--_g, 0px) * -1); }
+
+  /* status messages written by say(): tone is a hook, text + icon carry it (never color alone) */
+  [data-out="msg"][data-tone="ok"] { color: var(--lp-ok); }
+  [data-out="msg"][data-tone="bad"] { color: var(--lp-bad); }
+  [data-out="msg"][data-tone="ok"]::before, [data-out="msg"][data-tone="bad"]::before, [data-toast][data-tone="ok"]::before, [data-toast][data-tone="bad"]::before {
+    content: "";
+    display: inline-block;
+    flex: none;
+    inline-size: var(--lp-space-4);
+    block-size: var(--lp-space-4);
+    margin-inline-end: var(--lp-space-2);
+    vertical-align: -0.15em;
+    background-color: currentColor;
+    mask: var(--_ico-check) 0 0 / 100% 100% no-repeat;
+  }
+  [data-out="msg"][data-tone="bad"]::before, [data-toast][data-tone="bad"]::before { mask-image: var(--_ico-x); }
+  .lp-stamp [data-out="msg"]::before { display: none; }
+
+  /* ---- dials + keypad (always LTR: position 1 is the left dial in both languages) ---- */
+  [data-slot="dials"], [data-slot="keypad"] {
+    display: grid;
+    gap: var(--lp-space-1);
+    direction: ltr;
+    inline-size: min(100%, calc(var(--lp-px) * 104));
+    margin-inline: auto;
+  }
+  /* cell = box + 2 frame bars; 5 cells + 4 gaps = 296px at 320 -> 48px boxes */
+  [data-slot="dials"] { grid-template-columns: repeat(var(--lp-n), minmax(0, calc(var(--lp-px) * 20))); justify-content: center; }
+  [data-slot="keypad"] { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  [data-slot="dials"] > button, [data-slot="keypad"] > button {
+    padding: 0;
+    font-family: var(--lp-font-latin);
+    line-height: 1;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  [data-slot="dials"] > button {
+    position: relative;
+    min-block-size: var(--lp-dial-h);
+    font-size: var(--lp-fs-dial);
+    box-shadow: var(--lp-shadow-frame), inset 0 var(--lp-bw) 0 0 color-mix(in srgb, var(--lp-ink) 40%, transparent);
+  }
+  [data-slot="keypad"] > button { min-block-size: var(--lp-key-h); font-size: var(--lp-fs-key); }
+  /* idle/selected cursor bar under the digit (non-color cue for the selected dial) */
+  [data-slot="dials"] > button:not([data-state="filled"], [data-state="correct"], [data-state="wrong"])::after {
+    content: "";
+    position: absolute;
+    inset-block-end: var(--lp-space-2);
+    inset-inline-start: calc(50% - var(--lp-px) * 1.5);
+    inline-size: var(--lp-space-3);
+    block-size: var(--lp-px);
+    background: var(--lp-text-dim);
+  }
+  [data-slot="dials"] > button[data-state="selected"] { background: var(--lp-accent); color: var(--lp-on-accent); }
+  [data-slot="dials"] > button[data-state="selected"]::after { background: var(--lp-on-accent); }
+  [data-slot="dials"] > button[data-state="correct"] { --_c: var(--lp-ok); }
+  [data-slot="dials"] > button[data-state="wrong"] { --_c: var(--lp-bad); }
+  [data-slot="dials"] > button:is([data-state="correct"], [data-state="wrong"])::before {
+    content: "";
+    position: absolute;
+    inset-block-start: calc(var(--lp-px) / 2);
+    inset-inline-end: calc(var(--lp-px) / 2);
+    inline-size: var(--lp-space-4);
+    block-size: var(--lp-space-4);
+    background-color: var(--_c);
+    mask: var(--_ico-check) 0 0 / 100% 100% no-repeat;
+  }
+  [data-slot="dials"] > button[data-state="wrong"]::before { mask-image: var(--_ico-x); }
+  [data-slot="dials"] > button:is([aria-disabled="true"], [data-state="correct"]) { cursor: default; }
+  @media (min-width: 80em) { :root { --lp-dial-h: calc(var(--lp-px) * 20); } }
+
+  /* wrong guesses so far: compact wrap of small chips; capped at ~2 rows, scrolls inside beyond that */
+  [data-slot="attempts"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--lp-space-1);
+    max-block-size: calc(var(--lp-px) * 19);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    direction: ltr;
+    justify-content: center;
+    font-size: var(--lp-fs-0);
+    line-height: 1;
+  }
+  [data-slot="attempts"]:empty { display: none; }
+  [data-slot="attempts"] > li {
+    --_c: var(--lp-line-soft);
+    margin: var(--lp-bw);
+    padding: var(--lp-space-1) var(--lp-space-2);
+    background: var(--lp-bg-2);
+    color: var(--lp-text-dim);
+    box-shadow: 0 calc(var(--lp-bw) * -1) 0 0 var(--_c), 0 var(--lp-bw) 0 0 var(--_c), calc(var(--lp-bw) * -1) 0 0 0 var(--_c), var(--lp-bw) 0 0 0 var(--_c);
+    white-space: nowrap;
+  }
+
+  /* ---- timer (Blood bar, Classic plain text); data-phase/data-urgent live on the <dd> and the bar ---- */
+  dd:has(> output[data-out="timer"]) { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: var(--lp-space-2); }
+  output[data-out="timer"] {
+    position: relative;
+    isolation: isolate;
+    font-size: var(--lp-fs-3);
+    line-height: 1;
+    direction: ltr;
+    unicode-bidi: isolate;
+    white-space: nowrap;
+  }
+  /* dark-only scanlines BEHIND the readout (z-index -1 inside an isolated context) */
+  output[data-out="timer"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: repeating-linear-gradient(to bottom, transparent 0 calc(var(--lp-px) - 1px), var(--_scan) 0 var(--lp-px));
+  }
+  body[data-mode="blood"] output[data-out="timer"] { font-size: var(--lp-fs-6); }
+  dd[data-urgent] output[data-out="timer"] { font-weight: var(--lp-fw-bold); color: var(--lp-accent-text); }
+  .lp-timer-icon__skull { display: none; }
+  dd:is([data-phase="last30"], [data-phase="last10"]) .lp-timer-icon__clock { display: none; }
+  dd:is([data-phase="last30"], [data-phase="last10"]) .lp-timer-icon__skull { display: inline; }
+
+  /* 18 segments x 3 units; the fill is drawn from --lp-timer-left (0..18) */
+  [data-timer-bar] {
+    grid-column: 1 / -1;
+    display: block;
+    flex: none;
+    inline-size: calc(var(--lp-seg) * 18);
+    max-inline-size: 100%;
+    block-size: var(--lp-space-1);
+    margin: var(--lp-space-2);
+    direction: ltr;
+    background:
+      repeating-linear-gradient(to right, var(--lp-line-soft) 0 calc(var(--lp-seg) - var(--lp-px)), transparent 0 var(--lp-seg)),
+      var(--lp-field);
+  }
+  [data-timer-bar]::before {
+    content: "";
+    display: block;
+    inline-size: calc(var(--lp-timer-left) * var(--lp-seg));
+    block-size: 100%;
+    background: repeating-linear-gradient(to right, var(--lp-meter) 0 calc(var(--lp-seg) - var(--lp-px)), transparent 0 var(--lp-seg));
+  }
+  /* last30: structural change (hatch), not a hue change; last10: static 2-unit text-colored frame
+     (the pulse in the motion block only alternates this frame's color) */
+  [data-timer-bar]:is([data-phase="last30"], [data-phase="last10"])::before {
+    background:
+      var(--_chk) 0 0 / calc(var(--lp-px) * 2) calc(var(--lp-px) * 2),
+      repeating-linear-gradient(to right, var(--lp-meter) 0 calc(var(--lp-seg) - var(--lp-px)), transparent 0 var(--lp-seg));
+  }
+  [data-timer-bar][data-phase="last10"] { --lp-bw: calc(var(--lp-px) * 2); --_c: var(--lp-text); }
+
+  /* ---- lock host: both <use> present, only the active one shows ---- */
+  .lp-lock { display: inline-grid; place-items: center; }
+  .lp-lock__open { display: none; }
+  [data-lock="success"] .lp-lock__closed { display: none; }
+  [data-lock="success"] .lp-lock__open { display: inline; }
+
+  /* ---- clue cards: newest on top, start bar is decor ---- */
+  [data-slot="clues"] { display: grid; gap: var(--lp-space-2); }
+  [data-slot="clues"] > li {
+    contain: layout paint;   /* no focusable content and the frames sit inside their margins */
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lp-space-1);
+    padding: var(--lp-space-3);
+    background: var(--lp-bg-2);
+    border-inline-start: var(--lp-bw) solid var(--lp-line-soft);
+  }
+  [data-slot="clues"] > li::before {
+    content: "#" attr(data-n);
+    flex: none;
+    min-inline-size: 3ch;
+    color: var(--lp-text-dim);
+    font-size: var(--lp-fs-0);
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  [data-slot="clues"] .digit {
+    display: grid;
+    place-items: center;
+    flex: none;
+    inline-size: var(--lp-space-6);
+    block-size: var(--lp-space-6);
+    margin: var(--lp-bw);
+    background: var(--lp-field);
+    box-shadow: var(--lp-shadow-frame);
+    font-family: var(--lp-font-latin);
+    font-size: var(--lp-fs-2);
+    line-height: 1;
+    direction: ltr;
+  }
+  [data-slot="clues"] .clue-text { flex: 1 1 8rem; min-inline-size: 0; overflow-wrap: anywhere; }
+  [data-slot="clues"] > li[data-kind="feedback"] .clue-text { flex-basis: 100%; color: var(--lp-text-dim); font-size: var(--lp-fs-0); }
+  /* Feedback clues: the guess digits and the pips are one LTR row, in the same x-order as the dial row
+     (digit i sits where dial i sits, in Arabic too). The li is a flat flex row (no wrapper element), so
+     the whole card is forced LTR and only the sentence goes back to the page direction. */
+  [data-slot="clues"] > li[data-kind="feedback"] { direction: ltr; unicode-bidi: isolate; }
+  [data-slot="clues"] > li[data-kind="feedback"] .clue-text { direction: inherit; unicode-bidi: isolate; }
+  :root[dir="rtl"] [data-slot="clues"] > li[data-kind="feedback"] .clue-text { direction: rtl; text-align: start; }
+  /* the decorative start bar must stay on the RTL start (right) edge like the other card kinds */
+  :root[dir="rtl"] [data-slot="clues"] > li[data-kind="feedback"] { border-inline-start: 0; border-inline-end: var(--lp-bw) solid var(--lp-line-soft); }
+  /* single values that may carry ids or digits inside RTL text */
+  [data-out="puzzle-no"], [data-out="attempts-left"] { display: inline-block; direction: ltr; unicode-bidi: isolate; }
+  /* pips: SHAPE carries the meaning. right = filled, wrong = hollow */
+  [data-pip] { display: inline-block; flex: none; inline-size: var(--lp-space-3); block-size: var(--lp-space-3); margin-inline-end: var(--lp-space-1); vertical-align: middle; }
+  [data-slot="clues"] [data-pip] { margin: 0; }
+  [data-pip="right"] { background: var(--lp-ok); }
+  [data-pip="wrong"] { border: var(--lp-bw) solid var(--lp-info); }
+
+  /* ---- tabs ---- */
+  [role="tablist"] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lp-space-1); }
+  [role="tab"][aria-selected="true"] { background: var(--lp-accent); color: var(--lp-on-accent); translate: 0 var(--lp-bw); box-shadow: var(--lp-shadow-frame); }
+
+  /* ---- leaderboard table: fixed layout so 20-char names wrap and never widen the page ---- */
+  table { inline-size: 100%; table-layout: fixed; }
+  caption { padding-block-end: var(--lp-space-2); color: var(--lp-text-dim); font-size: var(--lp-fs-0); text-align: start; }
+  th, td { padding: var(--lp-space-2) var(--lp-space-1); text-align: start; vertical-align: baseline; }
+  thead th { color: var(--lp-text-dim); font-size: var(--lp-fs-0); font-weight: var(--lp-fw-bold); background: var(--_rule); }
+  /* F-13: the rank column must hold the longest header word on one line ("الترتيب" is about 52px at 15.75px bold) */
+  thead th:first-child { inline-size: calc(var(--lp-px) * 18); overflow-wrap: normal; }
+  thead th:last-child, tbody td:last-child { inline-size: calc(var(--lp-px) * 28); text-align: end; }
+  /* isolate only: forcing direction:ltr here would flip text-align:end to the wrong edge in RTL */
+  tbody td { unicode-bidi: isolate; }
+  tbody tr { background: var(--_rule); }
+  tbody th { font-weight: var(--lp-fw-regular); }
+  /* own row: fill + start bar + the "YOU" text badge (never color only) */
+  tbody tr[data-self] { background: var(--lp-bg-2); font-weight: var(--lp-fw-bold); }
+  tbody tr[data-self] > :first-child { background: linear-gradient(var(--lp-accent), var(--lp-accent)) left / var(--lp-bw) 100% no-repeat; }
+  [dir="rtl"] tbody tr[data-self] > :first-child { background-position: right; }
+  tbody tr[data-self] th > span { display: inline-block; margin-inline: var(--lp-space-2) var(--lp-bw); padding-inline: var(--lp-space-1); background: var(--lp-accent); color: var(--lp-on-accent); font-size: var(--lp-fs-0); box-shadow: var(--lp-shadow-frame); }
+
+  /* ---- toast (CIRCUIT appends body > [data-toast][role=status]; empty = hidden).
+     Parked under the header, not above the dock: it can never cover Check/the keypad and it
+     stays visible when a mobile keyboard is open. ---- */
+  [data-toast] {
+    position: fixed;
+    inset-block-start: calc(var(--lp-header-h) + var(--lp-space-3));
+    inset-inline: var(--lp-gutter);
+    z-index: var(--lp-z-toast);
+    inline-size: min(calc(100% - 2 * var(--lp-gutter)), 28rem);
+    margin-inline: auto;
+    display: flex;
+    align-items: center;
+    padding: var(--lp-space-3) var(--lp-space-4);
+    background: var(--lp-inv-bg);
+    color: var(--lp-inv-text);
+    font-weight: var(--lp-fw-bold);
+  }
+  [data-toast]:empty { display: none; }
+
+  /* ---- dialog: frame + dither "shadow" drawn in the border area (so overflow:auto cannot clip it) ---- */
+  dialog {
+    --_g: var(--lp-space-3);
+    inline-size: min(calc(100% - 2 * var(--lp-gutter)), 28rem);
+    max-block-size: calc(100dvh - 2 * var(--lp-gutter));
+    margin: auto;
+    padding: var(--lp-space-4);
+    border: 0;
+    border-inline-end: var(--lp-space-2) solid transparent;
+    border-block-end: var(--lp-space-2) solid transparent;
+    overflow: auto;
+    overscroll-behavior: contain;
+    color: var(--lp-text);
+    background:
+      linear-gradient(var(--lp-bg-1), var(--lp-bg-1)) padding-box,
+      var(--_chk50) 0 0 / calc(var(--lp-px) * 2) calc(var(--lp-px) * 2) border-box;
+  }
+  dialog[open] { display: grid; gap: var(--_g); align-content: start; }
+  dialog::backdrop { background: var(--lp-scrim, rgb(0 0 0 / 0.8)); }
+  dialog h2 { font-size: var(--lp-fs-3); }
+  dialog > form { display: grid; gap: var(--_g); }
+  dialog menu { display: grid; gap: var(--lp-space-1); }
+  @media (min-width: 30em) {
+    dialog menu { display: flex; flex-wrap: wrap; justify-content: flex-end; }
+    dialog menu button { inline-size: auto; }
+  }
+  output[data-out="code"] {
+    display: block;
+    padding: var(--lp-space-3);
+    padding-inline-start: calc(var(--lp-space-3) + 0.3em);   /* balances the trailing letter-space */
+    background: var(--lp-field);
+    font-family: var(--lp-font-latin);
+    font-size: var(--lp-fs-5);
+    letter-spacing: 0.3em;
+    text-align: center;
+    direction: ltr;
+    unicode-bidi: isolate;
+    user-select: all;    /* the code must stay selectable/copyable */
+  }
+
+  /* ---- motion (opt-in; the static equivalents above are the default) ---- */
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes lp-shake { 0%, 100% { translate: 0 0; } 20%, 60% { translate: calc(var(--lp-px) * -1) 0; } 40%, 80% { translate: var(--lp-px) 0; } }
+    @keyframes lp-hop { 0%, 49.9% { translate: 0 calc(var(--lp-px) * -2); } 50%, 100% { translate: 0 0; } }
+    @keyframes lp-pulse { 0%, 49.9% { --_pulse: var(--lp-line); } 50%, 100% { --_pulse: var(--lp-text); } }
+    @keyframes lp-dots { 0% { clip-path: inset(0 100% 0 0); } 33% { clip-path: inset(0 66% 0 0); } 66% { clip-path: inset(0 33% 0 0); } 100% { clip-path: inset(0); } }
+    @keyframes lp-toast-in { from { translate: 0 calc(var(--lp-px) * -1); } to { translate: 0 0; } }
+    [data-lock="fail"], [data-slot="dials"] > button[data-state="wrong"] { animation: lp-shake var(--lp-dur-4) var(--lp-ease-hold) 1; }
+    [data-lock="success"] { animation: lp-hop 320ms var(--lp-ease-hold) 1; }
+    [data-timer-bar][data-phase="last10"] { --_c: var(--_pulse); animation: lp-pulse 1000ms steps(1, end) infinite; }
+    button[aria-busy="true"]::after { animation: lp-dots 1200ms steps(1, end) infinite; }
+    [data-toast] { animation: lp-toast-in var(--lp-dur-2) var(--lp-ease-step-2) 1; }
+  }
+}
+
+/* ================================================================== screens */
+@layer screens {
+  /* every section is a one-column grid; the gap token also feeds the empty-message collapse rules */
+  main section, form { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--_g); align-content: start; --_g: var(--lp-space-3); }
+  main > [data-screen] { --_g: var(--lp-space-4); padding-block-end: var(--lp-space-4); }
+  fieldset { display: grid; gap: var(--lp-space-3); }
+  legend { color: var(--lp-text-dim); font-size: var(--lp-fs-0); margin-block-end: var(--lp-space-2); }
+  dd { margin-inline-start: 0; }
+
+  /* shared list rows: dashed pixel leader under each */
+  [data-slot="history"] > li, [data-slot="result-lines"] > li { padding-block: var(--lp-space-2); background: var(--_rule); }
+  [data-slot="result-lines"] > li[data-mode="blood"] { color: var(--lp-accent-text); }
+  /* menus of buttons: stack at 320, flow into columns when there is room */
+  main menu, main nav ul, section[aria-labelledby="home-play-title"] > ul {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+    gap: var(--lp-space-1);
+  }
+  li:has(> button + p) { display: grid; gap: var(--lp-space-2); }
+  li > button + p { color: var(--lp-text-dim); font-size: var(--lp-fs-0); }
+
+  /* ---------------------------------------------------------------- AUTH */
+  [data-screen="auth"] > .lp-vault-door { order: -1; }
+  [data-screen="auth"] > p:not(:last-of-type) { color: var(--lp-text-dim); }
+  form p[id$="-hint"] { color: var(--lp-text-dim); font-size: var(--lp-fs-0); }
+  @media (max-height: 37.5em) { [data-screen="auth"] > .lp-vault-door { display: none; } }
+  @media (min-width: 48em) {
+    [data-screen="auth"] { grid-template-columns: minmax(0, 1fr) minmax(0, 28rem); grid-template-rows: repeat(4, auto) 1fr auto; column-gap: var(--lp-space-7); }
+    [data-screen="auth"] > .lp-vault-door { order: 0; grid-column: 1; grid-row: 1; justify-self: start; }
+    [data-screen="auth"] > h1 { grid-column: 1; grid-row: 2; }
+    [data-screen="auth"] > p:first-of-type { grid-column: 1; grid-row: 3; }
+    [data-screen="auth"] > #auth-privacy { grid-column: 1; grid-row: 4; }
+    [data-screen="auth"] > form { grid-column: 2; grid-row: 1 / span 5; }
+    [data-screen="auth"] > p:last-of-type { grid-column: 2; grid-row: 6; }
+  }
+
+  /* ---------------------------------------------------------------- HOME */
+  [data-screen="home"] { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+  [data-screen="home"] > * { grid-column: 1 / -1; }
+  [data-screen="home"] > h1 { grid-column: 1; grid-row: 1; }
+  [data-screen="home"] > p { grid-column: 1; grid-row: 2; color: var(--lp-text-dim); }
+  [data-screen="home"] > .lp-vault-door { grid-column: 2; grid-row: 1 / span 2; }
+  @media (max-width: 29.99em) { [data-screen="home"] > .lp-vault-door { display: none; } }
+  section[aria-labelledby="home-points-title"] { padding: var(--lp-space-4); background: var(--lp-bg-1); }
+  section[aria-labelledby="home-points-title"] dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--lp-space-2) var(--lp-space-3); }
+  section[aria-labelledby="home-points-title"] dt, [data-screen="result"] > dl dt { display: flex; align-items: center; gap: var(--lp-space-2); color: var(--lp-text-dim); font-size: var(--lp-fs-0); }
+  section[aria-labelledby="home-points-title"] dd, [data-screen="result"] > dl dd { font-size: var(--lp-fs-3); font-weight: var(--lp-fw-bold); text-align: end; direction: ltr; unicode-bidi: isolate; }
+  dt[data-mode="blood"] { color: var(--lp-accent-text); }
+  @media (min-width: 48em) {
+    [data-screen="home"] { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto auto auto 1fr; column-gap: var(--lp-space-6); }
+    [data-screen="home"] > .lp-vault-door { grid-column: 2; grid-row: 1 / span 2; justify-self: end; }
+    [data-screen="home"] > section[aria-labelledby="home-points-title"] { grid-column: 1; grid-row: 3; }
+    /* focus order == DOM order: right column holds Play then the nav buttons (design: ghost row under the PLAY buttons) */
+    [data-screen="home"] > section[aria-labelledby="home-play-title"] { grid-column: 2; grid-row: 3; }
+    [data-screen="home"] > section[aria-labelledby="home-history-title"] { grid-column: 1; grid-row: 4; }
+    [data-screen="home"] > nav { grid-column: 2; grid-row: 4; }
+  }
+
+  /* ---------------------------------------------------------------- PLAY */
+  /* Mobile: flex-wrap rows (NOT grid) so the dock can be sticky against the whole section. */
+  [data-screen="play"] { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lp-space-3); }
+  [data-screen="play"] > * { flex: 1 1 100%; min-inline-size: 0; }
+  [data-screen="play"] > h1 { flex: 1 1 0; font-size: var(--lp-fs-2); }
+  [data-screen="play"] > .lp-badge { flex: none; }
+  /* DOM order is h1, badge, status, clues, Quit, guess dock: visual order == DOM order, no `order` needed.
+     Quit is found by its hook, not by position. */
+  [data-screen="play"] > p:has(> [data-action="quit"]) { text-align: end; }
+  [data-screen="play"] > p:has(> [data-action="quit"]) button { inline-size: auto; }
+  /* status strip */
+  [data-screen="play"] > dl { display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--lp-space-1) var(--lp-space-3); }
+  [data-screen="play"] > dl > dt { color: var(--lp-text-dim); font-size: var(--lp-fs-0); }
+  [data-screen="play"] > dl > dd { font-weight: var(--lp-fw-bold); }
+  [data-screen="play"] > dl > dd:has(> output[data-out="timer"]) { grid-column: 2 / -1; }
+  /* F-12: under 480px label and value stack as two columns, so "Master · 5 digits, all different" gets the whole row
+     and wraps at its spaces instead of inside a word */
+  @media (max-width: 29.99em) {
+    [data-screen="play"] > dl { grid-template-columns: auto minmax(0, 1fr); }
+  }
+
+  /* dock (guess area): lock + message / dials / wrong guesses / keypad / actions */
+  [data-screen="play"] > section[aria-labelledby="play-guess-title"] {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "lock msg" "dials dials" "att att" "keys keys" "menu menu";
+    align-items: center;
+    gap: var(--lp-space-2);   /* cell gap 8 + two 4px frame margins = 16px between boxes (12px is the floor) */
+    margin-block: 0;
+    margin-inline: calc(var(--lp-gutter) * -1);
+    padding: var(--lp-space-2) var(--lp-gutter) max(var(--lp-space-2), env(safe-area-inset-bottom, 0px));
+    background: var(--lp-bg-1);
+  }
+  [data-screen="play"] > section[aria-labelledby="play-guess-title"] > [data-slot="dials"] { grid-area: dials; }
+  [data-screen="play"] > section[aria-labelledby="play-guess-title"] > [data-slot="attempts"] { grid-area: att; }
+  [data-screen="play"] > section[aria-labelledby="play-guess-title"] > [data-slot="keypad"] { grid-area: keys; }
+  [data-screen="play"] > section[aria-labelledby="play-guess-title"] > menu { grid-area: menu; inline-size: min(100%, calc(var(--lp-px) * 104)); margin-inline: auto; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.1fr) minmax(0, 1.3fr); }
+  [data-screen="play"] > section[aria-labelledby="play-guess-title"] > .lp-lock { grid-area: lock; }
+  [data-screen="play"] > section[aria-labelledby="play-guess-title"] > p[data-live="status"] { grid-area: msg; min-block-size: calc(var(--lp-lh-body) * 2em); }
+  /* actions in DOM order, ONE row on phones: Clear | Check | Skip-or-Hint (only one of the last two is ever shown).
+     Labels wrap inside their button; targets stay >= 44px tall. */
+  [data-screen="play"] menu button { min-block-size: calc(var(--lp-px) * 12); padding-inline: var(--lp-space-2); }
+  @media (max-width: 29.99em) { [data-screen="play"] menu .lp-icon { display: none; } }
+
+  /* Dock budget (px, 4px unit; boxes include the 4px frame margin each side):
+       default phone (e.g. 390x844): pad 8 + lock/msg 64 + 8 + dials 72 + 8 + keys 2x60+4 + 8 + actions 56 + pad 8 = 352
+         -> 844 - header 52 - 352 = 440px beside the dock (+ about 38 per row of wrong guesses)
+       compact (height <= 700, e.g. 320x568): pad 8 + msg 24 + 8 + dials 56 + 8 + keys 2x52+4 + 8 + actions 52 + pad 8 = 280
+         -> 568 - 52 - 280 = 236px beside the dock (one attempts row = +38 -> 198) */
+  @media (max-width: 47.999em) {
+    /* thumb-reachable dock; only when the viewport is tall enough that it cannot swallow the page (zoom / landscape).
+       Below that it stays in normal flow and is reached by scrolling. */
+    @media (min-height: 34em) {
+      [data-screen="play"] > section[aria-labelledby="play-guess-title"] { position: sticky; inset-block-end: 0; z-index: var(--lp-z-dock); }
+      /* WCAG 2.4.11: keyboard focus anywhere above the dock (Quit, clues) scrolls clear of it. The value is the
+         MEASURED dock height once ui/chrome.js has written it. Only while Play is showing: elsewhere there is no dock.
+         The dock's own controls cancel the padding with a negative margin, so tabbing through them never scrolls the page. */
+      html:has([data-screen="play"]:not([hidden])) { scroll-padding-block-end: calc(var(--lp-dock-h) + var(--lp-space-3)); }
+      [data-screen="play"] > section[aria-labelledby="play-guess-title"] :is(button, a, [tabindex]) { scroll-margin-block-end: calc((var(--lp-dock-h) + var(--lp-space-3)) * -1); }
+    }
+    /* compact phones (SE class): 48px dials, 44px keys and actions, no lock sprite, one wrong-guess row */
+    @media (max-height: 43.75em) {
+      :root { --lp-dial-h: calc(var(--lp-px) * 12); --lp-key-h: calc(var(--lp-px) * 11); }
+      /* F-09b: 4px row gaps (box-to-box 12px, the floor) and 4px dock padding, so a wrong guess + a hint
+         message on a 5-digit puzzle still leaves room for clues. Saves 4 gaps x 4 + 2 x 4 = 24px. */
+      [data-screen="play"] > section[aria-labelledby="play-guess-title"] {
+        grid-template-areas: "msg msg" "dials dials" "att att" "keys keys" "menu menu";
+        gap: var(--lp-space-1);
+        padding-block: var(--lp-space-1) max(var(--lp-space-1), env(safe-area-inset-bottom, 0px));
+      }
+      [data-screen="play"] > section[aria-labelledby="play-guess-title"] > .lp-lock { display: none; }
+      /* 14px / 1.3 message: a 2-line hint note is 36px instead of 45px, a 3-line Arabic one 61px instead of 92px */
+      [data-screen="play"] > section[aria-labelledby="play-guess-title"] > p[data-live="status"] { font-size: var(--lp-fs-0); line-height: 1.3; min-block-size: 1.3em; }
+      [data-slot="dials"] > button { font-size: var(--lp-fs-4); }
+      [data-slot="attempts"] { max-block-size: calc(var(--lp-px) * 10); }
+      [data-screen="play"] menu button { min-block-size: calc(var(--lp-px) * 11); font-size: var(--lp-fs-0); line-height: 1.15; }
+      body[data-mode="blood"] output[data-out="timer"] { font-size: var(--lp-fs-5); }
+    }
+  }
+  @media (min-width: 48em) {
+    [data-screen="play"] { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 22rem); align-items: start; column-gap: var(--lp-space-6); }
+    [data-screen="play"] > h1 { grid-column: 1; grid-row: 1; font-size: var(--lp-fs-3); }
+    [data-screen="play"] > .lp-badge { grid-column: 2; grid-row: 1; justify-self: end; }
+    [data-screen="play"] > dl { grid-column: 1 / -1; grid-row: 2; }
+    [data-screen="play"] > section[aria-labelledby="play-clues-title"] { grid-column: 1; grid-row: 3; }
+    [data-screen="play"] > section[aria-labelledby="play-guess-title"] {
+      grid-column: 2;
+      grid-row: 3;
+      position: sticky;
+      inset-block-start: calc(var(--lp-header-h) + var(--lp-space-3));
+      margin: var(--lp-bw);
+      padding: var(--lp-space-4);
+    }
+    /* the console column is narrow: Clear | Check on row 1, Skip or Hint full width on row 2 */
+    [data-screen="play"] > section[aria-labelledby="play-guess-title"] > menu { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+    [data-screen="play"] menu > li:nth-child(n + 3) { grid-column: 1 / -1; }
+    /* reading order: clues, Quit, dock. Quit sits under the clues. */
+    [data-screen="play"] > p:has(> [data-action="quit"]) { grid-column: 1; grid-row: 4; text-align: start; }
+    #play-guess-help { color: var(--lp-text-dim); font-size: var(--lp-fs-0); grid-column: 1 / -1; }
+  }
+  @media (min-width: 48em) and (max-height: 37.5em) {
+    [data-screen="play"] > section[aria-labelledby="play-guess-title"] { position: static; }
+  }
+  @media (min-width: 80em) {
+    [data-screen="play"] { grid-template-columns: minmax(0, 1fr) minmax(0, 28rem); }
+  }
+
+  /* -------------------------------------------------------------- RESULT */
+  [data-screen="result"] { inline-size: min(100%, 36rem); margin-inline: auto; justify-items: stretch; }
+  [data-screen="result"] > h1 { text-align: center; font-size: var(--lp-fs-2); color: var(--lp-text-dim); }
+  [data-screen="result"] > .lp-lock { justify-self: center; }
+  [data-screen="result"] > .lp-badge { justify-self: center; }
+  body[data-mode="blood"] .lp-stamp .lp-icon { color: var(--lp-accent-text); }
+  /* personal best: heavier frame in the accent (the message text also says it) */
+  .lp-stamp:has(> [data-pb]) { --_c: var(--lp-accent); --lp-bw: calc(var(--lp-px) * 2); }
+  [data-screen="result"] > dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--lp-space-2) var(--lp-space-3); }
+
+  /* --------------------------------------------------------------- BOARD */
+  [data-screen="board"] { inline-size: 100%; max-inline-size: 40rem; margin-inline: auto; }
+  [data-screen="board"] h1 { display: flex; align-items: center; gap: var(--lp-space-3); }
+  [data-screen="board"] > p:not(:last-child) { color: var(--lp-text-dim); font-size: var(--lp-fs-0); }
+
+  /* ---------------------------------------------------------------- HELP */
+  [data-screen="help"], noscript > section { max-inline-size: 60ch; inline-size: 100%; margin-inline: auto; }
+  :is([data-screen="help"], noscript) dl { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--lp-space-1) var(--lp-space-4); }
+  :is([data-screen="help"], noscript) dt { display: flex; align-items: center; flex-wrap: wrap; gap: var(--lp-space-1) var(--lp-space-2); font-weight: var(--lp-fw-bold); margin-block-start: var(--lp-space-2); }
+  :is([data-screen="help"], noscript) dd { color: var(--lp-text-dim); }
+  :is([data-screen="help"], noscript) :is(ul, ol) { display: grid; gap: var(--lp-space-2); padding-inline-start: 2.5ch; list-style: square; }
+  :is([data-screen="help"], noscript) ol { list-style: decimal; }
+  [data-screen="help"] > section[data-mode="blood"], noscript > section { padding: var(--lp-space-4); background: var(--lp-bg-1); }
+  [data-screen="help"] h2 { display: flex; align-items: center; gap: var(--lp-space-3); }
+  @media (min-width: 48em) {
+    :is([data-screen="help"], noscript) dl { grid-template-columns: minmax(0, 14rem) minmax(0, 1fr); }
+    :is([data-screen="help"], noscript) dt { margin-block-start: 0; }
+  }
+  /* no JS: the game cannot run, so the dead auth form is hidden and the rules above stay readable */
+  @media (scripting: none) {
+    [data-screen="auth"], header button, header .lp-chip, header details, footer { display: none; }
+    /* footer is hidden because <noscript> already carries the single credit */
+    noscript { display: block; }
+  }
+}
+
+/* ================================================================ utilities */
+@layer utilities {
+  /* Visually hidden but still read aloud and focusable-safe. Never display:none for these. */
+  .visually-hidden, header .lp-chip > span, header [data-action="mute"] > span, #play-guess-title {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* phones: wordmark (under 480px) and chip text / account name / guess help (under 768px) go visually, so the
+     header stays one row at 320px; the accessible names stay. */
+  @media (max-width: 29.99em) {
+    .lp-brand > span {
+      position: absolute; inline-size: 1px; block-size: 1px; margin: -1px; padding: 0; border: 0;
+      overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+    }
+  }
+  @media (max-width: 47.999em) {
+    #play-guess-help, header [data-out="name"], .lp-chip output {
+      position: absolute; inline-size: 1px; block-size: 1px; margin: -1px; padding: 0; border: 0;
+      overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+    }
+  }
+  a, label, summary { touch-action: manipulation; }
+
+  /* ---- focus ring (design 8): 2px ink inside, 2px white outside, drawn OUTSIDE the 1-unit frame
+     bar so the bar is never covered. Identical on all four schemes; the pair guarantees >= 3:1
+     against any surface. Utilities layer + :focus-visible only (mouse clicks do not show it). ---- */
+  :where(button, a, input:not([type="radio"]), select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible,
+  input[type="radio"]:focus-visible + label {
+    outline: 2px solid var(--lp-focus-out);
+    outline-offset: calc(var(--lp-bw) + 2px);
+    box-shadow: var(--_rf, 0 0 #0000), 0 0 0 calc(var(--lp-bw) + 2px) var(--lp-focus-in);
+  }
+
+  /* ---- reduced motion: no translate/pulse/shake/blink/stepping. Every state keeps its static
+     equivalent (frames, icons, text). The boot fail-safe (0-length, not motion) is exempt. ---- */
+  @media (prefers-reduced-motion: reduce) {
+    *:not(main > [data-screen]), *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
+
+  /* ---- forced colors: box-shadow frames vanish, so draw real borders ---- */
+  @media (forced-colors: active) {
+    :is(button, summary, input, dialog, output[data-out="code"], .lp-chip, .lp-badge, .lp-stamp, [data-timer-bar], [data-toast],
+        [data-slot="difficulty-picker"] label, [data-screen="play"] > section[aria-labelledby="play-guess-title"],
+        section[aria-labelledby="home-points-title"], [data-screen="help"] [data-mode="blood"], noscript > section) {
+      box-shadow: none;
+      border: 2px solid CanvasText;
+      margin: 0;
+    }
+    button:disabled, button[aria-disabled="true"] { border-color: GrayText; color: GrayText; }
+    [data-slot="dials"] > button[data-state="selected"], input:checked + label, [role="tab"][aria-selected="true"] { outline: 3px solid Highlight; outline-offset: -3px; }
+    [data-slot="dials"] > button::after, [data-slot="dials"] > button::before, input[type="checkbox"]::before,
+    [data-slot="difficulty-picker"] input:checked + label::before, [data-out="msg"]::before, [data-toast]::before, [data-pip] {
+      forced-color-adjust: none;
+      background-color: CanvasText;
+    }
+    [data-pip="wrong"] { background: none; border-color: CanvasText; }
+    [data-timer-bar] { forced-color-adjust: none; background: repeating-linear-gradient(to right, GrayText 0 calc(var(--lp-seg) - var(--lp-px)), transparent 0 var(--lp-seg)), Canvas; }
+    [data-timer-bar]::before { background: repeating-linear-gradient(to right, CanvasText 0 calc(var(--lp-seg) - var(--lp-px)), transparent 0 var(--lp-seg)); }
+    :focus-visible { outline: 3px solid Highlight; outline-offset: 2px; box-shadow: none; }
+  }
+}
+
+/* Boot flash guard (ATLAS/CIRCUIT): while index.html carries data-boot="pending" the screens stay
+   hidden so a signed-in user never sees the Auth screen flash. The 0s animation is a fail-safe that
+   reveals them after 3s if JS never clears the flag; it is not visual motion, so it is deliberately
+   outside the reduced-motion gate. */
+html[data-boot="pending"] main > [data-screen]{visibility:hidden;animation:lp-boot-failsafe 0s linear 3s forwards}@keyframes lp-boot-failsafe{to{visibility:visible}}
+
+
+
+

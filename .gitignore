@@ -1,0 +1,7 @@
+# dev tooling only; none of this is deployed (the Pages workflow stages an explicit allow-list)
+node_modules/
+_site/
+tests/e2e/shots/
+tests/e2e/.scratch/
+*.log
+.DS_Store

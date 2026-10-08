@@ -1,0 +1,93 @@
+rules_version = '2';
+
+// Threat model (ADR 0002): there is no server code and no auth. A save's document id is
+// SHA-256(name + code), so possession of the id *is* the credential. These rules therefore do three
+// things: make ids impossible to enumerate, bound what a stranger can write, and deny everything else.
+//
+// Nothing PUBLIC derives from the name or the code. The leaderboard row id is SHA-256("lp1-board:" + bk) where
+// `bk` is 128 random bits stored only inside the (private) save, so the public board cannot be used as an
+// offline oracle to brute-force the 6-digit code. Guessing a code is an ONLINE attack (one `get` per guess).
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- players/{id}: one private save per (name, code) ---------------------------------
+    match /players/{id} {
+
+      // Shape check shared by create and update. A fixed, tiny schema means the collection cannot
+      // be used as free file hosting, and a bad client cannot store something the app can't read back.
+      function validPlayer() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['v', 'save'])
+            && d.keys().hasAll(['v', 'save'])
+            && d.v is int
+            && d.v == 1
+            && d.save is string
+            // 900 000 keeps us under the 1 MiB document limit with room for field overhead.
+            && d.save.size() < 900000;
+      }
+
+      // `get` by exact id is the whole login mechanism: only someone who can compute the hash can ask.
+      // The client reads through POST documents:batchGet (one document name per request) rather than a plain GET:
+      // a missing document is then a 200 with a `missing` entry instead of a 404, which browsers log as a console
+      // error. batchGet is authorised as a `get` per document (it is NOT a `list`), so this rule covers it.
+      allow get: if true;
+
+      // No `list` (rules cannot be enumerated: ids stay unguessable) and no `delete` (an attacker who
+      // somehow had an id still cannot destroy the save). Both are denied by omission and by the
+      // catch-all below; stating them here documents the intent.
+      allow list: if false;
+      allow delete: if false;
+
+      allow create: if validPlayer();
+
+      // `v` must not change on update so a client cannot silently migrate a document to a schema
+      // other clients do not understand. The merge-on-conflict logic lives in the client.
+      allow update: if validPlayer()
+                    && request.resource.data.v == resource.data.v;
+    }
+
+    // ---- board/{bid}: public leaderboard rows --------------------------------------------
+    match /board/{bid} {
+
+      // Rows are public by design. `bid` is a hash of a random per-account key (see the header comment),
+      // unrelated to the save id, the name and the code. Ranges below are sanity bounds, NOT proof of
+      // score: without server code the leaderboard is honor-system (accepted risk in ADR 0002).
+      function validRow() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['name', 'total', 'blood', 'solved', 'bestRun', 'updatedAt'])
+            && d.keys().hasAll(['name', 'total', 'blood', 'solved', 'bestRun', 'updatedAt'])
+            // The client cuts names to 24 code points; 96 = 24 x 4 UTF-8 bytes, so this holds whether size()
+            // counts characters or bytes.
+            && d.name is string && d.name.size() >= 1 && d.name.size() <= 96
+            && d.total is int && d.total >= 0 && d.total <= 100000000
+            && d.blood is int && d.blood >= 0 && d.blood <= 100000000
+            && d.solved is int && d.solved >= 0 && d.solved <= 1000000
+            && d.bestRun is int && d.bestRun >= 0 && d.bestRun <= 100000000
+            // Epoch-ms upper bound ~ year 5138: rejects absurd values without depending on server time.
+            && d.updatedAt is int && d.updatedAt >= 0 && d.updatedAt <= 100000000000000;
+      }
+
+      allow get: if true;
+
+      // `request.query.limit` is absent for unbounded queries, which makes this expression error
+      // and therefore deny: a client must ask for at most 50 rows, so one request cannot dump
+      // the whole collection or run up the read bill. `offset == 0` stops paging past the first 50 rows
+      // (an unset offset counts as 0; verify in the Rules playground, see docs/backend.md).
+      allow list: if request.query.limit <= 50 && request.query.offset == 0;
+
+      allow create: if validRow();
+      allow update: if validRow();
+
+      // Without delete, a vandal can overwrite a row but not erase the board.
+      allow delete: if false;
+    }
+
+    // ---- everything else -----------------------------------------------------------------
+    // Default deny. Firestore is already deny-by-default; this makes a typo'd collection name fail
+    // closed and makes the intent visible to the next reader.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

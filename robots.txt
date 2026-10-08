@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://op-h.github.io/lock-puzzle-game/sitemap.xml

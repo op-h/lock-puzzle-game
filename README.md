@@ -1,77 +1,74 @@
-# 🔐 لعبة كسر القفل - Lock Puzzle Game
+# Lock Puzzle
 
-**صنع بواسطة OPH**
+A pixel-art code-cracking game. Read the clues, work out the one code that fits them all, and open the lock.
+Play it relaxed in **Classic** mode or race the clock in **Blood Point** mode.
 
-## شنو هاي اللعبة؟
+**Made by [OPH](https://github.com/op-h).** English and Arabic (RTL), built for phones first.
 
-هاي لعبة ذكاء وتفكير، المطلوب منك تكسر رقم القفل الرقمي اللي مكون من 3 أرقام. اللعبة تعطيك 5 قرائن (hints) وانت لازم تحلل هاي القرائن وتطلع الرقم الصحيح.
+Live site (once GitHub Pages is enabled): https://op-h.github.io/lock-puzzle-game/
 
-## كيف العب؟
+## How it plays
 
-1. **شوف القرائن**: كل قرينة تعطيك معلومة عن الأرقام الصحيحة
-2. **دخل تخمينك**: اكتب 3 أرقام بالخانات
-3. **اضغط تحقق**: شوف اذا الجواب صحيح ولا لأ
-4. **كرر المحاولة**: لو غلط، حاول مرة ثانية
-5. **افتح القفل**: لما تحل اللغز، القفل راح ينفتح! 🎉
+- Every puzzle hides a 3, 4 or 5 digit code. The clues are enough to identify **exactly one** code. The
+  generator proves this by exhaustive search before a puzzle is ever shown, so there is never a second valid answer.
+- Clue types: feedback on a guess (digits right and in the right place / right but in the wrong place),
+  digit sum, parity of a position, compare two positions, and how many digits are even.
+- Four difficulties: Rookie (3 digits, no repeats), Agent (3 digits, repeats possible), Hacker (4 digits),
+  Master (5 digits).
+- **Score = base x speed x accuracy x hint.** The speed bonus starts at x2 and halves its excess every "par" seconds
+  (never below x0.5), each wrong guess costs 8 points of accuracy (floor 40%), and a hint halves the points.
+- **Blood Point mode:** a 3:00 countdown, x2 points, a wrong guess costs 5 s, a skip costs 10 s, no hints, and
+  difficulty ramps as you solve. Points from this mode are always labelled **"Blood points (from Blood mode)"** and
+  shown separately from Classic points.
+- **Players:** enter a name and you get a generated 6-digit code. Name + code on any device continues the same
+  save. There is a log out button. Keep your code: it cannot be recovered.
 
-## القرائن (الـ Hints):
+The leaderboard is honor-system (scores are reported by players' devices and are not verified).
 
-- **317**: رقمان صحيحان ولكن في المكان الخطأ
-- **849**: لا شيء صحيح (كلهم غلط)
-- **891**: رقم واحد صحيح ولكن في المكان الخطأ  
-- **793**: رقم واحد صحيح وفي المكان الصحيح
-- **725**: رقم واحد صحيح ولكن في المكان الخطأ
+## Run it locally
 
-## ميزات اللعبة:
+No build step and no runtime dependencies.
 
-✅ **واجهة حلوة**: تصميم عصري ومريح للعين  
-✅ **دعم العربية**: النصوص بالعربي والانجليزي  
-✅ **تسجيل المحاولات**: اللعبة تحفظ محاولاتك  
-✅ **نصائح مساعدة**: اذا تعبت، اضغط على زر النصائح  
-✅ **ريسيت**: تقدر ترجع تلعب من الصفر  
-✅ **متوافق مع الموبايل**: يشتغل على كل الأجهزة  
+```sh
+python3 -m http.server 8000      # then open http://localhost:8000/
+node --test 'tests/unit/*.test.mjs'   # unit tests (PUZZLE_SEEDS=300 for a quicker run)
+```
 
-## كيف نزل اللعبة على جهازي؟
+ES modules and the service worker need http(s); opening `index.html` from `file://` will not run the game.
 
-### الطريقة الأولى - GitHub Pages:
-1. انسخ كود الـ HTML 
-2. سوي repository جديد على GitHub
-3. حط الكود بملف اسمه `index.html`
-4. فعل GitHub Pages من الإعدادات
-5. خلاص! اللعبة صارت online
+## Deploy on GitHub Pages
 
-### الطريقة الثانية - محلي:
-1. انسخ الكود وحطه بملف `index.html`
-2. احفظ الملف على سطح المكتب
-3. افتح الملف بأي متصفح
-4. العب براحتك!
+1. Repository **Settings > Pages > Source: GitHub Actions** (one-time).
+2. Push to `main`. The workflow in `.github/workflows/pages.yml` runs the tests and publishes only the site files.
 
-## نصائح للحل:
+All URLs in the app are relative, so it works under the `/lock-puzzle-game/` project path.
 
-💡 **ابدأ بالقرائن الواضحة**: شوف شنو القرينة اللي تعطي معلومات أكثر  
-💡 **استخدم طريقة الاستبعاد**: شيل الأرقام اللي متأكد انها غلط  
-💡 **فكر منطقي**: كل قرينة تحد من الاحتمالات  
-💡 **اصبر**: اللغز يحتاج تفكير، ما تستعجل  
+## Cloud saves (one-time owner setup)
 
-## التقنيات المستخدمة:
+Saves work offline on the device out of the box. For cross-device sign-in, publish `firestore.rules` and enable
+Firestore in the Firebase project, then restrict the web API key to this site. Step by step: [docs/backend.md](docs/backend.md).
+Why it is designed this way, and what it does not protect against: [ADR 0002](docs/decisions/0002-cloud-saves-capability-code.md).
 
-- **React**: للواجهة التفاعلية
-- **Tailwind CSS**: للتصميم الحلو
-- **JavaScript**: للمنطق والوظائف
-- **HTML5**: البنية الأساسية
-- **Base64 Encoding**: لحماية الجواب من الغش
+## Project map
 
-## للمطورين:
+| Path | What |
+|---|---|
+| `index.html`, `css/main.css`, `js/`, `sw.js` | The app: vanilla ES modules, one stylesheet, no framework |
+| `js/engine/` | Puzzle generator, solver, scoring (DOM-free, unit tested) |
+| `js/game/` | Classic and Blood state machines with an injectable clock |
+| `js/sync/` | Name + code identity, offline-first storage, merge, Firestore REST client |
+| `docs/architecture.md`, `docs/decisions/` | Architecture contract and decision records |
+| `docs/design.md`, `docs/perf.md`, `docs/seo.md`, `docs/qa.md` | Design system, budgets, metadata, release checks |
 
-الكود نظيف ومنظم، تقدر تعدل عليه بسهولة:
-- غير الجواب بتغيير الـ `encodedAnswer`
-- ضيف قرائن جديدة بتعديل مصفوفة `clues`
-- غير التصميم بتعديل كلاسات Tailwind
-
-## دعم:
-
-اذا واجهت مشكلة او عندك اقتراح، ابعث رسالة!
+The original single-file React version is in this repository's git history.
 
 ---
 
-*صنع by oph
+## بالعربي (باختصار)
+
+لعبة كسر القفل بتصميم بكسلي (Pixel Art). كل لغز له **جواب واحد فقط** تثبته اللعبة بالبحث الشامل قبل ما تعرضه.
+عندك وضع **كلاسيك** بدون وقت، ووضع **نقاط الدم (Blood)** بعدّاد ٣ دقائق ونقاط مضاعفة. السرعة تزيد النقاط.
+تدخل اسمك فتاخذ رمز من ٦ أرقام، وبنفس الاسم والرمز تكمل تقدمك من أي جهاز، وفيه زر تسجيل خروج.
+احفظ الرمز لأنه ما ينسترجع.
+
+صنع بواسطة [OPH](https://github.com/op-h).
