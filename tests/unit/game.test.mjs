@@ -14,6 +14,7 @@ import { createClock } from '../../js/game/clock.js';
 import { DEADLINE_TOLERANCE_MS, sanitizeProgress, restoreClassic, restoreBlood, reconcileRunSummary, createProgress } from '../../js/game/progress.js';
 import { createLocal, createMemoryStorage } from '../../js/sync/local.js';
 import { mergeSaves, emptySave, derive } from '../../js/sync/merge.js';
+import './helpers/merge-ready.mjs';
 
 // ---- helpers ---------------------------------------------------------------------------------
 

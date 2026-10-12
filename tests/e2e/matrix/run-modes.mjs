@@ -20,9 +20,10 @@ const modes = [
   { name: 'forced-colors-light', media: { forced: true, scheme: 'light' } },
 ];
 async function sweep(state) {
+  await page.waitForTimeout(700); // clue entrance stagger + count-ups: half-transparent text mid-fade is not a contrast failure (same wait as run-matrix)
   for (const m of modes) {
     await d.pin({ motion: 'no-preference', scheme: 'dark', contrast: 'no-preference', forced: false, ...m.media });
-    await page.waitForTimeout(80);
+    await page.waitForTimeout(400); // colours ease for <= 160 ms
     const a = await page.evaluate(layoutAudit);
     const probe = await page.evaluate(() => {
       const btns = [...document.querySelectorAll('main button, header button')].filter((b) => b.getBoundingClientRect().width > 0 && !b.closest('[hidden]'));

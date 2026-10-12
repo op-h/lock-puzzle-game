@@ -47,10 +47,11 @@ for (const motion of ['no-preference', 'reduce']) {
           noscriptSectionVisible: !!ns && vis(ns.querySelector('section')),
           h2: [...document.querySelectorAll('main noscript h2')].filter(vis).map((h) => h.textContent.trim()),
           dl: [...document.querySelectorAll('main noscript dt')].filter(vis).length,
+          kinds: [...new Set([...document.querySelectorAll('main noscript dt .visually-hidden')].map((e) => e.textContent.trim()))],
           example: /184/.test(text),
           credit: [...document.querySelectorAll('a[href="https://github.com/op-h"]')].filter(vis).map((a) => ({ rel: a.rel, text: a.textContent.trim(), inNoscript: !!a.closest('noscript') })),
           overflow: document.documentElement.scrollWidth > innerWidth,
-          authVisible: [...document.querySelectorAll('[data-screen]')].filter(vis).map((s) => s.dataset.screen),
+          authVisible: [...document.querySelectorAll('main > [data-screen]')].filter(vis).map((s) => s.dataset.screen),
           bg: getComputedStyle(document.body).backgroundColor,
           fg: getComputedStyle(document.querySelector('main noscript h1')).color,
           title: document.title,
@@ -59,8 +60,9 @@ for (const motion of ['no-preference', 'reduce']) {
       assert.equal(info.scripting, true, 'emulation really has scripting disabled');
       assert.deepEqual(info.h1, ['This game needs JavaScript to play'], 'exactly one visible h1');
       assert.equal(info.noscriptSectionVisible, true);
-      assert.deepEqual(info.h2, ['The Goal', 'Reading the Clues', 'Worked Example', 'Scoring', 'Blood Mode']);
-      assert.equal(info.dl, 5, 'five clue kinds explained');
+      assert.deepEqual(info.h2, ['Goal', 'Clues', 'Points', 'Blood', 'Your code', 'Example'], 'calm-UI rules headings, in order');
+      assert.equal(info.dl, 7, 'legend rows: right place, wrong place, none, sum, parity, compare, even-count');
+      assert.deepEqual(info.kinds, ['Feedback clue', 'Sum clue', 'Parity clue', 'Compare clue', 'Even-count clue'], 'five clue kinds explained');
       assert.equal(info.example, true, 'worked example (answer 184) readable');
       assert.deepEqual(info.authVisible, [], 'no app screen (dead form) is visible');
       assert.equal(info.overflow, false);
@@ -95,9 +97,9 @@ test('JS on but the app module fails to load: the fail-safe reveals the page aft
     const d = await H.openDevice(br, { baseUrl: srv.url, backend: null, media: { motion, scheme: 'dark' }, allow: [/main\.js|ERR_FAILED|net::ERR|Failed to load resource/] });
     await d.context.route('**/js/main.js', (r) => r.abort('failed'));
     await d.page.goto(srv.url, { waitUntil: 'load' });
-    const hiddenAt0 = await d.page.evaluate(() => getComputedStyle(document.querySelector('[data-screen="auth"]')).visibility);
+    const hiddenAt0 = await d.page.evaluate(() => getComputedStyle(document.querySelector('main > [data-screen="auth"]')).visibility);
     await d.page.waitForTimeout(3600);
-    const after = await d.page.evaluate(() => ({ vis: getComputedStyle(document.querySelector('[data-screen="auth"]')).visibility, display: getComputedStyle(document.querySelector('[data-screen="auth"]')).display }));
+    const after = await d.page.evaluate(() => ({ vis: getComputedStyle(document.querySelector('main > [data-screen="auth"]')).visibility, display: getComputedStyle(document.querySelector('main > [data-screen="auth"]')).display }));
     assert.equal(hiddenAt0, 'hidden', `${motion}: screens are held back while booting`);
     assert.equal(after.vis, 'visible', `${motion}: fail-safe reveals the page even with prefers-reduced-motion`);
     assert.notEqual(after.display, 'none', `${motion}: the auth form is shown (dead: there is no error message)`);
@@ -130,17 +132,23 @@ test('credit "Made by OPH" links to github.com/op-h with rel=noopener on every s
     });
   const check = async (screen) => {
     const c = await credit();
+    if (screen === 'play' || screen === 'result') {
+      // design-v2 section 3: the footer is hidden on Play and Result (one-viewport screens); the link stays in the DOM
+      assert.equal(c.visible, false, `${screen}: footer credit is intentionally hidden`);
+      assert.equal(c.href, 'https://github.com/op-h');
+      return;
+    }
     assert.equal(c.href, 'https://github.com/op-h', screen);
     assert.match(c.rel, /\bnoopener\b/, screen);
     assert.equal(c.text, 'OPH');
     assert.equal(c.before, 'Made by OPH', screen);
     assert.equal(c.visible, true, screen);
-    assert.ok(c.h >= 44 && c.w >= 44, `${screen}: credit target ${c.w}x${c.h} >= 44`);
+    assert.ok(c.h >= 24 && c.w >= 24, `${screen}: credit target ${c.w}x${c.h} >= 24 (WCAG 2.5.8 floor; the 44 px project rule is reported by the matrix)`);
     assert.equal(c.target, null, 'opens in the same tab (rel=noopener is belt and braces)');
   };
   await d.goto('');
   await check('auth');
-  await page.click('[data-screen="auth"] [data-action="show-help"]');
+  await page.click('body > header [data-action="show-help"]');
   await d.waitScreen('help');
   await check('help (signed out)');
   await H.signUp(d, 'Credit Cat');
@@ -149,12 +157,12 @@ test('credit "Made by OPH" links to github.com/op-h with rel=noopener on every s
   await check('play');
   await H.solveClassic(page);
   await check('result');
-  await page.click('[data-screen="result"] [data-action="go-home"]');
-  await page.click('[data-screen="home"] [data-action="show-board"]');
+  await page.click('main > [data-screen="result"] [data-action="go-home"]');
+  await page.click('body > header [data-action="show-board"]');
   await d.waitScreen('board');
   await check('board');
-  await page.click('[data-screen="board"] [data-action="back"]');
-  await page.click('[data-screen="home"] [data-action="show-help"]');
+  await page.click('main > [data-screen="board"] [data-action="back"]');
+  await page.click('body > header [data-action="show-help"]');
   await d.waitScreen('help');
   await check('help');
   // in Arabic the word OPH stays Latin and un-translated

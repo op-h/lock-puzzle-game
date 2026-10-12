@@ -81,16 +81,28 @@ export function closeDialog(dlg) {
   else dlg.removeAttribute('open');
 }
 
+/**
+ * Call from a dialog's `close` event (any reason). A dialog whose opener sat inside a closed <details>, or was
+ * hidden meanwhile, cannot give focus back: Chromium leaves activeElement on that unrendered control (or on
+ * <body>), so test for "not rendered" rather than only "is body". A rendered focus owner is left alone.
+ */
+export function restoreFocus(doc, to) {
+  const a = doc.activeElement;
+  if (to && (!a || a === doc.body || a.getClientRects().length === 0)) to.focus();
+}
+
 const timers = new WeakMap();
 
 /**
- * Message into the first data-out="msg" under `root`. Non-sticky messages clear themselves so a stale
- * "Wrong guess" never outlives the situation; tone is a CSS hook (ok|bad|info).
+ * Message into the first data-out="msg" under `root`. Non-sticky messages clear themselves after 3 s so a stale
+ * "Wrong guess" never outlives the situation: first `data-leaving` (PRISM fades it out), then the text goes
+ * 150 ms later. `tone` is a CSS hook (ok|bad|info).
  */
-export function say(root, text, tone = 'info', { sticky = false, ms = 4000 } = {}) {
+export function say(root, text, tone = 'info', { sticky = false, ms = 3000 } = {}) {
   const m = $(root, '[data-out="msg"]');
   if (!m) return;
   clearTimeout(timers.get(m));
+  delete m.dataset.leaving;
   m.textContent = text;
   if (text) m.dataset.tone = tone;
   else delete m.dataset.tone;
@@ -98,8 +110,15 @@ export function say(root, text, tone = 'info', { sticky = false, ms = 4000 } = {
     timers.set(
       m,
       setTimeout(() => {
-        m.textContent = '';
-        delete m.dataset.tone;
+        m.dataset.leaving = '';
+        timers.set(
+          m,
+          setTimeout(() => {
+            m.textContent = '';
+            delete m.dataset.tone;
+            delete m.dataset.leaving;
+          }, 150),
+        );
       }, ms),
     );
   }

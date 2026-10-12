@@ -114,7 +114,8 @@ test('service worker: offline reload serves the app from cache; offline sign-up 
   await page.reload();
   await d.booted();
   assert.equal(await d.screen(), 'auth', 'app shell boots offline');
-  assert.equal(await page.evaluate(() => document.fonts.check('16px "Pixelify Sans"')), true, 'font served from cache');
+  assert.equal(await page.evaluate(() => document.fonts.check('16px "Jersey 10"')), true, 'font served from cache');
+  assert.ok(await page.evaluate(() => [...document.fonts].some((f) => f.family.includes('Jersey 10') && f.status === 'loaded')), 'Jersey 10 actually loaded offline');
   assert.notEqual(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgba(0, 0, 0, 0)', 'CSS applied offline');
   const spriteOk = await page.evaluate(async () => (await fetch('./assets/sprites.svg')).ok);
   assert.equal(spriteOk, true, 'sprite sheet available offline');
@@ -124,7 +125,7 @@ test('service worker: offline reload serves the app from cache; offline sign-up 
   await page.click(H.q.signupSubmit);
   await page.waitForSelector(`${H.q.codeDialog}[open]`);
   const code = (await page.textContent(`${H.q.codeDialog} [data-out="code"]`)).replace(/\D/g, '');
-  assert.match(await page.textContent(`${H.q.codeDialog} [data-out="msg"]`), /Saved on this device only/);
+  assert.match(await page.textContent(`${H.q.codeDialog} [data-out="msg"]`), /Saved on this device/);
   await page.check('#code-ack');
   await page.click(`${H.q.codeDialog} [data-action="ack-code"]`);
   await d.waitScreen('home');
@@ -210,11 +211,11 @@ test('service worker: a new cache version waits, does not disturb the running ro
   assert.equal(st.controlled, true);
   // the running round is untouched and still playable
   assert.equal((await H.currentPuzzle(page)).id, p.id);
-  assert.equal(await page.locator('[data-screen="play"] [data-slot="attempts"] li').count(), 1);
+  assert.equal(await page.locator('main > [data-screen="play"] [data-slot="attempts"] li').count(), 1);
   await H.typeWithKeypad(page, p.answer);
   await H.pressCheck(page);
   await d.waitScreen('result');
-  await page.click('[data-screen="result"] [data-action="go-home"]');
+  await page.click('main > [data-screen="result"] [data-action="go-home"]');
   await d.waitScreen('home');
 
   // "next load": leave the page so the old worker loses its client, then open the app again

@@ -1,10 +1,8 @@
 // Header and global furniture: language toggle, sound toggle, sync chip, account menu, logout flow, titles.
 
 import { getLang, setLang, loadLang, dirFor, t } from '../i18n/index.js';
-import { $, applyI18n, onAction, openDialog, closeDialog, setName } from './dom.js';
+import { $, $$, applyI18n, onAction, openDialog, closeDialog, restoreFocus, setName } from './dom.js';
 import { copyParams } from './params.js';
-
-const STATUS_ICON = { synced: 'lp-check', saving: 'lp-clock', offline: 'lp-x', local: 'lp-user' };
 
 /**
  * Whole-pixel height for a CSS custom property: rounded UP (a fractional height rounded down would leave a 1px
@@ -28,11 +26,26 @@ export function statusAnnouncement(prevStable, next) {
   return null;
 }
 
+/**
+ * Stateful wrapper: "recovered" only means something if the player WAS offline/local while signed in. Signed out, the
+ * sync layer idles at 'local' and sign-up/sign-in pass through saving -> synced, which is not news; so signed-out
+ * statuses reset the memory and stay silent. Callers feed the current status again when a session starts (seeding).
+ */
+export function createStatusAnnouncer() {
+  let stable = null;
+  return (status, signedIn) => {
+    if (!signedIn) return (stable = null);
+    const key = statusAnnouncement(stable, status);
+    if (status !== 'saving') stable = status;
+    return key;
+  };
+}
+
 export function createChrome(app) {
   const { doc, local, sync, store } = app;
-  const header = $(doc, 'header');
+  // The global header is the body's direct child; Play and the screen heads contain nested <header>s of their own.
+  const header = $(doc.body, ':scope > header');
   const dlg = $(doc, '[data-dialog="confirm-logout"]');
-  const muteBtn = $(header, '[data-action="mute"]');
 
   // ---- sound facade: nothing loads until a sound is actually due ----
   let soundOn = false;
@@ -52,10 +65,13 @@ export function createChrome(app) {
     },
   };
 
+  // There are TWO sound buttons (header + Play top bar, the header is hidden on phones while playing): update all.
   function paintMute() {
-    muteBtn.setAttribute('aria-pressed', String(soundOn));
-    const use = $(muteBtn, 'use');
-    if (use) use.setAttribute('href', soundOn ? muteBtn.dataset.iconOn : muteBtn.dataset.iconOff);
+    for (const btn of $$(doc, '[data-action="mute"]')) {
+      btn.setAttribute('aria-pressed', String(soundOn));
+      const use = $(btn, 'use');
+      if (use) use.setAttribute('href', soundOn ? btn.dataset.iconOn : btn.dataset.iconOff);
+    }
   }
 
   /** Account setting once signed in (default OFF: a never-touched setting has at === 0); device pref before. */
@@ -149,36 +165,43 @@ export function createChrome(app) {
   }
 
   // ---- status chip, account ----
-  // The chip's <output> is an implicit live region: turn that off and announce only what matters, from a
-  // separate visually hidden status element.
+  // The chip is only there when something needs attention (offline / device only) and is hidden while synced or
+  // saving. Its <output> stays a silent label (aria-live off); the change itself is announced by a toast, which is
+  // a polite status region, and only for transitions that matter (statusAnnouncement).
+  const chip = $(header, '.lp-chip');
   const chipOut = $(header, '[data-out="status"]');
   chipOut.setAttribute('aria-live', 'off');
-  const announcer = doc.createElement('p');
-  announcer.className = 'visually-hidden';
-  announcer.setAttribute('role', 'status');
-  announcer.setAttribute('data-live', 'sync');
-  doc.body.append(announcer);
-  let stable = null;
+  const announcer = createStatusAnnouncer();
+
+  let shownStatus = 'local';
+  /** Only a signed-in player has anything to attend to: signed out, the sync layer idles at 'local' and that is not news. */
+  function paintChip() {
+    chipOut.textContent = t('status.' + shownStatus);
+    chipOut.dataset.status = shownStatus;
+    if (chip) {
+      chip.dataset.status = shownStatus;
+      chip.hidden = !store.get().session || (shownStatus !== 'offline' && shownStatus !== 'local');
+    }
+  }
 
   function setStatus(s) {
-    const chip = $(header, '.lp-chip');
-    chipOut.textContent = t('status.' + s);
-    chipOut.dataset.status = s;
-    if (chip) {
-      chip.dataset.status = s;
-      const use = $(chip, 'use');
-      if (use) use.setAttribute('href', use.getAttribute('href').split('#')[0] + '#' + STATUS_ICON[s]);
-    }
-    const key = statusAnnouncement(stable, s);
-    if (s !== 'saving') stable = s;
-    if (key) announcer.textContent = t(key);
+    shownStatus = s;
+    paintChip();
+    const key = announcer(s, !!store.get().session);
+    if (key) app.toast(key, 'info');
+  }
+
+  // Every [data-out="name"] (account panel, its hidden summary copy, the Home "who" row), not just the first.
+  function paintNames(name) {
+    for (const n of $$(doc, '[data-out="name"]')) setName(n, name);
   }
 
   function setSession(sess) {
+    for (const n of $$(doc, '[data-needs-auth]')) n.hidden = !sess;
+    setStatus(sync.getStatus()); // repaints the chip and seeds the announcer with the status the session starts in
     const acct = $(header, '[data-account]');
-    acct.hidden = !sess;
     acct.open = false;
-    if (sess) setName($(acct, '[data-out="name"]'), sess.name);
+    if (sess) paintNames(sess.name);
     readSound();
   }
 
@@ -186,7 +209,7 @@ export function createChrome(app) {
   async function onSave() {
     const sess = sync.getSession();
     if (!sess) return;
-    setName($(header, '[data-out="name"]'), sess.name);
+    paintNames(sess.name);
     const s = sync.getSave();
     if (s && s.settings.at > 0 && s.settings.lang !== getLang() && (await loadLang(s.settings.lang))) {
       setLang(s.settings.lang);
@@ -233,16 +256,40 @@ export function createChrome(app) {
     }
   }
 
+  // ---- account menu: closes on Escape, on an outside click and on item activation; focus goes back to the avatar ----
+  const acct = $(header, '[data-account]');
+  const summary = $(acct, 'summary');
+  function closeMenu(refocus) {
+    if (!acct.open) return;
+    acct.open = false;
+    if (refocus && !acct.hidden) summary.focus();
+  }
+  doc.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && acct.open) closeMenu(true);
+  });
+  doc.addEventListener('click', (e) => {
+    if (acct.open && e.target instanceof Node && !acct.contains(e.target)) closeMenu(false);
+  });
+
+  const toggleSound = () => setSound(!soundOn);
+  // Header buttons. (The Play top bar's own sound button is handled by play.js through chrome.toggleSound.)
   onAction(header, {
     lang: () => void toggleLang(),
-    mute: () => setSound(!soundOn),
+    mute: toggleSound,
+    'show-help': () => void app.router.go('help'),
+    'show-board': () => void app.router.go('board'),
     logout: () => {
+      closeMenu(false);
       dialogMode(false);
       openDialog(dlg);
     },
   });
   onAction(dlg, { logout: (b) => void confirmLogout(b) });
-  dlg.addEventListener('close', () => dialogMode(false));
+  dlg.addEventListener('close', () => {
+    dialogMode(false);
+    // The dialog's opener (the menu item) is hidden again: give focus to the avatar instead of dropping it on <body>.
+    if (!acct.hidden) restoreFocus(doc, summary);
+  });
 
-  return { sound, applyAll, setStatus, setSession, onSave, updateTitle, readSound, measure };
+  return { sound, applyAll, setStatus, setSession, onSave, updateTitle, readSound, measure, toggleSound };
 }

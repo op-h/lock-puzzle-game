@@ -6,7 +6,7 @@
 // All collaborators are injected so the module runs unchanged in Node tests against a fake backend.
 
 import { validateName, parseCode, generateCode, generateBoardKey, playerId, boardId } from './identity.js';
-import { mergeSaves, emptySave, derive, parseSave, sanitizeSave, sanitizeHistoryEntry, sanitizeRunEntry, saveVersionOf, SAVE_VERSION, LANGS } from './merge.js';
+import { M, loadMerge } from './lazy-merge.js';
 
 /**
  * @typedef {'synced'|'saving'|'offline'|'local'} Status
@@ -18,6 +18,9 @@ import { mergeSaves, emptySave, derive, parseSave, sanitizeSave, sanitizeHistory
 
 /** Attempts to find a code whose id is unused. 10^6 codes per name make a second attempt vanishingly rare. */
 const SIGNUP_ATTEMPTS = 5;
+const OFFLINE = Object.freeze({ ok: false, reason: 'offline' });
+/** True once merge.js is in; false (not a throw) when it cannot be fetched, so a form reports "offline" like any network failure. */
+const mergeReady = () => loadMerge().then(() => true, () => false);
 const BOARD_NAME_POINTS = 24;
 
 export function createSync(deps) {
@@ -134,14 +137,14 @@ export function createSync(deps) {
   }
 
   /** Every account needs a board key before its first push; created here for saves that predate the field. */
-  const withBk = (/** @type {Save} */ s) => (s.bk ? s : mergeSaves(s, { ...s, bk: generateBoardKey(deps.bkFill) }).save);
+  const withBk = (/** @type {Save} */ s) => (s.bk ? s : M.mergeSaves(s, { ...s, bk: generateBoardKey(deps.bkFill) }).save);
 
   /** Canonical text; equal content always serialises equally (merge.js builds every save the same way). */
   const text = (/** @type {Save} */ s) => JSON.stringify(s);
 
   function remoteSave(r) {
-    const p = parseSave(r.data.save);
-    return p.ok ? p.save : sanitizeSave(null).save;
+    const p = M.parseSave(r.data.save);
+    return p.ok ? p.save : M.sanitizeSave(null).save;
   }
 
   function clearTimers() {
@@ -200,8 +203,8 @@ export function createSync(deps) {
   }
 
   const isNewer = (r) => {
-    const v = saveVersionOf(r.data.save);
-    return v !== null && v !== SAVE_VERSION;
+    const v = M.saveVersionOf(r.data.save);
+    return v !== null && v !== M.SAVE_VERSION;
   };
 
   // ---- replication -------------------------------------------------------------------------
@@ -210,7 +213,7 @@ export function createSync(deps) {
   async function publishBoard() {
     try {
       if (!session || !save || !save.bk) return;
-      const d = derive(save);
+      const d = M.derive(save);
       if (d.total === 0 && d.bestRun === 0) return; // a score-less account does not belong on the board
       if (bid === null || bidFor !== save.bk) {
         bid = await boardId(save.bk);
@@ -250,7 +253,7 @@ export function createSync(deps) {
           return { ok: false, reason: 'newer' };
         }
         const theirs = remoteSave(g);
-        merged = withBk(mergeSaves(save, theirs).save);
+        merged = withBk(M.mergeSaves(save, theirs).save);
         // Nothing new for the cloud (a previous attempt, or another device, already wrote it all): skip the write.
         w = text(merged) === text(theirs) ? { ok: true } : await remote.updatePlayer(id, text(merged), g.data.updateTime);
       } else if (g.reason === 'notfound') {
@@ -262,7 +265,7 @@ export function createSync(deps) {
       }
       if (w.ok) {
         onSuccess();
-        adopt(mergeSaves(save, merged).save);
+        adopt(M.mergeSaves(save, merged).save);
         // Only now is it safe to clear: if the player played during the round trip, those events are not in the cloud yet.
         if (mutation === startedMutation) {
           dirty = false;
@@ -336,7 +339,7 @@ export function createSync(deps) {
       }
       onSuccess();
       const theirs = remoteSave(g);
-      const merged = withBk(mergeSaves(save, theirs).save);
+      const merged = withBk(M.mergeSaves(save, theirs).save);
       adopt(merged);
       if (text(merged) !== text(theirs)) {
         markDirty();
@@ -409,12 +412,13 @@ export function createSync(deps) {
     if (session) return { ok: false, reason: 'already_signed_in' };
     const v = validateName(rawName);
     if (!v.ok) return { ok: false, reason: 'invalid_name', detail: v.reason };
+    if (!(await mergeReady())) return OFFLINE;
     try {
       for (let attempt = 0; attempt < SIGNUP_ATTEMPTS; attempt++) {
         const code = generateCode(deps.rng);
         const id = await playerId(v.name, code);
         const now = clock();
-        const fresh = emptySave(v.name, now);
+        const fresh = M.emptySave(v.name, now);
         fresh.bk = generateBoardKey(deps.bkFill);
         const lang = local.getLang();
         if (lang) fresh.settings = { lang, sound: true, at: now };
@@ -462,6 +466,7 @@ export function createSync(deps) {
     if (!v.ok) return { ok: false, reason: 'invalid_name', detail: v.reason };
     const code = parseCode(rawCode);
     if (code === null) return { ok: false, reason: 'invalid_code' };
+    if (!(await mergeReady())) return OFFLINE;
     try {
       const id = await playerId(v.name, code);
       const g = await remote.getPlayer(id);
@@ -474,7 +479,7 @@ export function createSync(deps) {
       if (isNewer(g)) return { ok: false, reason: 'newer' };
       const theirs = remoteSave(g);
       const cached = local.loadSave(id);
-      const merged = mergeSaves(cached, theirs).save;
+      const merged = M.mergeSaves(cached, theirs).save;
       if (merged.name === '') merged.name = v.name;
       cloudUnconfirmed = false;
       const needsPush = text(merged) !== text(theirs);
@@ -560,7 +565,7 @@ export function createSync(deps) {
     if (!session || !save || pendingAck) return false;
     const stored = local.loadSave(session.id);
     if (!stored) return false;
-    const merged = mergeSaves(save, stored).save;
+    const merged = M.mergeSaves(save, stored).save;
     if (text(merged) === text(save)) return false;
     save = merged;
     version++;
@@ -576,7 +581,7 @@ export function createSync(deps) {
   function commit(patch) {
     if (!session || !save) return false;
     const base = save;
-    const next = mergeSaves(base, { ...base, ...patch, updatedAt: Math.max(clock(), base.updatedAt) }).save;
+    const next = M.mergeSaves(base, { ...base, ...patch, updatedAt: Math.max(clock(), base.updatedAt) }).save;
     save = persistSave(next);
     version++;
     mutation++;
@@ -590,7 +595,7 @@ export function createSync(deps) {
 
   function recordSolve(raw) {
     if (!session || !save) return { ok: false, reason: 'nosession' };
-    const entry = sanitizeHistoryEntry(raw && typeof raw === 'object' && /** @type {any} */ (raw).t === undefined ? { ...raw, t: clock() } : raw);
+    const entry = M.sanitizeHistoryEntry(raw && typeof raw === 'object' && /** @type {any} */ (raw).t === undefined ? { ...raw, t: clock() } : raw);
     if (!entry) return { ok: false, reason: 'invalid' };
     if (save.history.some((e) => e.id === entry.id)) return { ok: true, duplicate: true };
     commit({ history: [entry] });
@@ -599,7 +604,7 @@ export function createSync(deps) {
 
   function recordRun(raw) {
     if (!session || !save) return { ok: false, reason: 'nosession' };
-    const entry = sanitizeRunEntry(raw && typeof raw === 'object' && /** @type {any} */ (raw).t === undefined ? { ...raw, t: clock() } : raw);
+    const entry = M.sanitizeRunEntry(raw && typeof raw === 'object' && /** @type {any} */ (raw).t === undefined ? { ...raw, t: clock() } : raw);
     if (!entry) return { ok: false, reason: 'invalid' };
     if (save.runs.some((e) => e.id === entry.id)) return { ok: true, duplicate: true };
     commit({ runs: [entry] });
@@ -611,7 +616,7 @@ export function createSync(deps) {
     const cur = save.settings;
     const lang = patch && patch.lang !== undefined ? patch.lang : cur.lang;
     const sound = patch && patch.sound !== undefined ? patch.sound : cur.sound;
-    if (!LANGS.includes(lang) || typeof sound !== 'boolean') return { ok: false, reason: 'invalid' };
+    if (!M.LANGS.includes(lang) || typeof sound !== 'boolean') return { ok: false, reason: 'invalid' };
     // +1 guarantees this edit beats our own previous one even if the clock stepped backwards.
     const settings = { lang, sound, at: Math.max(clock(), cur.at + 1) };
     commit({ settings });
@@ -626,8 +631,9 @@ export function createSync(deps) {
   async function resume() {
     const s = local.getSession();
     if (!s) return { ok: true, session: null, save: null, pulled: Promise.resolve({ ok: true }) };
+    await loadMerge(); // a returning player needs it right now; createAppSync has already started the fetch
     const cached = local.loadSave(s.id);
-    open(s, cached || emptySave(s.name, clock()), local.isDirty(s.id));
+    open(s, cached || M.emptySave(s.name, clock()), local.isDirty(s.id));
     setStatus('saving');
     const pulled = dirty ? flush() : pull();
     return { ok: true, session: { ...s }, save: getSave(), pulled };
@@ -638,7 +644,7 @@ export function createSync(deps) {
   }
 
   function getDerived() {
-    if (!derivedCache || derivedCache.version !== version) derivedCache = { version, value: derive(save) };
+    if (!derivedCache || derivedCache.version !== version) derivedCache = { version, value: M.derive(save) };
     return derivedCache.value;
   }
 

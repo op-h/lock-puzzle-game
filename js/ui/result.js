@@ -1,22 +1,33 @@
-// Result: a Classic puzzle or a Blood run summary. Every line names its source, Blood points are always
-// shown as their own line, and no button ever offers replaying a solved seed.
+// Result: a Classic puzzle or a Blood run summary. One big score, the result word as the h1, the Blood line (always
+// worded as coming from Blood mode), two buttons. The points-earned list stays in the DOM as hidden text. No button
+// ever offers replaying a solved seed.
 
 import { formatNumber, getLang, t } from '../i18n/index.js';
 import { derive } from '../sync/index.js';
-import { $, $$, el, ltr, onAction, setOut } from './dom.js';
+import { $, $$, el, ltr, onAction } from './dom.js';
+import { countDuration, countUp } from './countup.js';
+import { prefersReducedMotion } from './motion.js';
 
 /** @param {any} app */
 export function createResult(app) {
-  const { doc, sync, store } = app;
+  const { doc, win, sync, store } = app;
   const root = app.sections.result;
   const linesEl = $(root, '[data-slot="result-lines"]');
   const nextBtn = $(root, '[data-action="next"]');
   const retryBtn = $(root, '[data-action="retry"]');
-  const stampIcon = $(root, '.lp-stamp svg');
-  const bloodRows = $$(root, 'dl [data-mode="blood"]');
-  const msgEl = $(root, '[data-out="msg"]');
-  msgEl.setAttribute('role', 'status'); // set while hidden so the region exists before its text changes
-  let msgTimer = 0;
+  const msgEl = $(root, '[data-out="msg"]'); // the h1: the result word IS the heading, and the router focuses it
+  const scoreEl = $(root, '[data-out="score"]');
+  const bloodEl = $(root, '[data-out="bloodpoints"]');
+  const bloodLine = bloodEl && bloodEl.closest('p');
+  const solvedEl = $(root, '[data-out="solved"]');
+  const pbEl = $(root, '[data-pb]');
+  const pbLine = pbEl && pbEl.closest('p');
+  const answerEl = $(root, '[data-out="answer"]');
+  const scoreSr = $(root, '[data-live="score-sr"]');
+  /** @type {Array<() => void>} running count-ups */
+  let cancels = [];
+  let srTimer = 0;
+  let announcedFor = '';
 
   const n = (x) => formatNumber(x);
   const line = (key, params, mode) => {
@@ -24,6 +35,53 @@ export function createResult(app) {
     if (mode) li.dataset.mode = mode;
     return li;
   };
+
+  function stopCounting() {
+    for (const c of cancels) c();
+    cancels = [];
+    clearTimeout(srTimer);
+  }
+
+  /**
+   * Show `final` in `out`. The element ALWAYS holds the final text at once (screen readers and anything reading the DOM
+   * see the truth); the count-up runs on an aria-hidden visual copy placed next to it while the real node is
+   * visually hidden. Reduced motion, a zero score, or no `animate` means no copy at all.
+   */
+  function showNumber(out, final, animate, delay) {
+    if (!out) return;
+    const text = n(final);
+    if (out.textContent !== text) out.textContent = text; // identical rewrites would re-announce
+    if (!animate || !(final > 0) || prefersReducedMotion(win)) return;
+    const copy = doc.createElement('span');
+    copy.setAttribute('aria-hidden', 'true');
+    copy.className = 'lp-count';
+    copy.textContent = n(0);
+    out.after(copy);
+    out.classList.add('visually-hidden');
+    let cancel = () => {};
+    const end = () => {
+      copy.remove();
+      out.classList.remove('visually-hidden');
+    };
+    const timer = setTimeout(() => {
+      cancel = countUp({
+        to: final,
+        ms: countDuration(final),
+        now: () => win.performance.now(),
+        raf: (f) => win.requestAnimationFrame(f),
+        caf: (id) => win.cancelAnimationFrame(id),
+        onFrame: (v) => {
+          copy.textContent = n(v);
+        },
+        onDone: end,
+      });
+    }, delay);
+    cancels.push(() => {
+      clearTimeout(timer);
+      cancel();
+      end();
+    });
+  }
 
   function bloodLines(r) {
     const save = sync.getSave();
@@ -35,32 +93,44 @@ export function createResult(app) {
     ];
   }
 
-  function render(deferMsg) {
+  /** @param {boolean} [entering] true when the screen has just been shown: count up and announce */
+  function render(entering) {
     const r = store.get().result;
     if (!r) return;
     const blood = r.mode === 'blood';
     doc.body.dataset.mode = r.mode;
     for (const b of $$(root, '[data-mode-badge]')) b.textContent = t('mode.' + r.mode);
     for (const h of $$(root, '[data-lock]')) h.dataset.lock = blood ? 'idle' : 'success';
-    const use = $(stampIcon, 'use');
-    if (use) use.setAttribute('href', stampIcon.getAttribute(blood ? 'data-icon-blood' : 'data-icon-ok'));
+
     const pb = blood && r.points > r.prevBest && r.points > 0;
-    const text = blood
-      ? [t(r.quit ? 'result.msg.bloodQuit' : 'result.msg.blood'), pb ? t('result.msg.pb') : ''].filter(Boolean).join(' ')
-      : t('result.msg.classic');
-    const write = () => {
-      if (msgEl.textContent !== text) msgEl.textContent = text; // identical rewrites would re-announce
-      msgEl.dataset.tone = blood ? 'info' : 'ok';
-      if (pb) msgEl.dataset.pb = 'true';
-      else delete msgEl.dataset.pb;
-    };
-    clearTimeout(msgTimer);
-    if (deferMsg) {
-      // A live region announces CHANGES while visible: write after the screen is shown (and focus has moved),
-      // not in the same frame the section is unhidden, or the outcome is never spoken.
-      msgEl.textContent = '';
-      msgTimer = setTimeout(write, 250);
-    } else write();
+    const word = blood ? t(r.quit ? 'result.msg.bloodQuit' : 'result.msg.blood') : t('result.msg.classic');
+    // Written before the router focuses the h1, so the first thing announced is the outcome.
+    if (msgEl.textContent !== word) msgEl.textContent = word;
+    msgEl.dataset.tone = blood ? 'info' : 'ok';
+
+    if (entering) stopCounting();
+    showNumber(scoreEl, r.points, entering, 0);
+    if (bloodLine) bloodLine.hidden = !blood;
+    if (blood) showNumber(bloodEl, r.points, entering, 160);
+    if (solvedEl) {
+      solvedEl.hidden = !blood;
+      solvedEl.textContent = blood ? t('result.solved', { count: n(r.solved) }) : '';
+    }
+    if (pbLine) pbLine.hidden = !pb;
+    if (answerEl) {
+      answerEl.hidden = true; // a code reveal is only for a failure, and the engine never reveals a forfeited puzzle
+      answerEl.textContent = '';
+    }
+
+    // The final score is announced once (the visual node may be mid-count): after the screen is up, not before.
+    const key = `${r.mode}:${r.points}:${blood ? r.runId : r.id}`;
+    if (entering && scoreSr && announcedFor !== key) {
+      announcedFor = key;
+      scoreSr.textContent = '';
+      srTimer = setTimeout(() => {
+        scoreSr.textContent = `${n(r.points)} ${t('result.score')}`;
+      }, 250);
+    }
 
     const d = derive(sync.getSave());
     const lines = blood
@@ -76,17 +146,9 @@ export function createResult(app) {
     );
     linesEl.replaceChildren(...lines);
 
-    setOut(root, 'score', n(r.points));
-    setOut(root, 'bloodpoints', n(r.points));
-    for (const x of bloodRows) x.hidden = !blood;
-
-    // Next is Classic-only (new seed, same difficulty); Retry is Blood-only (new run). Neither replays a solved seed.
+    // Next is Classic-only (new seed, same difficulty); Again is Blood-only (new run). Neither replays a solved seed.
     nextBtn.closest('li').hidden = blood;
     retryBtn.closest('li').hidden = !blood;
-    nextBtn.setAttribute('data-i18n', 'result.nextClassic');
-    nextBtn.textContent = t('result.nextClassic');
-    retryBtn.setAttribute('data-i18n', 'result.retryBlood');
-    retryBtn.textContent = t('result.retryBlood');
   }
 
   onAction(root, {
@@ -100,8 +162,8 @@ export function createResult(app) {
 
   return {
     enter: () => render(true),
-    leave: () => clearTimeout(msgTimer),
-    rerender: () => !root.hidden && render(),
-    refresh: () => !root.hidden && render(),
+    leave: stopCounting,
+    rerender: () => !root.hidden && render(false),
+    refresh: () => !root.hidden && render(false),
   };
 }

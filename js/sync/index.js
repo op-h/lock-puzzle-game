@@ -4,9 +4,11 @@
 import { CLOUD } from '../config.js';
 import { createLocal } from './local.js';
 import { createSync } from './sync.js';
+import { M, loadMerge } from './lazy-merge.js';
 
 export { formatCode, parseCode, validateName, NAME_MAX, boardId } from './identity.js';
-export { derive } from './merge.js';
+/** Only called with a signed-in save, so merge.js is loaded by then (sync.js awaits it before any session exists). */
+export const derive = (save) => M.derive(save);
 
 const OFFLINE = Object.freeze({ ok: false, reason: 'offline' });
 
@@ -42,6 +44,8 @@ function createLazyRemote(fetchImpl) {
 export function createAppSync(opts = {}) {
   const remote = createLazyRemote(opts.fetch);
   const local = createLocal(opts.storage === undefined ? {} : { storage: opts.storage });
+  // A returning player needs merge.js before the first paint of Home: start the fetch now, in parallel with the language.
+  if (local.getSession()) loadMerge().catch(() => {});
   const sync = createSync({ remote: /** @type {any} */ (remote), local, events: opts.events || null });
   return { sync, local, remote };
 }

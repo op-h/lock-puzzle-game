@@ -17,13 +17,13 @@ after(async () => {
 });
 
 const dev = (o = {}) => H.openDevice(br, { baseUrl: srv.url, backend: H.createBackend(), ...o });
-const T = '[data-screen="play"]';
+const T = 'main > [data-screen="play"]';
 
 /** Geometry of the first feedback clue vs the dial row, measured in the browser. */
 const clueGeometry = (page) =>
   page.evaluate(() => {
-    const li = document.querySelector('[data-screen="play"] [data-slot="clues"] > li[data-kind="feedback"]');
-    const dials = [...document.querySelectorAll('[data-screen="play"] [data-slot="dials"] > button')].map((b) => b.getBoundingClientRect());
+    const li = document.querySelector('main > [data-screen="play"] [data-slot="clues"] > li[data-kind="feedback"]');
+    const dials = [...document.querySelectorAll('main > [data-screen="play"] [data-slot="dials"] > button')].map((b) => b.getBoundingClientRect());
     const digits = [...li.querySelectorAll('.digit')].map((s) => s.getBoundingClientRect());
     const pips = [...li.querySelectorAll('[data-pip]')].map((s) => s.getBoundingClientRect());
     const txt = li.querySelector('.clue-text');
@@ -43,7 +43,9 @@ const clueGeometry = (page) =>
       // after = to the right on the same row, or wrapped onto the row below (5 digits + pips do not fit one row at 320)
       pipsAfterDigits: pips.length === 0 || pips.every((p) => p.left >= Math.max(...digits.map((d) => d.right)) - 1 || p.top >= Math.max(...digits.map((d) => d.bottom)) - 2),
       pipsWrapped: pips.some((p) => p.top >= Math.max(...digits.map((d) => d.bottom)) - 2),
-      textBelowDigits: tr.top >= Math.max(...digits.map((d) => d.bottom)) - 2,
+      sentenceHidden: txt.getBoundingClientRect().width <= 2 && getComputedStyle(txt).position === 'absolute',
+      sentenceChars: txt.textContent.trim().length,
+      textBelowDigits: true,
       textRightGap: Math.round(lr.right - parseFloat(cs.paddingRight) - tr.right),
       textLeftGap: Math.round(tr.left - lr.left - parseFloat(cs.paddingLeft)),
       liW: Math.round(lr.width),
@@ -65,9 +67,8 @@ for (const [w, h] of [[320, 568], [390, 844]]) {
     assert.deepEqual(ar.digitRank, ar.dialRank.slice(0, ar.digitRank.length).map((_, i) => i), `digit i is left of digit i+1, same as dial order (lefts ${ar.digitLefts})`);
     assert.deepEqual(ar.dialRank, [...ar.dialRank].sort((a, b) => a - b));
     assert.equal(ar.pipsAfterDigits, true, 'pips come after the digits');
-    assert.equal(ar.textBelowDigits, true, 'sentence sits on its own row below the digits');
-    assert.equal(ar.txtDir, 'rtl', 'sentence stays RTL');
-    assert.ok(ar.textRightGap <= 6, `Arabic sentence is right-aligned: gap to right edge ${ar.textRightGap}px (left gap ${ar.textLeftGap}px)`);
+    assert.equal(ar.sentenceHidden, true, 'ADR 0005: the sentence is visually hidden (symbol only) but present');
+    assert.ok(ar.sentenceChars > 10, 'and it still carries the full text');
     assert.ok(ar.scrollW <= ar.vw, 'no horizontal overflow');
     // board points column in Arabic
     await H.quitRound(page);
@@ -75,8 +76,8 @@ for (const [w, h] of [[320, 568], [390, 844]]) {
     await H.startClassic(page, 'rookie');
     await H.solveClassic(page);
     await H.waitSynced(page);
-    await page.click('[data-screen="result"] [data-action="go-home"]');
-    await page.click('[data-screen="home"] [data-action="show-board"]');
+    await page.click('main > [data-screen="result"] [data-action="go-home"]');
+    await page.click('body > header [data-action="show-board"]');
     await d.waitScreen('board');
     await page.waitForSelector('[data-slot="board-rows"] tr');
     const board = await page.evaluate(() => {
@@ -90,14 +91,14 @@ for (const [w, h] of [[320, 568], [390, 844]]) {
     // English layout unchanged: digits run left to right in dial order too, sentence left-aligned
     await page.click('header [data-action="lang"]');
     await page.waitForFunction(() => document.documentElement.lang === 'en');
-    await page.click('[data-screen="board"] [data-action="back"]');
+    await page.click('main > [data-screen="board"] [data-action="back"]');
     await H.startClassic(page, 'master');
     const en = await clueGeometry(page);
     assert.equal(en.liDir, 'ltr');
     assert.equal(en.txtDir, 'ltr');
     assert.deepEqual(en.digitRank, en.digitRank.slice().sort((a, b) => a - b), 'English digits in order');
     assert.equal(en.pipsAfterDigits, true);
-    assert.ok(en.textLeftGap <= 6, `English sentence left-aligned (gap ${en.textLeftGap})`);
+    assert.equal(en.sentenceHidden, true);
     d.assertClean();
     await d.close();
   });
@@ -132,20 +133,20 @@ test('no-repeat puzzles reject a repeated digit for free; Agent allows repeats; 
   const { page } = d;
   await H.signUp(d, 'Repeat Rae');
   await H.startClassic(page, 'rookie');
-  assert.match((await page.textContent(`${T} [data-out="difficulty"]`)).replace(/ /g, ' '), /^Rookie · 3 digits, all different$/);
+  assert.match((await page.textContent(`${T} [data-out="diffline"]`)).replace(/ /g, ' '), /^Rookie · 3 digits, all different$/);
   await H.typeWithKeypad(page, [4, 4, 7]);
   await H.pressCheck(page);
-  await page.waitForFunction(() => /Every digit in this puzzle is different/.test(document.querySelector('[data-screen="play"] [data-out="msg"]').textContent));
+  await page.waitForFunction(() => /Each digit is different/.test(document.querySelector('main > [data-screen="play"] [data-out="msg"]').textContent));
   assert.equal(await page.locator(`${T} [data-slot="attempts"] li`).count(), 0, 'nothing is listed');
   assert.equal(await page.textContent(`${T} [data-out="attempts-left"]`), '0', 'nothing is counted');
   await H.quitRound(page);
   await H.startClassic(page, 'agent');
-  assert.match((await page.textContent(`${T} [data-out="difficulty"]`)).replace(/ /g, ' '), /^Agent · 3 digits, digits may repeat$/);
+  assert.match((await page.textContent(`${T} [data-out="diffline"]`)).replace(/ /g, ' '), /^Agent · 3 digits, digits may repeat$/);
   const p = await H.currentPuzzle(page);
   const rep = p.answer[0] === 5 ? [6, 6, 6] : [5, 5, 5];
   await H.typeWithKeypad(page, rep);
   await H.pressCheck(page);
-  await page.waitForFunction(() => /Wrong guesses: 1\./.test(document.querySelector('[data-screen="play"] [data-out="msg"]').textContent));
+  await page.waitForFunction(() => /Wrong guess: 1/.test(document.querySelector('main > [data-screen="play"] [data-out="msg"]').textContent));
   d.assertClean();
   await d.close();
 });
@@ -162,10 +163,10 @@ test('Check and Hint use aria-disabled: still focusable, say why when activated,
   await page.focus(check);
   assert.equal(await page.evaluate(() => document.activeElement.dataset.action), 'check', 'a disabled-looking Check can take focus');
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => /Fill every dial first/.test(document.querySelector('[data-screen="play"] [data-out="msg"]').textContent));
+  await page.waitForFunction(() => /Fill every dial/.test(document.querySelector('main > [data-screen="play"] [data-out="msg"]').textContent));
   assert.equal(await page.evaluate(() => document.activeElement.dataset.action), 'check', 'focus is not dropped');
   await page.click(hint);
-  await page.waitForFunction(() => /Hint used/.test(document.querySelector('[data-screen="play"] [data-out="msg"]').textContent));
+  await page.waitForFunction(() => /Hint: dial/.test(document.querySelector('main > [data-screen="play"] [data-out="msg"]').textContent));
   assert.equal(await page.getAttribute(hint, 'aria-disabled'), 'true');
   assert.equal(await page.getAttribute(hint, 'disabled'), null);
   await page.focus(hint);
@@ -175,7 +176,7 @@ test('Check and Hint use aria-disabled: still focusable, say why when activated,
   const free = p.answer;
   await page.click(`${T} [data-action="clear"]`);
   for (const dgt of free) await page.click(`${T} [data-slot="keypad"] [data-digit="${dgt}"]`).catch(() => {});
-  await page.waitForFunction(() => document.querySelector('[data-screen="play"] [data-action="check"]').getAttribute('aria-disabled') !== 'true');
+  await page.waitForFunction(() => document.querySelector('main > [data-screen="play"] [data-action="check"]').getAttribute('aria-disabled') !== 'true');
   d.assertClean();
   await d.close();
 });
@@ -238,8 +239,8 @@ test('names: Arabic digit folding signs in to one account; an all-invisible name
   await c.page.click(H.q.signupSubmit);
   await c.page.waitForFunction(() => document.querySelector('#signup-error').textContent.trim() !== '');
   const msg = await c.page.textContent('#signup-error');
-  assert.match(msg, /no visible characters/);
-  assert.doesNotMatch(msg, /Enter a player name/, 'its own message, not the empty-name one');
+  assert.match(msg, /Use letters or numbers/);
+  assert.doesNotMatch(msg, /Enter a nickname/, 'its own message, not the empty-name one');
   assert.equal(await c.page.isVisible(`${H.q.codeDialog}[open]`), false);
   // hidden characters inside a name do not make a different account
   const d3 = await dev({ backend });
@@ -266,8 +267,8 @@ test('multi-tab: a second tab cannot take over a live Blood run; logging out in 
   const screenB = await b.evaluate(() => document.querySelector('main > [data-screen]:not([hidden])').dataset.screen);
   assert.equal(screenB, 'home', 'second tab goes to Home');
   await b.waitForSelector('[data-toast]');
-  assert.match(await b.textContent('[data-toast]'), /A Blood run is active in another tab/);
-  await b.click('[data-screen="home"] [data-action="play-blood"]');
+  assert.match(await b.textContent('[data-toast]'), /Blood run active in another tab/);
+  await b.click('main > [data-screen="home"] [data-action="play-blood"]');
   await b.waitForFunction(() => /another tab/.test(document.querySelector('[data-toast]').textContent));
   assert.equal(await b.evaluate(() => document.querySelector('main > [data-screen]:not([hidden])').dataset.screen), 'home', 'cannot start a second Blood run');
   // tab A still plays
@@ -358,16 +359,17 @@ test('word-break scan: no word is split across lines on auth, home, help, board,
       await scan('signin');
       await page.click('[data-action="show-signup"]');
       await H.signUp(d, 'Wide Wanda');
+      await H.settleToast(page);
       await scan('home');
-      await page.click('[data-screen="home"] [data-action="show-help"]');
+      await page.click('body > header [data-action="show-help"]');
       await d.waitScreen('help');
       await scan('help');
-      await page.click('[data-screen="help"] [data-action="back"]');
+      await page.click('main > [data-screen="help"] [data-action="back"]');
       await H.startClassic(page, 'master');
       const p = await H.currentPuzzle(page);
       await H.typeWithKeypad(page, H.wrongGuess(p.answer, 0));
       await H.pressCheck(page);
-      await page.click('[data-screen="play"] [data-action="hint"]');
+      await page.click('main > [data-screen="play"] [data-action="hint"]');
       await page.waitForTimeout(150);
       await scan('play-classic-5');
       await H.quitRound(page);
@@ -378,8 +380,8 @@ test('word-break scan: no word is split across lines on auth, home, help, board,
       await H.solveClassic(page);
       await H.waitSynced(page);
       await scan('result');
-      await page.click('[data-screen="result"] [data-action="go-home"]');
-      await page.click('[data-screen="home"] [data-action="show-board"]');
+      await page.click('main > [data-screen="result"] [data-action="go-home"]');
+      await page.click('body > header [data-action="show-board"]');
       await d.waitScreen('board');
       await page.waitForSelector('[data-slot="board-rows"] tr');
       await scan('board');
@@ -426,6 +428,7 @@ test('Quit is reachable with a real pointer click and by keyboard at 320x568 and
     const d = await dev({ viewport: { width: w, height: h }, mobile: true });
     const { page } = d;
     await H.signUp(d, 'Quit Quentin');
+    await H.settleToast(d.page);
     for (const start of [() => H.startClassic(page, 'master'), () => H.startBlood(page)]) {
       await start();
       await page.click(`${T} [data-action="quit"]`, { timeout: 5000 }); // Playwright fails if it is covered at every scroll position
@@ -434,13 +437,13 @@ test('Quit is reachable with a real pointer click and by keyboard at 320x568 and
       await page.waitForSelector('dialog[data-dialog="confirm-quit"]:not([open])', { state: 'attached' });
       assert.equal(await page.evaluate(() => document.activeElement.dataset.action), 'quit');
       const seen = await page.evaluate(() => {
-        const q = document.querySelector('[data-screen="play"] [data-action="quit"]');
+        const q = document.querySelector('main > [data-screen="play"] [data-action="quit"]');
         q.scrollIntoView({ block: 'nearest' });
         q.focus();
         const r = q.getBoundingClientRect();
-        const dock = document.querySelector('[data-screen="play"] > section[aria-labelledby="play-guess-title"]').getBoundingClientRect();
+        const dock = document.querySelector('main > [data-screen="play"] > section[aria-labelledby="play-guess-title"]').getBoundingClientRect();
         const hd = document.querySelector('header').getBoundingClientRect();
-        return { top: r.top, bottom: r.bottom, dockTop: dock.top, headerBottom: hd.bottom, vh: innerHeight, dockSticky: getComputedStyle(document.querySelector('[data-screen="play"] > section[aria-labelledby="play-guess-title"]')).position === 'sticky' };
+        return { top: r.top, bottom: r.bottom, dockTop: dock.top, headerBottom: hd.bottom, vh: innerHeight, dockSticky: getComputedStyle(document.querySelector('main > [data-screen="play"] > section[aria-labelledby="play-guess-title"]')).position === 'sticky' };
       });
       assert.ok(seen.top >= seen.headerBottom - 0.5, `${w}: Quit not under the header`);
       assert.ok(!seen.dockSticky || seen.bottom <= seen.dockTop + 0.5, `${w}: Quit not under the sticky dock (${JSON.stringify(seen)})`);
@@ -454,7 +457,7 @@ test('Quit is reachable with a real pointer click and by keyboard at 320x568 and
 
 // F-12 (open, PRISM): at 320 px the play status cell "Master · 5 digits, all different" still breaks inside words
 // (EN: Master / digits, / different; AR: the same). 360 px and wider are clean.
-test('play status cell (difficulty) never breaks a word at 320 (F-12)', { todo: 'F-12: [data-out=difficulty] breaks inside words at 320 px' }, async () => {
+test('play status cell (difficulty) never breaks a word at 320 (F-12)', async () => {
   const broken = [];
   for (const lang of ['en', 'ar']) {
     const d = await dev({ viewport: { width: 320, height: 568 }, mobile: true, locale: lang === 'ar' ? 'ar-SA' : 'en-US' });
@@ -468,7 +471,7 @@ test('play status cell (difficulty) never breaks a word at 320 (F-12)', { todo: 
 
 // F-13 (open, PRISM): in Arabic the leaderboard "Rank" column header is ~56 px wide and the word breaks inside itself
 // (الترتي / ب) at every width from 320 to 768 (css table/th width).
-test('board column headers never break a word in Arabic (F-13)', { todo: 'F-13: Arabic rank header breaks inside the word at all widths' }, async () => {
+test('board column headers never break a word in Arabic (F-13)', async () => {
   const broken = [];
   for (const [w, h] of [[320, 568], [768, 1024]]) {
     const d = await dev({ viewport: { width: w, height: h }, mobile: true, locale: 'ar-SA' });
@@ -476,8 +479,8 @@ test('board column headers never break a word in Arabic (F-13)', { todo: 'F-13: 
     await H.startClassic(d.page, 'rookie');
     await H.solveClassic(d.page);
     await H.waitSynced(d.page);
-    await d.page.click('[data-screen="result"] [data-action="go-home"]');
-    await d.page.click('[data-screen="home"] [data-action="show-board"]');
+    await d.page.click('main > [data-screen="result"] [data-action="go-home"]');
+    await d.page.click('body > header [data-action="show-board"]');
     await d.waitScreen('board');
     await d.page.waitForSelector('[data-slot="board-rows"] tr');
     for (const x of await wordBreaks(d.page, 'thead th')) broken.push(`${w}: ${x}`);
@@ -485,3 +488,43 @@ test('board column headers never break a word in Arabic (F-13)', { todo: 'F-13: 
   }
   assert.deepEqual(broken, []);
 });
+
+// F-16a: <body> carries data-screen, so every unscoped [data-screen="..."] rule in css/main.css also styles <body>. On Play at
+// >= 48em that turns <body> into a two-column grid and pushes the dock off the right edge. The page chrome must be unaffected
+// by which screen is showing.
+for (const [w, h] of [[768, 1024], [1280, 800], [1920, 1080]]) {
+  test(`desktop/tablet layout @ ${w}: Play and Home leave <body>, the header and the footer alone and nothing is off the right edge`, async () => {
+    const d = await dev({ viewport: { width: w, height: h } });
+    const { page } = d;
+    await H.signUp(d, 'Wide Wes');
+    const chrome = () =>
+      page.evaluate(() => {
+        const r = (e) => e.getBoundingClientRect();
+        const hd = r(document.querySelector('header'));
+        const scr = document.querySelector('main > [data-screen]:not([hidden])');
+        const kids = [...scr.querySelectorAll('button, [data-slot="dials"], [data-slot="keypad"], [data-slot="clues"]')].filter((e) => r(e).width > 0);
+        return {
+          screen: scr.dataset.screen,
+          bodyDisplay: getComputedStyle(document.body).display,
+          bodyCols: getComputedStyle(document.body).gridTemplateColumns,
+          bodyW: Math.round(r(document.body).width),
+          headerW: Math.round(hd.width),
+          vw: innerWidth,
+          off: kids.filter((e) => r(e).right > innerWidth + 0.5 || r(e).left < -0.5).length,
+          scrollW: document.documentElement.scrollWidth,
+        };
+      });
+    for (const where of ['home', 'play']) {
+      if (where === 'play') await H.startClassic(page, 'master');
+      await page.waitForTimeout(400); // let the view transition finish
+      const c = await chrome();
+      assert.equal(c.screen, where);
+      assert.notEqual(c.bodyDisplay, 'grid', `${where}: <body> must not be a grid (${c.bodyCols})`);
+      assert.equal(c.bodyW, c.vw, `${where}: <body> spans the viewport (${c.bodyW} of ${c.vw})`);
+      assert.equal(c.headerW, c.vw, `${where}: the header spans the viewport (${c.headerW} of ${c.vw})`);
+      assert.equal(c.off, 0, `${where}: ${c.off} controls lie outside the viewport`);
+      assert.ok(c.scrollW <= c.vw, `${where}: no horizontal scroll`);
+    }
+    await d.close();
+  });
+}

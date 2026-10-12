@@ -27,13 +27,13 @@ for (const base of ['/lock-puzzle-game/', '/']) {
       await H.signUp(d, 'Host Hana');
       await H.startClassic(page, 'rookie');
       await H.solveClassic(page);
-      await page.click('[data-screen="result"] [data-action="go-home"]');
-      await page.click('[data-screen="home"] [data-action="show-board"]');
+      await page.click('main > [data-screen="result"] [data-action="go-home"]');
+      await page.click('body > header [data-action="show-board"]');
       await d.waitScreen('board');
-      await page.click('[data-screen="board"] [data-action="back"]');
-      await page.click('[data-screen="home"] [data-action="show-help"]');
+      await page.click('main > [data-screen="board"] [data-action="back"]');
+      await page.click('body > header [data-action="show-help"]');
       await d.waitScreen('help');
-      await page.click('[data-screen="help"] [data-action="back"]');
+      await page.click('main > [data-screen="help"] [data-action="back"]');
       await H.startBlood(page);
       await H.quitRound(page);
       await page.waitForTimeout(500);
@@ -41,7 +41,8 @@ for (const base of ['/lock-puzzle-game/', '/']) {
       const outside = srv.hits.filter((h) => !h.split(' ')[1].startsWith(base) && !h.endsWith(base.slice(0, -1)));
       assert.deepEqual(outside, [], 'no request escaped the project path (a root-absolute URL would 404 on Pages)');
       // the same pixels: font and sprite actually used
-      assert.equal(await page.evaluate(() => document.fonts.check('16px "Pixelify Sans"')), true);
+      assert.equal(await page.evaluate(() => document.fonts.check('16px "Jersey 10"')), true);
+      assert.ok(await page.evaluate(() => [...document.fonts].some((f) => f.family.includes('Jersey 10') && f.status === 'loaded')), 'Jersey 10 loaded');
       await d.close();
     } finally {
       await srv.close();
@@ -81,7 +82,7 @@ test('every path in index.html, manifest, sw.js precache list and CSS url() is s
     const og = pngSize((await get('assets/og.png')).buf);
     assert.deepEqual(og, { w: 1200, h: 630 }, 'og.png is 1200x630 as the meta tags declare');
     assert.equal((await get('manifest.webmanifest')).r.headers.get('content-type'), 'application/manifest+json');
-    assert.match((await get('assets/fonts/pixelify-sans-latin.woff2')).r.headers.get('content-type'), /font\/woff2/);
+    assert.match((await get('assets/fonts/jersey10-latin.woff2')).r.headers.get('content-type'), /font\/woff2/);
     // outside the project path is a 404, as on Pages (so a stray /js/x.js would be caught)
     assert.equal((await fetch(srv.origin + '/js/main.js')).status, 404);
     // the deploy artifact must not contain anything but the site: when serving the repo itself these exist and are fine,

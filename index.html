@@ -43,13 +43,13 @@
   <meta name="twitter:image:alt" content="Pixel-art vault door: a steel plate with four corner bolts, an amber four-spoke wheel and a green lamp, beside the words Lock Puzzle and Made by OPH on a dark blue background.">
 
   <!-- Same-origin font: crossorigin is required for font preloads or the file is fetched twice. -->
-  <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/pixelify-sans-latin.woff2">
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/jersey10-latin.woff2">
   <link rel="modulepreload" href="./js/main.js">
-  <link rel="modulepreload" href="./js/i18n/en.js">
+  <link rel="modulepreload" href="./js/router.js">
+  <link rel="modulepreload" href="./js/ui/chrome.js">
+  <link rel="modulepreload" href="./js/sync/index.js">
   <link rel="modulepreload" href="./js/sync/sync.js">
-  <link rel="modulepreload" href="./js/sync/merge.js">
-  <link rel="modulepreload" href="./js/sync/identity.js">
-  <link rel="modulepreload" href="./js/ui/auth.js">
+  <link rel="modulepreload" href="./js/i18n/en.js">
 
   <script type="application/ld+json">
   {
@@ -82,47 +82,61 @@
   <link rel="stylesheet" href="./css/main.css">
   <script type="module" src="./js/main.js"></script>
 </head>
-<body>
+<body data-screen="auth">
   <!--
-    GRANITE markup notes (kept short; contract lives in docs/architecture.md):
-    - Every `div` below carries a comment saying why no native element fits.
+    GRANITE markup notes (contract: docs/architecture.md + docs/design-v2.md 10.2):
+    - Every `div` carries a comment saying why no native element fits.
     - Dynamic sinks (data-out) and slots (data-slot) carry NO data-i18n: CIRCUIT writes their text via t().
-    - Class names used: .skip-link and .visually-hidden only (PRISM defines both).
+    - Anything removed from view that carries meaning stays as .visually-hidden text (PRISM defines it).
     - PRISM: an empty [data-error] / [data-out="msg"] must collapse (:empty { display: none }).
+    - No inline style attributes anywhere (the CSP has no 'unsafe-inline' for styles): use data-n / classes, and CIRCUIT sets custom properties through CSSOM.
   -->
-  <a class="skip-link" href="#main" data-i18n="chrome.skip">Skip to Main Content</a>
+  <a class="skip-link" href="#main" data-i18n="chrome.skip">Skip to content</a>
 
   <header>
     <!-- TODO(content): "Lock Puzzle" is a working title, not a brand. Replace when a name is chosen. -->
     <p class="lp-brand">
       <svg class="lp-sprite" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-lock-closed"/></svg>
-      <span translate="no" data-i18n="brand.name">Lock Puzzle</span>
+      <span class="lp-brand__name" translate="no" data-i18n="brand.name">Lock Puzzle</span>
     </p>
 
-    <!-- lang attr is the TARGET language of the label; CIRCUIT must flip it together with the text. -->
-    <button type="button" data-action="lang" lang="ar" data-i18n="chrome.lang.toggle">العربية</button>
+    <!-- Shown only when something needs attention (offline / device only); CIRCUIT removes `hidden` then. Icon only; the status text is read by assistive tech. -->
+    <p class="lp-chip" hidden>
+      <svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-alert"/></svg>
+      <span class="visually-hidden" data-i18n="chrome.sync.label">Save status:</span>
+      <!-- <output> has implicit role=status, so a change is announced politely. -->
+      <output class="visually-hidden" data-out="status"></output>
+    </p>
 
-    <!-- data-icon-on / data-icon-off: the <use href> CIRCUIT sets when sound is on / off. Shipped as speaker-off until JS reads the saved setting. -->
-    <button type="button" data-action="mute" aria-pressed="false" data-icon-on="./assets/sprites.svg#lp-speaker-on" data-icon-off="./assets/sprites.svg#lp-speaker-off">
+    <!-- lang attr is the TARGET language of the label; CIRCUIT flips it together with the text. The visible glyph is hidden from AT; the target language's name is the accessible name. -->
+    <button type="button" class="lp-iconbtn" data-action="lang" lang="ar"><span aria-hidden="true" data-i18n="chrome.lang.toggle">ع</span><span class="visually-hidden" data-i18n="chrome.lang.name">العربية</span></button>
+
+    <!-- data-icon-on / data-icon-off: the <use href> CIRCUIT sets when sound is on / off. aria-pressed="true" means sound is ON. -->
+    <button type="button" class="lp-iconbtn" data-action="mute" aria-pressed="false" data-icon-on="./assets/sprites.svg#lp-speaker-on" data-icon-off="./assets/sprites.svg#lp-speaker-off">
       <svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-speaker-off"/></svg>
-      <span data-i18n="chrome.mute">Sound</span>
+      <span class="visually-hidden" data-i18n="chrome.mute">Sound</span>
     </button>
 
-    <p class="lp-chip">
-      <svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-clock"/></svg>
-      <span data-i18n="chrome.sync.label">Save status:</span>
-      <!-- <output> has implicit role=status, so status changes are announced politely. -->
-      <output data-out="status"></output>
-    </p>
+    <button type="button" class="lp-iconbtn" data-action="show-help">
+      <svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-help"/></svg>
+      <span class="visually-hidden" data-i18n="chrome.help">Help</span>
+    </button>
 
-    <!-- Hidden while signed out; CIRCUIT removes `hidden` after sign-in. Native disclosure: works by keyboard with no JS. -->
-    <details data-account hidden>
-      <summary>
+    <!-- data-needs-auth: hidden while signed out; CIRCUIT removes `hidden` after sign-in. -->
+    <button type="button" class="lp-iconbtn" data-action="show-board" data-needs-auth hidden>
+      <svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-trophy"/></svg>
+      <span class="visually-hidden" data-i18n="chrome.board">Leaderboard</span>
+    </button>
+
+    <!-- Native disclosure: works by keyboard with no JS. The avatar is the summary; the name lives in the panel (and, hidden, in the summary's accessible name). -->
+    <details data-account data-needs-auth hidden>
+      <summary class="lp-iconbtn">
         <svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-user"/></svg>
-        <span class="visually-hidden" data-i18n="chrome.account.label">Account:</span>
-        <span data-out="name"></span>
+        <span class="visually-hidden" data-i18n="chrome.account.label">Account</span>
+        <span class="visually-hidden" translate="no" data-out="name"></span>
       </summary>
-      <button type="button" data-action="logout" data-i18n="chrome.account.logout">Log Out</button>
+      <p translate="no" data-out="name"></p>
+      <button type="button" data-action="logout" data-i18n="chrome.account.logout">Log out</button>
     </details>
   </header>
 
@@ -133,26 +147,55 @@
         <h1 id="noscript-title">This game needs JavaScript to play</h1>
         <p>Lock Puzzle is a code-cracking game that runs in your browser. Turn JavaScript on for this site and reload the page to play. The rules are below so you can read them without it.</p>
 
-        <h2>The Goal</h2>
-        <p>Every puzzle hides a code made of digits (3, 4, or 5&nbsp;digits, depending on difficulty). A set of clues is given. Exactly one code fits every clue. Work it out and enter it. Only the Agent difficulty can repeat a digit within a code; in every other difficulty all the digits are different. A guess that repeats a digit in those difficulties is not counted and costs nothing.</p>
+        <h2>Goal</h2>
+        <p>Find the hidden code. All clues are true.</p>
+        <p>Digits are all different, except in Agent.</p>
 
-        <h2>Reading the Clues</h2>
-        <dl>
-          <dt>Feedback clue</dt>
-          <dd>Shows a guess and how it scored, with pips and in words: how many of its digits are in the code and in the right place, and how many are in the code but in a different place. A digit that is not in the code scores nothing.</dd>
-          <dt>Sum clue</dt>
-          <dd>The digits of the code add up to the number shown.</dd>
-          <dt>Parity clue</dt>
-          <dd>The digit in the stated position is even or odd. Zero is even.</dd>
-          <dt>Compare clue</dt>
-          <dd>The digit in one position is greater than, or less than, the digit in another position.</dd>
-          <dt>Even-count clue</dt>
-          <dd>The number shown is how many digits of the code are even. Zero counts as even.</dd>
+        <h2>Clues</h2>
+        <dl class="lp-legend">
+          <dt><span data-pip="right" aria-hidden="true"></span><span class="visually-hidden">Feedback clue</span></dt>
+          <dd>Right digit, right place</dd>
+          <dt><span data-pip="wrong" aria-hidden="true"></span><span class="visually-hidden">Feedback clue</span></dt>
+          <dd>Right digit, wrong place</dd>
+          <dt><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-none"/></svg><span class="visually-hidden">Feedback clue</span></dt>
+          <dd>No digit is right</dd>
+          <dt><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-sum"/></svg><span class="sym" aria-hidden="true">= 12</span><span class="visually-hidden">Sum clue</span></dt>
+          <dd>Digits add up</dd>
+          <dt><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-parity"/></svg><span class="sym" aria-hidden="true">2nd: even</span><span class="visually-hidden">Parity clue</span></dt>
+          <dd>Digit is even or odd</dd>
+          <dt><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-compare"/></svg><span class="sym" aria-hidden="true">1st &gt; 2nd</span><span class="visually-hidden">Compare clue</span></dt>
+          <dd>One digit is bigger</dd>
+          <dt><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-even-count"/></svg><span class="sym" aria-hidden="true">even: 2</span><span class="visually-hidden">Even-count clue</span></dt>
+          <dd>How many digits are even</dd>
         </dl>
-        <p>Positions count from the left, starting at 1: the first dial is the leftmost one.</p>
-        <p>Rookie puzzles use feedback clues only. Agent adds parity and sum clues. Hacker and Master use every clue type.</p>
+        <p>Count from the left.</p>
+        <p>Harder levels add more clue types.</p>
 
-        <h2>Worked Example</h2>
+        <h2>Points</h2>
+        <p>Base points × speed × accuracy × hint.</p>
+        <ul>
+          <li>Speed: ×2 falling to ×0.5.</li>
+          <li>The clock keeps running if you switch tabs.</li>
+          <li>Each wrong guess: −8%, down to 40%.</li>
+          <li>Hint: points drop to 50%.</li>
+          <li>Classic points and Blood points (from Blood mode) stay separate.</li>
+        </ul>
+
+        <h2>Blood</h2>
+        <ul>
+          <li>Beat the 3:00 clock.</li>
+          <li>×2 points per solve.</li>
+          <li>Wrong guess: −5&nbsp;s.</li>
+          <li>Skip: −10&nbsp;s.</li>
+          <li>No hints.</li>
+          <li>Puzzles get harder.</li>
+          <li>At zero the open puzzle is lost. Earned points stay.</li>
+        </ul>
+
+        <h2>Your code</h2>
+        <p>Your 6-digit code can’t be recovered.</p>
+
+        <h2>Example</h2>
         <p>A Rookie-style puzzle has 3 different digits and feedback clues only. This one has 4 clues.</p>
         <ol>
           <li>Guess 7 2 9: No digit is correct.</li>
@@ -162,328 +205,330 @@
         </ol>
         <p>The first clue rules out 7, 2 and 9. In the fourth clue the 2 is already out, so the two correct digits are 4 and 1, and neither is where the guess put it: 4 is not first and 1 is not third. The third clue has one correct digit, in the right place, and its 9 is out. The 1 is in the code, so the 1 is that digit, and it is in the right place: first. That also means 5 is not in the code. The second clue has one correct digit, in the right place, and its 2 is out. The 6 cannot be first, because the 1 is there, and nothing in this clue is in a different place, so the 6 is not in the code. That leaves the 8, and it is second. The code starts 1 8, and the missing digit is the 4, third. The answer is 184.</p>
 
-        <h2>Scoring</h2>
-        <p>Each solved puzzle earns the base points for its difficulty, multiplied by a speed bonus, an accuracy factor and a hint factor.</p>
-        <ul>
-          <li>Speed bonus: starts at 2 and shrinks as time passes, but never falls below 0.5. The clock never stops while you play: switching tabs does not pause it.</li>
-          <li>Accuracy: each wrong guess lowers the factor by 8&nbsp;percentage points, to a minimum of 40&nbsp;percent.</li>
-          <li>Hint: using a hint cuts your points to 50&nbsp;percent.</li>
-        </ul>
-        <p>Illustrative numbers only: with base points of 100, a solve at the target time (the speed bonus is then 1.25) with one wrong guess (accuracy 0.92) and no hint scores 100&nbsp;×&nbsp;1.25&nbsp;×&nbsp;0.92 = 115&nbsp;points.</p>
-        <p>Classic points, Blood points (from Blood mode) and total points are always shown separately.</p>
-
-        <h2>Blood Mode</h2>
-        <ul>
-          <li>A 3:00 countdown. Solve as many puzzles as you can before it reaches zero.</li>
-          <li>Every solve is worth ×2&nbsp;points.</li>
-          <li>A wrong guess takes 5&nbsp;seconds off the clock.</li>
-          <li>Skipping a puzzle takes 10&nbsp;seconds off the clock.</li>
-          <li>Hints are off.</li>
-          <li>Puzzles get harder as you solve more of them.</li>
-          <li>The puzzle in play when the clock hits zero is lost. Points for puzzles you already solved are kept.</li>
-        </ul>
-
         <p>Made by <a href="https://github.com/op-h" rel="noopener" translate="no">OPH</a></p>
       </section>
     </noscript>
 
     <!-- ===== AUTH (visible by default so first paint is never blank) ===== -->
     <section data-screen="auth" aria-labelledby="auth-title">
-      <h1 id="auth-title" tabindex="-1" data-i18n="auth.title">Welcome to Lock Puzzle</h1>
-      <!-- Decorative hero. -->
+      <!-- Decorative hero, before the title so the DOM order is the drawn order. -->
       <span class="lp-vault-door" aria-hidden="true"><svg class="lp-sprite" aria-hidden="true" focusable="false" width="96" height="96"><use href="./assets/sprites.svg#lp-vault-door"/></svg></span>
-      <p data-i18n="auth.intro">Create a player with just a name. You get a 6-digit code that lets you continue on any device.</p>
-      <p id="auth-privacy" data-i18n="auth.privacy">Use a nickname, not your full real name. Your name can be seen on the leaderboard.</p>
+      <h1 id="auth-title" tabindex="-1" data-i18n="auth.title">Lock Puzzle</h1>
 
       <form data-form="signup" novalidate aria-labelledby="signup-title">
-        <h2 id="signup-title" data-i18n="auth.signup.title">Create a Player</h2>
+        <h2 id="signup-title" class="visually-hidden" data-i18n="auth.signup.title">New player</h2>
         <p>
-          <label for="signup-name" data-i18n="auth.name.label">Player name</label>
-          <input id="signup-name" name="name" type="text" data-field="name" autocomplete="username" maxlength="20" required spellcheck="false" autocapitalize="off" aria-describedby="signup-name-hint signup-error">
+          <label for="signup-name" data-i18n="auth.name.label">Nickname</label>
+          <input id="signup-name" name="name" type="text" data-field="name" autocomplete="username" maxlength="20" required spellcheck="false" autocapitalize="off" aria-describedby="auth-privacy signup-name-hint signup-error">
         </p>
-        <p id="signup-name-hint" data-i18n="auth.name.hint">Up to 20&nbsp;characters. Pick a nickname, not your full real name.</p>
+        <!-- The one short visible privacy line (owner ruling). The detail is read by assistive tech through aria-describedby. -->
+        <p id="auth-privacy" data-i18n="auth.privacy">Use a nickname.</p>
+        <p id="signup-name-hint" class="visually-hidden" data-i18n="auth.name.hint">Shown on the leaderboard. Up to 20 characters.</p>
         <!-- Icon is a sibling of the live region, never inside it: CIRCUIT writes the region via textContent. PRISM shows it only while the region is non-empty. -->
         <p class="lp-error"><svg class="lp-icon lp-icon--when-error" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-x"/></svg><span id="signup-error" data-error role="alert"></span></p>
         <p>
-          <button type="submit" data-action="signup" data-i18n="auth.signup.submit">Create Player and Get Code</button>
+          <button type="submit" data-action="signup" data-i18n="auth.signup.submit">Start</button>
         </p>
         <p>
-          <button type="button" data-action="show-signin" data-i18n="auth.signup.toSignin">Sign In With a Code</button>
+          <button type="button" class="lp-link" data-action="show-signin" data-i18n="auth.signup.toSignin">I have a code</button>
         </p>
       </form>
 
       <form data-form="signin" novalidate hidden aria-labelledby="signin-title">
-        <h2 id="signin-title" data-i18n="auth.signin.title">Sign In</h2>
+        <h2 id="signin-title" class="visually-hidden" data-i18n="auth.signin.title">Sign in</h2>
         <p>
-          <label for="signin-name" data-i18n="auth.name.label">Player name</label>
+          <label for="signin-name" data-i18n="auth.name.label">Nickname</label>
           <input id="signin-name" name="name" type="text" data-field="name" autocomplete="username" maxlength="20" required spellcheck="false" autocapitalize="off" aria-describedby="signin-error">
         </p>
         <p>
-          <label for="signin-code" data-i18n="auth.code.label">6-digit code</label>
+          <label for="signin-code" data-i18n="auth.code.label">Code</label>
           <input id="signin-code" name="code" type="text" data-field="code" inputmode="numeric" maxlength="12" autocomplete="one-time-code" required spellcheck="false" autocapitalize="off" aria-describedby="signin-code-hint signin-error">
         </p>
-        <p id="signin-code-hint" data-i18n="auth.code.hint">The code you were given when you created this player. It cannot be recovered.</p>
+        <p id="signin-code-hint" class="visually-hidden" data-i18n="auth.code.hint">Given when you started. It can’t be recovered.</p>
         <!-- Icon is a sibling of the live region, never inside it: CIRCUIT writes the region via textContent. PRISM shows it only while the region is non-empty. -->
         <p class="lp-error"><svg class="lp-icon lp-icon--when-error" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-x"/></svg><span id="signin-error" data-error role="alert"></span></p>
         <p>
-          <button type="submit" data-action="signin" data-i18n="auth.signin.submit">Sign In</button>
+          <button type="submit" data-action="signin" data-i18n="auth.signin.submit">Sign in</button>
         </p>
         <p>
-          <button type="button" data-action="show-signup" data-i18n="auth.signin.toSignup">Create a New Player Instead</button>
+          <button type="button" class="lp-link" data-action="show-signup" data-i18n="auth.signin.toSignup">New player</button>
         </p>
       </form>
-
-      <p>
-        <button type="button" data-action="show-help" data-i18n="auth.help">How to Play</button>
-      </p>
     </section>
 
     <!-- ===== HOME ===== -->
     <section data-screen="home" hidden aria-labelledby="home-title">
-      <h1 id="home-title" tabindex="-1" data-i18n="home.title">Pick a Mode</h1>
-      <span class="lp-vault-door" aria-hidden="true"><svg class="lp-sprite" aria-hidden="true" focusable="false" width="96" height="96"><use href="./assets/sprites.svg#lp-vault-door"/></svg></span>
-      <p>
-        <span data-i18n="home.signedInAs">Signed in as</span>
-        <strong data-out="name"></strong>
+      <h1 id="home-title" class="visually-hidden" tabindex="-1" data-i18n="home.title">Home</h1>
+      <p class="lp-who">
+        <svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-user"/></svg>
+        <span class="visually-hidden" data-i18n="home.signedInAs">Signed in as</span>
+        <span translate="no" data-out="name"></span>
       </p>
 
       <section aria-labelledby="home-points-title">
-        <h2 id="home-points-title" data-i18n="home.points.title">Your Points</h2>
-        <dl>
-          <dt data-i18n="home.points.classic">Classic points</dt>
-          <dd><span data-out="classic">0</span></dd>
-          <dt data-mode="blood"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-drop"/></svg><span data-i18n="home.points.blood">Blood points (from Blood mode)</span></dt>
-          <dd data-mode="blood"><span data-out="blood">0</span></dd>
-          <dt><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-trophy"/></svg><span data-i18n="home.points.total">Total points</span></dt>
-          <dd><span data-out="total">0</span></dd>
+        <h2 id="home-points-title" class="visually-hidden" data-i18n="home.points.title">Your points</h2>
+        <!-- div: HTML allows <div> wrappers around dt/dd groups inside <dl>; each stat cell needs one box. -->
+        <dl class="lp-stats">
+          <div data-stat="classic">
+            <dt><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-key"/></svg><span data-i18n="home.points.classic">Classic</span></dt>
+            <dd><span data-out="classic">0</span></dd>
+          </div>
+          <div data-stat="blood" data-mode="blood">
+            <!-- The short visible word is hidden from AT; the full "from Blood mode" wording is what is spoken (ADR 0003). -->
+            <dt><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-drop"/></svg><span aria-hidden="true" data-i18n="home.points.blood">Blood</span><span class="visually-hidden" data-i18n="home.points.blood.sr">Blood points, from Blood mode</span></dt>
+            <dd><span data-out="blood">0</span></dd>
+          </div>
+          <div data-stat="total">
+            <dt><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-trophy"/></svg><span data-i18n="home.points.total">Total</span></dt>
+            <dd><span data-out="total">0</span></dd>
+          </div>
         </dl>
       </section>
 
+      <!-- Hero for tall screens only (PRISM hides it under 760px high). -->
+      <span class="lp-vault-door" aria-hidden="true"><svg class="lp-sprite" aria-hidden="true" focusable="false" width="96" height="96"><use href="./assets/sprites.svg#lp-vault-door"/></svg></span>
+
       <section aria-labelledby="home-play-title">
-        <h2 id="home-play-title" data-i18n="home.play.title">Play</h2>
+        <h2 id="home-play-title" class="visually-hidden" data-i18n="home.play.title">Play</h2>
 
         <fieldset>
-          <legend data-i18n="home.difficulty.legend">Difficulty (Classic mode)</legend>
-          <!-- CIRCUIT renders <li><input type="radio"> + <label></li> here. -->
+          <legend class="visually-hidden" data-i18n="home.difficulty.legend">Difficulty (Classic mode)</legend>
+          <!-- CIRCUIT renders <li><input type="radio"> + <label> (name, .lp-dig squares, hidden digit count) here. -->
           <ul data-slot="difficulty-picker"></ul>
-          <p data-i18n="home.difficulty.note">Blood mode picks difficulty for you and gets harder as you solve.</p>
         </fieldset>
 
-        <ul>
+        <menu class="lp-play">
           <li>
-            <button type="button" data-action="play-classic" aria-describedby="home-classic-desc" data-i18n="home.classic.button">Play Classic</button>
-            <p id="home-classic-desc" data-i18n="home.classic.desc">No time limit. Faster solves, fewer wrong guesses and no hint score more points.</p>
+            <button type="button" data-action="play-classic" aria-describedby="home-classic-desc"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-key"/></svg><span class="lp-btn__label" data-i18n="home.classic.button">Classic</span><span class="lp-btn__sub" data-i18n="home.classic.desc">No timer</span></button>
+            <span id="home-classic-desc" class="visually-hidden" data-i18n="home.classic.sr">Faster solves, fewer wrong guesses and no hint score more.</span>
           </li>
           <li>
-            <button type="button" data-action="play-blood" data-mode="blood" aria-describedby="home-blood-desc"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-skull"/></svg><span data-i18n="home.blood.button">Play Blood</span></button>
-            <p id="home-blood-desc" data-i18n="home.blood.desc">3:00 countdown, ×2&nbsp;points, wrong guess −5&nbsp;s, skip −10&nbsp;s, no hints.</p>
+            <button type="button" data-action="play-blood" data-mode="blood" aria-describedby="home-blood-desc"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-skull"/></svg><span class="lp-btn__label" data-i18n="home.blood.button">Blood</span><span class="lp-btn__sub" data-i18n="home.blood.desc">3:00 clock, ×2</span></button>
+            <span id="home-blood-desc" class="visually-hidden" data-i18n="home.blood.sr">3:00 countdown, ×2&nbsp;points, wrong guess −5&nbsp;s, skip −10&nbsp;s, no hints. Gets harder as you solve.</span>
           </li>
-        </ul>
+        </menu>
       </section>
-
-      <section aria-labelledby="home-history-title">
-        <h2 id="home-history-title" data-i18n="home.history.title">Recent Rounds</h2>
-        <!-- CIRCUIT renders <li>; each line must name its source (Classic or Blood points (from Blood mode)). -->
-        <ul data-slot="history"></ul>
-      </section>
-
-      <nav aria-labelledby="home-more-title">
-        <h2 id="home-more-title" class="visually-hidden" data-i18n="home.more.title">More</h2>
-        <ul>
-          <li><button type="button" data-action="show-board"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-trophy"/></svg><span data-i18n="home.more.board">Leaderboard</span></button></li>
-          <li><button type="button" data-action="show-help" data-i18n="home.more.help">How to Play</button></li>
-        </ul>
-      </nav>
     </section>
 
     <!-- ===== PLAY ===== -->
     <section data-screen="play" hidden aria-labelledby="play-title">
-      <h1 id="play-title" tabindex="-1" data-i18n="play.title">Crack the Lock</h1>
-      <!-- The wrapper owns the frame; [data-mode-badge] stays a pure text sink. Skull shows only in Blood (PRISM, via body[data-mode]). -->
-      <p class="lp-badge"><svg class="lp-icon lp-icon--when-blood" data-mode="blood" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-skull"/></svg><span data-mode-badge></span></p>
+      <h1 id="play-title" class="visually-hidden" tabindex="-1" data-i18n="play.title">Crack the lock</h1>
+      <p class="visually-hidden"><span data-mode-badge></span></p>
 
-      <dl>
-        <dt data-i18n="play.puzzle">Puzzle</dt>
-        <dd><span data-out="puzzle-no"></span></dd>
-        <dt data-i18n="play.difficulty">Difficulty</dt>
-        <dd><span data-out="difficulty"></span></dd>
-        <dt id="play-timer-label" data-i18n="play.timer">Time</dt>
-        <dd>
+      <!-- A nested header inside a section is not a banner landmark; it is the compact top bar (it replaces the global header on phones). -->
+      <header class="lp-topbar">
+        <button type="button" class="lp-iconbtn" data-action="quit">
+          <svg class="lp-icon lp-icon--flip" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-arrow-left"/></svg>
+          <span class="visually-hidden" data-i18n="play.quit">Quit round</span>
+        </button>
+        <!-- Lock host: both symbols present, CSS shows one by data-lock (idle|success|fail). -->
+        <span data-lock="idle" class="lp-lock" aria-hidden="true"><svg class="lp-sprite" aria-hidden="true" focusable="false" width="32" height="32"><use class="lp-lock__closed" href="./assets/sprites.svg#lp-lock-closed"/><use class="lp-lock__open" href="./assets/sprites.svg#lp-lock-open"/></svg></span>
+        <p class="lp-topbar__diff" data-topbar="difficulty">
+          <svg class="lp-icon-sm lp-icon--when-blood" data-mode="blood" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-skull"/></svg>
+          <span data-out="difficulty"></span>
+          <!-- CIRCUIT writes the long form here ("3 digits, all different"), read by assistive tech after the name. -->
+          <span class="visually-hidden" data-out="diffline"></span>
+        </p>
+        <p class="lp-topbar__timer" data-topbar="timer">
           <!-- Both glyphs shipped; PRISM shows the clock, and the skull while [data-timer-bar][data-phase="last30|last10"]. -->
-          <svg class="lp-icon lp-timer-icon" aria-hidden="true" focusable="false" width="32" height="32"><use class="lp-timer-icon__clock" href="./assets/sprites.svg#lp-clock"/><use class="lp-timer-icon__skull" href="./assets/sprites.svg#lp-skull"/></svg>
+          <svg class="lp-icon-sm lp-timer-icon" aria-hidden="true" focusable="false" width="16" height="16"><use class="lp-timer-icon__clock" href="./assets/sprites.svg#lp-clock"/><use class="lp-timer-icon__skull" href="./assets/sprites.svg#lp-skull"/></svg>
+          <span id="play-timer-label" class="visually-hidden" data-i18n="play.timer">Time</span>
           <output data-out="timer" role="timer" aria-labelledby="play-timer-label">0:00</output>
-          <!-- Graphic only. CIRCUIT sets --lp-timer-left (0..18) and data-phase; CSS draws the 18 segments. -->
-          <span data-timer-bar data-phase="normal" aria-hidden="true"></span>
-        </dd>
-        <dt data-i18n="play.attempts">Wrong guesses</dt>
-        <dd><span data-out="attempts-left"></span></dd>
-      </dl>
+        </p>
+        <p class="lp-topbar__wrong" data-topbar="wrong">
+          <svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-x"/></svg>
+          <span class="visually-hidden" data-i18n="play.attempts">Wrong guesses</span>
+          <span data-out="attempts-left"></span>
+        </p>
+        <!-- Blood only (CIRCUIT removes `hidden`): the run's solved count, small and visible by owner ruling. -->
+        <p class="lp-topbar__solved" data-topbar="solved" hidden>
+          <svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-check"/></svg>
+          <span class="visually-hidden" data-i18n="play.solved">Solved</span>
+          <span data-out="solved-count"></span>
+        </p>
+        <!-- Second sound button: the global header is hidden on phones while playing. CIRCUIT must update every [data-action="mute"]. -->
+        <button type="button" class="lp-iconbtn" data-action="mute" aria-pressed="false" data-icon-on="./assets/sprites.svg#lp-speaker-on" data-icon-off="./assets/sprites.svg#lp-speaker-off">
+          <svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-speaker-off"/></svg>
+          <span class="visually-hidden" data-i18n="chrome.mute">Sound</span>
+        </button>
+      </header>
+      <!-- Graphic only (Blood). CIRCUIT sets --lp-timer-left (0..18) and data-phase; CSS draws the 18 segments. -->
+      <span data-timer-bar data-phase="normal" aria-hidden="true"></span>
       <!-- Announces the clock only at 2:00, 1:00, 0:30, 0:10 and 0:00. Visually hidden on purpose. -->
       <p class="visually-hidden" data-live="timer-sr" aria-live="polite" aria-atomic="true"></p>
 
+      <!-- The clue list is the only scroller on this screen; tabindex=0 lets keyboard users scroll it. -->
       <section aria-labelledby="play-clues-title">
-        <h2 id="play-clues-title" data-i18n="play.clues.title">Clues</h2>
-        <ol data-slot="clues" aria-labelledby="play-clues-title"></ol>
+        <h2 id="play-clues-title" class="visually-hidden" data-i18n="play.clues.title">Clues</h2>
+        <ol data-slot="clues" aria-labelledby="play-clues-title" tabindex="0"></ol>
+        <p data-live="status" aria-live="polite" aria-atomic="true"><span data-out="msg"></span></p>
       </section>
 
-      <!-- Sits before the guess dock because that is where it is drawn (narrow layout), so Tab order matches what you see. -->
-      <p>
-        <button type="button" data-action="quit" data-i18n="play.quit">Quit Round</button>
-      </p>
-
       <section aria-labelledby="play-guess-title">
-        <h2 id="play-guess-title" data-i18n="play.guess.title">Your Guess</h2>
-        <p id="play-guess-help" data-i18n="play.guess.help">Tap a dial, then use the keypad. With a keyboard, type digits, use the arrow keys to move between dials, Backspace to delete and Enter to check.</p>
+        <h2 id="play-guess-title" class="visually-hidden" data-i18n="play.guess.title">Your guess</h2>
+        <p id="play-guess-help" class="visually-hidden" data-i18n="play.guess.help">Tap a dial, then a digit. Keyboard: digits, arrows, Backspace, Enter.</p>
         <!-- div: CIRCUIT replaces this slot's children with dial buttons, so a fieldset/legend would be wiped. role=group names the set. -->
         <div role="group" aria-labelledby="play-guess-title" aria-describedby="play-guess-help" data-slot="dials"></div>
-        <!-- Static so the list keeps one stable name. CIRCUIT fills it with <li> and sets the same aria-label again on render. PRISM: an empty list should take no space. -->
-        <ol data-slot="attempts" data-i18n-attr="aria-label:play.attempts.list" aria-label="Wrong guesses so far"></ol>
-        <!-- div: same reason as above (slot content is fully rendered by CIRCUIT). -->
+        <!-- Static so the list keeps one stable name. The count is in the top bar; the list is for assistive tech. -->
+        <ol class="visually-hidden" data-slot="attempts" data-i18n-attr="aria-label:play.attempts.list" aria-label="Wrong guesses so far"></ol>
+        <!-- div: same reason as the dials (slot content is fully rendered by CIRCUIT). -->
         <div role="group" data-i18n-attr="aria-label:play.keypad.label" aria-label="Keypad" data-slot="keypad"></div>
 
-        <!-- <menu> is the semantic list of commands. -->
+        <!-- <menu> is the semantic list of commands. Icon buttons keep their names as hidden text. DOM order = drawn order: Clear, Check, Skip (Blood) or Hint (Classic). -->
         <menu>
-          <li><button type="button" data-action="clear" data-i18n="play.clear">Clear</button></li>
+          <li><button type="button" data-action="clear"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-backspace"/></svg><span class="visually-hidden" data-i18n="play.clear">Clear</span></button></li>
           <li><button type="button" data-action="check" data-i18n="play.check">Check</button></li>
-          <li><button type="button" data-action="skip" data-i18n="play.skip">Skip Puzzle</button></li>
-          <li><button type="button" data-action="hint"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-bulb"/></svg><span data-i18n="play.hint">Hint (Half Points)</span></button></li>
+          <li hidden><button type="button" data-action="skip"><svg class="lp-icon lp-icon--flip" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-skip"/></svg><span class="visually-hidden" data-i18n="play.skip">Skip</span></button></li>
+          <li><button type="button" data-action="hint"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-bulb"/></svg><span class="visually-hidden" data-i18n="play.hint">Hint, half points</span></button></li>
         </menu>
-
-        <!-- Lock host: both symbols present, CSS shows one by data-lock (idle|success|fail). -->
-        <span data-lock="idle" class="lp-lock" aria-hidden="true"><svg class="lp-sprite" aria-hidden="true" focusable="false" width="64" height="64"><use class="lp-lock__closed" href="./assets/sprites.svg#lp-lock-closed"/><use class="lp-lock__open" href="./assets/sprites.svg#lp-lock-open"/></svg></span>
-        <p data-live="status" aria-live="polite" aria-atomic="true"><span data-out="msg"></span></p>
       </section>
     </section>
 
     <!-- ===== RESULT (classic puzzle result and Blood run summary) ===== -->
     <section data-screen="result" hidden aria-labelledby="result-title">
-      <h1 id="result-title" tabindex="-1" data-i18n="result.title">Round Result</h1>
       <span data-lock="idle" class="lp-lock" aria-hidden="true"><svg class="lp-sprite" aria-hidden="true" focusable="false" width="64" height="64"><use class="lp-lock__closed" href="./assets/sprites.svg#lp-lock-closed"/><use class="lp-lock__open" href="./assets/sprites.svg#lp-lock-open"/></svg></span>
-      <!-- The wrapper owns the frame; [data-mode-badge] stays a pure text sink. Skull shows only in Blood (PRISM, via body[data-mode]). -->
-      <p class="lp-badge"><svg class="lp-icon lp-icon--when-blood" data-mode="blood" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-skull"/></svg><span data-mode-badge></span></p>
-      <!-- Stamp icon: CIRCUIT retargets the <use href> to data-icon-ok (Classic) / data-icon-blood (Blood run) by mode. -->
-      <p class="lp-stamp"><svg class="lp-icon" data-icon-ok="./assets/sprites.svg#lp-check" data-icon-blood="./assets/sprites.svg#lp-skull" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-check"/></svg><span data-out="msg"></span></p>
+      <!-- The visible result word ("Unlocked", "Time's up") IS the h1: CIRCUIT writes it, the router focuses it, so it is announced on arrival. -->
+      <h1 id="result-title" tabindex="-1" data-out="msg"></h1>
+      <p class="visually-hidden"><span data-mode-badge></span></p>
+      <p class="lp-score"><span data-out="score">0</span> <span data-i18n="result.score">points</span></p>
+      <!-- Receives the final score once (the count-up node is aria-hidden while it runs). -->
+      <p class="visually-hidden" data-live="score-sr" aria-live="polite" aria-atomic="true"></p>
+      <!-- Shown only after a Blood run, always worded as coming from Blood mode (ADR 0005 s4). -->
+      <p data-mode="blood" hidden><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-drop"/></svg><span data-i18n="result.bloodpoints">Blood points (from Blood mode)</span> <span data-out="bloodpoints">0</span></p>
+      <p data-out="solved" hidden></p>
+      <p class="lp-pb" hidden><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-trophy"/></svg><span data-pb data-i18n="result.msg.pb">New best!</span></p>
+      <p data-out="answer" hidden></p>
 
-      <section aria-labelledby="result-lines-title">
-        <h2 id="result-lines-title" data-i18n="result.lines.title">Points Earned</h2>
+      <section class="visually-hidden" aria-labelledby="result-lines-title">
+        <h2 id="result-lines-title" data-i18n="result.lines.title">Points earned</h2>
         <!-- CIRCUIT renders <li>; every line states its source: "Classic" or "Blood points (from Blood mode)". -->
         <ul data-slot="result-lines"></ul>
       </section>
 
-      <dl>
-        <dt data-i18n="result.score">Score this round</dt>
-        <dd><span data-out="score">0</span></dd>
-        <dt data-mode="blood"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-drop"/></svg><span data-i18n="result.bloodpoints">Blood points (from Blood mode)</span></dt>
-        <dd data-mode="blood"><span data-out="bloodpoints">0</span></dd>
-      </dl>
-
       <menu>
-        <li><button type="button" data-action="next" data-i18n="result.nextClassic">Next Puzzle</button></li>
-        <li><button type="button" data-action="retry" data-i18n="result.retryBlood">Start a New Run</button></li>
-        <li><button type="button" data-action="go-home" data-i18n="result.home">Back to Home</button></li>
+        <li><button type="button" data-action="go-home" data-i18n="result.home">Home</button></li>
+        <li><button type="button" data-action="next" data-i18n="result.nextClassic">Next</button></li>
+        <li hidden><button type="button" data-action="retry" data-i18n="result.retryBlood">Again</button></li>
       </menu>
     </section>
 
     <!-- ===== BOARD ===== -->
     <section data-screen="board" hidden aria-labelledby="board-title">
-      <h1 id="board-title" tabindex="-1"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-trophy"/></svg><span data-i18n="board.title">Leaderboard</span></h1>
-      <p data-i18n="board.note">Scores are reported by players’ own devices and are not verified.</p>
+      <header class="lp-screenhead">
+        <button type="button" class="lp-iconbtn" data-action="back">
+          <svg class="lp-icon lp-icon--flip" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-arrow-left"/></svg>
+          <span class="visually-hidden" data-i18n="chrome.back">Back</span>
+        </button>
+        <h1 id="board-title" tabindex="-1" data-i18n="board.title">Leaderboard</h1>
+      </header>
 
       <!-- div: no native element has the tablist role. Roving tabindex: only the selected tab has tabindex=0. -->
       <div role="tablist" data-i18n-attr="aria-label:board.tabs.label" aria-label="Leaderboard views">
         <button type="button" role="tab" id="board-tab-all" data-tab="all" aria-selected="true" aria-controls="board-panel" tabindex="0"><svg class="lp-icon lp-icon--when-selected" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-check"/></svg><span data-i18n="board.tab.all">All-time</span></button>
         <button type="button" role="tab" id="board-tab-blood" data-tab="blood" data-mode="blood" aria-selected="false" aria-controls="board-panel" tabindex="-1"><svg class="lp-icon lp-icon--when-selected" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-check"/></svg><span data-i18n="board.tab.blood">Blood</span></button>
       </div>
+      <p data-i18n="board.note">Scores are self-reported.</p>
 
       <!-- One shared panel: CIRCUIT swaps aria-labelledby, the caption and the last column header with the tab. -->
       <section role="tabpanel" id="board-panel" aria-labelledby="board-tab-all" tabindex="0">
         <p data-out="msg" aria-live="polite"></p>
         <table>
-          <caption data-i18n="board.caption.all">All-time leaderboard, ranked by total points</caption>
+          <caption class="visually-hidden" data-i18n="board.caption.all">All-time leaderboard, ranked by total points</caption>
           <thead>
             <tr>
-              <th scope="col" data-i18n="board.col.rank">Rank</th>
+              <th scope="col"><span aria-hidden="true" data-i18n="board.col.rank.short">#</span><span class="visually-hidden" data-i18n="board.col.rank">Rank</span></th>
               <th scope="col" data-i18n="board.col.player">Player</th>
-              <th scope="col" data-i18n="board.col.points">Total points</th>
+              <th scope="col" data-i18n="board.col.points">Points</th>
             </tr>
           </thead>
           <!-- Rows: rank in <td>, player name in <th scope="row">, points in <td>. -->
           <tbody data-slot="board-rows"></tbody>
         </table>
       </section>
-
-      <p>
-        <button type="button" data-action="back"><svg class="lp-icon lp-icon--flip" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-arrow-left"/></svg><span data-i18n="board.back">Back</span></button>
-      </p>
     </section>
 
     <!-- ===== HELP ===== -->
     <section data-screen="help" hidden aria-labelledby="help-title">
-      <h1 id="help-title" tabindex="-1" data-i18n="help.title">How to Play</h1>
+      <header class="lp-screenhead">
+        <button type="button" class="lp-iconbtn" data-action="back">
+          <svg class="lp-icon lp-icon--flip" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-arrow-left"/></svg>
+          <span class="visually-hidden" data-i18n="chrome.back">Back</span>
+        </button>
+        <h1 id="help-title" tabindex="-1" data-i18n="help.title">How to play</h1>
+      </header>
 
       <section aria-labelledby="help-goal-title">
-        <h2 id="help-goal-title" data-i18n="help.goal.title">The Goal</h2>
-        <p data-i18n="help.goal.body">Every puzzle hides a code made of digits (3, 4, or 5&nbsp;digits, depending on difficulty). A set of clues is given. Exactly one code fits every clue. Work it out and enter it. Only the Agent difficulty can repeat a digit within a code; in every other difficulty all the digits are different. A guess that repeats a digit in those difficulties is not counted and costs nothing.</p>
+        <h2 id="help-goal-title" data-i18n="help.goal.title">Goal</h2>
+        <p><span class="lp-dig" data-n="3" aria-hidden="true"></span> <span data-i18n="help.goal.body">Find the hidden code. All clues are true.</span></p>
+        <p data-i18n="help.goal.repeat">Digits are all different, except in Agent.</p>
       </section>
 
       <section aria-labelledby="help-clues-title">
-        <h2 id="help-clues-title" data-i18n="help.clues.title">Reading the Clues</h2>
-        <dl>
-          <dt><span data-pip="right" aria-hidden="true"></span><span data-pip="wrong" aria-hidden="true"></span> <span data-i18n="help.clues.feedback.term">Feedback clue</span></dt>
-          <dd data-i18n="help.clues.feedback.body">Shows a guess and how it scored, with pips and in words: how many of its digits are in the code and in the right place, and how many are in the code but in a different place. A digit that is not in the code scores nothing.</dd>
-          <dt><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-sum"/></svg><span data-i18n="help.clues.sum.term">Sum clue</span></dt>
-          <dd data-i18n="help.clues.sum.body">The digits of the code add up to the number shown.</dd>
-          <dt><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-parity"/></svg><span data-i18n="help.clues.parity.term">Parity clue</span></dt>
-          <dd data-i18n="help.clues.parity.body">The digit in the stated position is even or odd. Zero is even.</dd>
-          <dt><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-compare"/></svg><span data-i18n="help.clues.compare.term">Compare clue</span></dt>
-          <dd data-i18n="help.clues.compare.body">The digit in one position is greater than, or less than, the digit in another position.</dd>
-          <dt><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-even-count"/></svg><span data-i18n="help.clues.evencount.term">Even-count clue</span></dt>
-          <dd data-i18n="help.clues.evencount.body">The number shown is how many digits of the code are even. Zero counts as even.</dd>
+        <h2 id="help-clues-title" data-i18n="help.clues.title">Clues</h2>
+        <!-- Each dt is the REAL clue glyph (aria-hidden) plus the clue kind as hidden text; each dd is the one-liner. data-sym: CIRCUIT may replace the English sample symbol with the localised clue.sym.* form. -->
+        <dl class="lp-legend">
+          <dt><span data-pip="right" aria-hidden="true"></span><span class="visually-hidden" data-i18n="help.clues.feedback.term">Feedback clue</span></dt>
+          <dd data-i18n="help.legend.right">Right digit, right place</dd>
+          <dt><span data-pip="wrong" aria-hidden="true"></span><span class="visually-hidden" data-i18n="help.clues.feedback.term">Feedback clue</span></dt>
+          <dd data-i18n="help.legend.wrong">Right digit, wrong place</dd>
+          <dt><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-none"/></svg><span class="visually-hidden" data-i18n="help.clues.feedback.term">Feedback clue</span></dt>
+          <dd data-i18n="help.legend.none">No digit is right</dd>
+          <dt><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-sum"/></svg><span class="sym" aria-hidden="true" data-sym="sum">= 12</span><span class="visually-hidden" data-i18n="help.clues.sum.term">Sum clue</span></dt>
+          <dd data-i18n="help.legend.sum">Digits add up</dd>
+          <dt><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-parity"/></svg><span class="sym" aria-hidden="true" data-sym="parity">2nd: even</span><span class="visually-hidden" data-i18n="help.clues.parity.term">Parity clue</span></dt>
+          <dd data-i18n="help.legend.parity">Digit is even or odd</dd>
+          <dt><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-compare"/></svg><span class="sym" aria-hidden="true" data-sym="compare">1st &gt; 2nd</span><span class="visually-hidden" data-i18n="help.clues.compare.term">Compare clue</span></dt>
+          <dd data-i18n="help.legend.compare">One digit is bigger</dd>
+          <dt><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-even-count"/></svg><span class="sym" aria-hidden="true" data-sym="evencount">even: 2</span><span class="visually-hidden" data-i18n="help.clues.evencount.term">Even-count clue</span></dt>
+          <dd data-i18n="help.legend.evencount">How many digits are even</dd>
         </dl>
-        <p data-i18n="help.clues.positions">Positions count from the left, starting at 1: the first dial is the leftmost one.</p>
-        <p data-i18n="help.clues.byDifficulty">Rookie puzzles use feedback clues only. Agent adds parity and sum clues. Hacker and Master use every clue type.</p>
-      </section>
-
-      <section aria-labelledby="help-example-title">
-        <h2 id="help-example-title" data-i18n="help.example.title">Worked Example</h2>
-        <p data-i18n="help.example.intro">A Rookie-style puzzle has 3 different digits and feedback clues only. This one has 4 clues.</p>
-        <ol>
-          <li data-i18n="help.example.clue1">Guess 7 2 9: No digit is correct.</li>
-          <li data-i18n="help.example.clue2">Guess 6 8 2: 1 digit is correct and in the right place.</li>
-          <li data-i18n="help.example.clue3">Guess 1 5 9: 1 digit is correct and in the right place.</li>
-          <li data-i18n="help.example.clue4">Guess 4 2 1: 2 digits are correct but in the wrong place.</li>
-        </ol>
-        <p data-i18n="help.example.solution">The first clue rules out 7, 2 and 9. In the fourth clue the 2 is already out, so the two correct digits are 4 and 1, and neither is where the guess put it: 4 is not first and 1 is not third. The third clue has one correct digit, in the right place, and its 9 is out. The 1 is in the code, so the 1 is that digit, and it is in the right place: first. That also means 5 is not in the code. The second clue has one correct digit, in the right place, and its 2 is out. The 6 cannot be first, because the 1 is there, and nothing in this clue is in a different place, so the 6 is not in the code. That leaves the 8, and it is second. The code starts 1 8, and the missing digit is the 4, third. The answer is 184.</p>
+        <p data-i18n="help.clues.positions">Count from the left.</p>
+        <p data-i18n="help.clues.byDifficulty">Harder levels add more clue types.</p>
       </section>
 
       <section aria-labelledby="help-scoring-title">
-        <h2 id="help-scoring-title" data-i18n="help.scoring.title">Scoring</h2>
-        <p data-i18n="help.scoring.body">Each solved puzzle earns the base points for its difficulty, multiplied by a speed bonus, an accuracy factor and a hint factor.</p>
+        <h2 id="help-scoring-title" data-i18n="help.scoring.title">Points</h2>
+        <p data-i18n="help.scoring.body">Base points&nbsp;×&nbsp;speed&nbsp;×&nbsp;accuracy&nbsp;×&nbsp;hint.</p>
         <ul>
-          <li data-i18n="help.scoring.speed">Speed bonus: starts at 2 and shrinks as time passes, but never falls below 0.5. The clock never stops while you play: switching tabs does not pause it.</li>
-          <li data-i18n="help.scoring.accuracy">Accuracy: each wrong guess lowers the factor by 8&nbsp;percentage points, to a minimum of 40&nbsp;percent.</li>
-          <li data-i18n="help.scoring.hint">Hint: using a hint cuts your points to 50&nbsp;percent.</li>
+          <li><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-clock"/></svg><span data-i18n="help.scoring.speed">Speed: ×2 falling to ×0.5.</span></li>
+          <li><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-clock"/></svg><span data-i18n="help.scoring.clock">The clock keeps running if you switch tabs.</span></li>
+          <li><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-x"/></svg><span data-i18n="help.scoring.accuracy">Each wrong guess: −8%, down to 40%.</span></li>
+          <li><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-bulb"/></svg><span data-i18n="help.scoring.hint">Hint: points drop to 50%.</span></li>
+          <li><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-trophy"/></svg><span data-i18n="help.scoring.totals">Classic points and Blood points (from Blood mode) stay separate.</span></li>
         </ul>
-        <p data-i18n="help.scoring.example">Illustrative numbers only: with base points of 100, a solve at the target time (the speed bonus is then 1.25) with one wrong guess (accuracy 0.92) and no hint scores 100&nbsp;×&nbsp;1.25&nbsp;×&nbsp;0.92 = 115&nbsp;points.</p>
-        <p data-i18n="help.scoring.totals">Classic points, Blood points (from Blood mode) and total points are always shown separately.</p>
       </section>
 
       <section data-mode="blood" aria-labelledby="help-blood-title">
-        <h2 id="help-blood-title"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-skull"/></svg><span data-i18n="help.blood.title">Blood Mode</span></h2>
+        <h2 id="help-blood-title"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-skull"/></svg><span data-i18n="help.blood.title">Blood</span></h2>
         <ul>
-          <li data-i18n="help.blood.clock">A 3:00 countdown. Solve as many puzzles as you can before it reaches zero.</li>
-          <li data-i18n="help.blood.points">Every solve is worth ×2&nbsp;points.</li>
-          <li data-i18n="help.blood.wrong">A wrong guess takes 5&nbsp;seconds off the clock.</li>
-          <li data-i18n="help.blood.skip">Skipping a puzzle takes 10&nbsp;seconds off the clock.</li>
-          <li data-i18n="help.blood.hints">Hints are off.</li>
-          <li data-i18n="help.blood.ramp">Puzzles get harder as you solve more of them.</li>
-          <li data-i18n="help.blood.forfeit">The puzzle in play when the clock hits zero is lost. Points for puzzles you already solved are kept.</li>
+          <li data-i18n="help.blood.clock">Beat the 3:00 clock.</li>
+          <li data-i18n="help.blood.points">×2&nbsp;points per solve.</li>
+          <li data-i18n="help.blood.wrong">Wrong guess: −5&nbsp;s.</li>
+          <li data-i18n="help.blood.skip">Skip: −10&nbsp;s.</li>
+          <li data-i18n="help.blood.hints">No hints.</li>
+          <li data-i18n="help.blood.ramp">Puzzles get harder.</li>
+          <li data-i18n="help.blood.forfeit">At zero the open puzzle is lost. Earned points stay.</li>
         </ul>
       </section>
 
-      <p>
-        <button type="button" data-action="back"><svg class="lp-icon lp-icon--flip" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-arrow-left"/></svg><span data-i18n="help.back">Back</span></button>
-      </p>
+      <section aria-labelledby="help-code-title">
+        <h2 id="help-code-title" data-i18n="help.code.title">Your code</h2>
+        <p data-i18n="help.code.body">Your 6-digit code can’t be recovered.</p>
+      </section>
+
+      <details>
+        <summary data-i18n="help.example.title">Example</summary>
+        <p data-i18n="help.example.intro">A Rookie-style puzzle has 3 different digits and feedback clues only. This one has 4 clues.</p>
+        <!-- The four verified example clues drawn with the real clue-row markup; the sentence in each row is hidden text for assistive tech. -->
+        <ol class="lp-example">
+          <li data-kind="feedback"><span class="digit" aria-hidden="true">7</span><span class="digit" aria-hidden="true">2</span><span class="digit" aria-hidden="true">9</span><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-none"/></svg><span class="clue-text visually-hidden" data-i18n="help.example.clue1">Guess 7 2 9: No digit is correct.</span></li>
+          <li data-kind="feedback"><span class="digit" aria-hidden="true">6</span><span class="digit" aria-hidden="true">8</span><span class="digit" aria-hidden="true">2</span><span data-pip="right" aria-hidden="true"></span><span class="clue-text visually-hidden" data-i18n="help.example.clue2">Guess 6 8 2: 1 digit is correct and in the right place.</span></li>
+          <li data-kind="feedback"><span class="digit" aria-hidden="true">1</span><span class="digit" aria-hidden="true">5</span><span class="digit" aria-hidden="true">9</span><span data-pip="right" aria-hidden="true"></span><span class="clue-text visually-hidden" data-i18n="help.example.clue3">Guess 1 5 9: 1 digit is correct and in the right place.</span></li>
+          <li data-kind="feedback"><span class="digit" aria-hidden="true">4</span><span class="digit" aria-hidden="true">2</span><span class="digit" aria-hidden="true">1</span><span data-pip="wrong" aria-hidden="true"></span><span data-pip="wrong" aria-hidden="true"></span><span class="clue-text visually-hidden" data-i18n="help.example.clue4">Guess 4 2 1: 2 digits are correct but in the wrong place.</span></li>
+        </ol>
+        <p data-i18n="help.example.solution">The first clue rules out 7, 2 and 9. In the fourth clue the 2 is already out, so the two correct digits are 4 and 1, and neither is where the guess put it: 4 is not first and 1 is not third. The third clue has one correct digit, in the right place, and its 9 is out. The 1 is in the code, so the 1 is that digit, and it is in the right place: first. That also means 5 is not in the code. The second clue has one correct digit, in the right place, and its 2 is out. The 6 cannot be first, because the 1 is there, and nothing in this clue is in a different place, so the 6 is not in the code. That leaves the 8, and it is second. The code starts 1 8, and the missing digit is the 4, third. The answer is 184.</p>
+        <p data-i18n="help.scoring.example">Illustrative numbers only: with base points of 100, a solve at the target time (the speed bonus is then 1.25) with one wrong guess (accuracy 0.92) and no hint scores 100&nbsp;×&nbsp;1.25&nbsp;×&nbsp;0.92 = 115&nbsp;points.</p>
+      </details>
     </section>
 
   </main>
@@ -494,49 +539,49 @@
 
   <!-- ===== DIALOGS (native <dialog>; CIRCUIT calls showModal()/close()) ===== -->
 
-  <!-- Must not be dismissible by Esc: CIRCUIT should preventDefault the `cancel` event until the box is ticked. -->
+  <!-- Must not be dismissible by Esc: CIRCUIT preventDefaults the `cancel` event until the box is ticked. The description and the tick hint are hidden text, still wired by aria-describedby. -->
   <dialog data-dialog="code" aria-labelledby="code-dialog-title" aria-describedby="code-dialog-desc code-dialog-code">
-    <h2 id="code-dialog-title" data-i18n="dialog.code.title">Your Secret Code</h2>
-    <p id="code-dialog-desc" data-i18n="dialog.code.desc">Write this code down now. You need it, with your name, to sign in on another device.</p>
+    <h2 id="code-dialog-title" data-i18n="dialog.code.title">Your code</h2>
+    <p id="code-dialog-desc" class="visually-hidden" data-i18n="dialog.code.desc">Write it down. You need it to sign in elsewhere.</p>
     <p>
       <!-- Also in the dialog description so a screen reader speaks the one-time code the moment the dialog opens. -->
       <output id="code-dialog-code" data-out="code" translate="no">------</output>
     </p>
     <p>
-      <button type="button" data-action="copy-code" data-i18n="dialog.code.copy">Copy Code</button>
+      <button type="button" data-action="copy-code" data-i18n="dialog.code.copy">Copy</button>
     </p>
     <p data-out="msg" aria-live="polite"></p>
-    <p data-i18n="dialog.code.warning">This code cannot be recovered. If you lose it, nobody can reopen your save, not even the maker of this game.</p>
+    <p data-i18n="dialog.code.warning">It can’t be recovered. Write it down.</p>
     <p>
       <input id="code-ack" type="checkbox" required>
-      <label for="code-ack" data-i18n="dialog.code.ack">I saved my code</label>
+      <label for="code-ack" data-i18n="dialog.code.ack">I saved it</label>
     </p>
-    <p id="code-ack-hint" data-i18n="dialog.code.ackHint">Tick the box to continue.</p>
+    <p id="code-ack-hint" class="visually-hidden" data-i18n="dialog.code.ackHint">Tick the box to continue.</p>
     <p>
-      <button type="button" data-action="ack-code" disabled aria-describedby="code-ack-hint" data-i18n="dialog.code.continue">Continue to Game</button>
+      <button type="button" data-action="ack-code" disabled aria-describedby="code-ack-hint" data-i18n="dialog.code.continue">Continue</button>
     </p>
   </dialog>
 
   <dialog data-dialog="confirm-logout" aria-labelledby="logout-dialog-title" aria-describedby="logout-dialog-desc">
     <form method="dialog">
-      <h2 id="logout-dialog-title" data-i18n="dialog.logout.title">Log Out?</h2>
-      <p id="logout-dialog-desc" data-i18n="dialog.logout.desc">This removes your save from this device. Progress that has already synced stays in the cloud, and you can get it back with your name and 6-digit code. Changes that have not synced yet will be lost.</p>
+      <h2 id="logout-dialog-title" data-i18n="dialog.logout.title">Log out?</h2>
+      <p id="logout-dialog-desc" data-i18n="dialog.logout.desc">Sign back in with your name and code.</p>
       <menu>
-        <li><button value="cancel" data-i18n="dialog.logout.cancel">Stay Signed In</button></li>
+        <li><button value="cancel" data-i18n="dialog.logout.cancel">Stay</button></li>
         <!-- Same data-action as the header button; CIRCUIT tells them apart with closest('dialog'). -->
-        <li><button type="button" data-action="logout" data-i18n="dialog.logout.confirm">Log Out</button></li>
+        <li><button type="button" data-action="logout" data-i18n="dialog.logout.confirm">Log out</button></li>
       </menu>
     </form>
   </dialog>
 
   <dialog data-dialog="confirm-quit" aria-labelledby="quit-dialog-title" aria-describedby="quit-dialog-desc">
     <form method="dialog">
-      <h2 id="quit-dialog-title" data-i18n="dialog.quit.title">Quit This Round?</h2>
-      <p id="quit-dialog-desc" data-i18n="dialog.quit.desc">The puzzle in play will not score. In Blood mode the run ends, and points for puzzles you already solved are kept.</p>
+      <h2 id="quit-dialog-title" data-i18n="dialog.quit.title">Quit round?</h2>
+      <p id="quit-dialog-desc" data-i18n="dialog.quit.desc">This puzzle won’t score. Earned points stay.</p>
       <menu>
-        <li><button value="cancel" data-i18n="dialog.quit.cancel">Keep Playing</button></li>
+        <li><button value="cancel" data-i18n="dialog.quit.cancel">Keep playing</button></li>
         <!-- Same data-action as the play-screen Quit button; CIRCUIT tells them apart with closest('dialog'). -->
-        <li><button type="button" data-action="quit" data-i18n="dialog.quit.confirm">Quit Round</button></li>
+        <li><button type="button" data-action="quit" data-i18n="dialog.quit.confirm">Quit</button></li>
       </menu>
     </form>
   </dialog>

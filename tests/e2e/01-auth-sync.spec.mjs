@@ -85,7 +85,7 @@ test('sign-up validation: empty and over-long names get a role=alert message and
   const { page } = d;
   await d.goto('');
   await page.click(H.q.signupSubmit);
-  assert.match(await page.textContent('#signup-error'), /Enter a player name/);
+  assert.match(await page.textContent('#signup-error'), /Enter a nickname/);
   assert.equal(await page.getAttribute(H.q.signupName, 'aria-invalid'), 'true');
   assert.equal(await page.getAttribute('#signup-error', 'role'), 'alert');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'signup-name', 'focus moves to the offending field');
@@ -94,7 +94,7 @@ test('sign-up validation: empty and over-long names get a role=alert message and
     document.querySelector(sel).value = 'x'.repeat(21);
   }, H.q.signupName);
   await page.click(H.q.signupSubmit);
-  assert.match(await page.textContent('#signup-error'), /too long/i);
+  assert.match(await page.textContent('#signup-error'), /Max 20/);
   d.assertClean();
   await d.close();
 });
@@ -131,7 +131,7 @@ test('second device: name + code on another context shows the same totals; wrong
   await H.startClassic(a.page, 'rookie');
   await H.solveClassic(a.page);
   await H.waitStatus(a.page);
-  await a.page.click('[data-screen="result"] [data-action="go-home"]');
+  await a.page.click('main > [data-screen="result"] [data-action="go-home"]');
   await a.waitScreen('home');
   const totalsA = await H.homeTotals(a.page);
   assert.ok(H.num(totalsA.classic) > 0, `device A has points: ${JSON.stringify(totalsA)}`);
@@ -144,7 +144,7 @@ test('second device: name + code on another context shows the same totals; wrong
   await H.signIn(b, 'Two Devices', wrong, { expect: null });
   await b.page.waitForFunction(() => document.querySelector('#signin-error').textContent.trim() !== '');
   const msgWrongCode = await b.page.textContent('#signin-error');
-  assert.match(msgWrongCode, /don’t match any player/);
+  assert.match(msgWrongCode, /Name and code don’t match/);
   assert.equal(await b.page.getAttribute(H.q.signinName, 'aria-invalid'), 'true');
   assert.equal(await b.page.getAttribute(H.q.signinCode, 'aria-invalid'), 'true');
   assert.equal(await b.screen(), 'auth');
@@ -157,7 +157,7 @@ test('second device: name + code on another context shows the same totals; wrong
   const before = backend.log.length;
   await b.page.fill(H.q.signinCode, '12345');
   await b.page.click(H.q.signinSubmit);
-  assert.match(await b.page.textContent('#signin-error'), /6\s?digits/);
+  assert.match(await b.page.textContent('#signin-error'), /all 6\s?digits/i);
   assert.equal(backend.log.length, before, 'format error costs no request');
   // right name (different case) + right code, with separators like a pasted "123 456"
   await b.page.fill(H.q.signinName, 'TWO devices');
@@ -166,7 +166,7 @@ test('second device: name + code on another context shows the same totals; wrong
   await b.waitScreen('home');
   const totalsB = await H.homeTotals(b.page);
   assert.deepEqual(totalsB, totalsA, 'second device shows the same totals');
-  assert.equal((await b.page.textContent('[data-screen="home"] [data-slot="history"] li')).includes('Classic'), true, 'history names its source');
+  assert.equal(await b.page.locator('main > [data-screen="home"] [data-slot="history"]').count(), 0, 'ADR 0005: no Recent rounds list on Home');
   a.assertClean();
   b.assertClean();
   await a.close();
@@ -193,11 +193,11 @@ test('HTML in a player name is rendered inert (home, header, leaderboard)', asyn
     assert.equal(r.headerHtml, '<bdi>&lt;img src onerror=1&gt;</bdi>');
   };
   await check();
-  await page.click('[data-screen="result"] [data-action="go-home"]');
+  await page.click('main > [data-screen="result"] [data-action="go-home"]');
   await d.waitScreen('home');
   await check();
-  assert.equal(await page.textContent('[data-screen="home"] strong[data-out="name"]'), evil);
-  await page.click('[data-screen="home"] [data-action="show-board"]');
+  assert.equal(await page.textContent('main > [data-screen="home"] .lp-who [data-out="name"]'), evil);
+  await page.click('body > header [data-action="show-board"]');
   await d.waitScreen('board');
   await page.waitForSelector('[data-slot="board-rows"] tr');
   await check();

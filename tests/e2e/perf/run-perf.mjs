@@ -26,7 +26,9 @@ const browser = await H.launchBrowser();
 
 const NET = { offline: false, latency: 150, downloadThroughput: (1.6 * 1024 * 1024) / 8, uploadThroughput: (750 * 1024) / 8 };
 const median = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
-const gzBudget = { html: 14000, css: 18000, js: 45000, font: 20000, sprites: 8000, total: 120000 };
+// ADR 0004 point 2: budgets are gzip response BODY bytes (content-length of the compressed body). ADR 0005 point 7: CSS 20,000 B.
+// JS 46,080 B (45 KiB). Wire bytes (headers included) are printed too but are informational: the host controls the headers.
+const gzBudget = { html: 14000, css: 20000, js: 46080, font: 20000, sprites: 8000, total: 120000 };
 
 async function throttled(storageState) {
   const d = await H.openDevice(browser, { baseUrl: srv.url, backend: H.createBackend(), viewport: { width: 360, height: 800 }, mobile: true, storageState, media: { motion: 'no-preference', scheme: 'dark' } });
@@ -38,7 +40,7 @@ async function throttled(storageState) {
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   const reqs = new Map();
   cdp.on('Network.requestWillBeSent', (e) => reqs.set(e.requestId, { url: e.request.url, type: e.type, start: e.timestamp }));
-  cdp.on('Network.responseReceived', (e) => { const r = reqs.get(e.requestId); if (r) { r.status = e.response.status; r.enc = e.response.headers['content-encoding'] || e.response.headers['Content-Encoding'] || ''; } });
+  cdp.on('Network.responseReceived', (e) => { const r = reqs.get(e.requestId); if (r) { r.status = e.response.status; r.enc = e.response.headers['content-encoding'] || e.response.headers['Content-Encoding'] || ''; r.body = Number(e.response.headers['content-length'] || e.response.headers['Content-Length'] || NaN); } });
   cdp.on('Network.loadingFinished', (e) => { const r = reqs.get(e.requestId); if (r) { r.bytes = e.encodedDataLength; r.end = e.timestamp; } });
   await d.page.addInitScript(() => {
     window.__m = { lcp: null, cls: 0, shifts: [], fcp: null, long: [], ev: [] };
@@ -52,7 +54,7 @@ async function throttled(storageState) {
 }
 
 function classify(reqs, base) {
-  const out = { count: 0, html: 0, css: 0, js: 0, font: 0, sprites: 0, other: 0, total: 0, jsFiles: 0, items: [] };
+  const out = { count: 0, html: 0, css: 0, js: 0, font: 0, sprites: 0, other: 0, total: 0, jsFiles: 0, items: [], body: { html: 0, css: 0, js: 0, font: 0, sprites: 0, other: 0, total: 0 } };
   for (const r of reqs.values()) {
     if (!r.url.startsWith(base) || r.bytes === undefined) continue;
     out.count++;
@@ -65,6 +67,7 @@ function classify(reqs, base) {
     else if (r.type === 'Font') k = 'font';
     else if (/sprites\.svg/.test(rel)) k = 'sprites';
     out[k] += r.bytes;
+    if (Number.isFinite(r.body)) { out.body[k] += r.body; out.body.total += r.body; }
     out.items.push([rel || '(document)', r.bytes, r.status]);
   }
   return out;
@@ -118,23 +121,24 @@ for (let i = 0; i < 3; i++) {
     const ms = await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(Math.round(performance.now() - window.__t0))))));
     inp.push({ run: i, label, ms });
   };
+  await H.settleToast(page);
+  await step('language toggle (re-render Home)', () => page.click('body > header [data-action="lang"]'));
+  await step('language toggle back', () => page.click('body > header [data-action="lang"]'));
   await step('home: pick Master', () => page.check('#diff-master'));
-  await step('home: Play Classic (route + generate + render)', () => page.click('[data-screen="home"] [data-action="play-classic"]'));
-  await page.waitForSelector('[data-screen="play"] [data-slot="dials"] > button');
-  await step('dial tap', () => page.click('[data-screen="play"] [data-slot="dials"] > button:nth-child(3)'));
-  for (const dgt of [1, 2, 3, 4, 5]) await step(`keypad ${dgt}`, () => page.click(`[data-screen="play"] [data-digit="${dgt}"]`));
-  await step('Check (wrong guess)', () => page.click('[data-screen="play"] [data-action="check"]'));
-  await step('Hint', () => page.click('[data-screen="play"] [data-action="hint"]'));
-  await step('language toggle (re-render)', () => page.click('header [data-action="lang"]'));
-  await step('language toggle back', () => page.click('header [data-action="lang"]'));
+  await step('home: Play Classic (route + generate + render)', () => page.click('main > [data-screen="home"] [data-action="play-classic"]'));
+  await page.waitForSelector('main > [data-screen="play"] [data-slot="dials"] > button');
+  await step('dial tap', () => page.click('main > [data-screen="play"] [data-slot="dials"] > button:nth-child(3)'));
+  for (const dgt of [1, 2, 3, 4, 5]) await step(`keypad ${dgt}`, () => page.click(`main > [data-screen="play"] [data-digit="${dgt}"]`));
+  await step('Check (wrong guess)', () => page.click('main > [data-screen="play"] [data-action="check"]'));
+  await step('Hint', () => page.click('main > [data-screen="play"] [data-action="hint"]'));
   await H.quitRound(page);
   await d.waitScreen('home');
-  await step('home: Play Blood (route + generate + render)', () => page.click('[data-screen="home"] [data-action="play-blood"]'));
-  await page.waitForSelector('[data-screen="play"] [data-slot="dials"] > button');
+  await step('home: Play Blood (route + generate + render)', () => page.click('main > [data-screen="home"] [data-action="play-blood"]'));
+  await page.waitForSelector('main > [data-screen="play"] [data-slot="dials"] > button');
   const bp = await H.currentPuzzle(page);
-  for (const dgt of H.wrongGuess(bp.answer, 0)) await step(`blood keypad ${dgt}`, () => page.click(`[data-screen="play"] [data-digit="${dgt}"]`));
-  await step('Blood Check (wrong, -5 s)', () => page.click('[data-screen="play"] [data-action="check"]'));
-  await step('Blood Skip', () => page.click('[data-screen="play"] [data-action="skip"]'));
+  for (const dgt of H.wrongGuess(bp.answer, 0)) await step(`blood keypad ${dgt}`, () => page.click(`main > [data-screen="play"] [data-digit="${dgt}"]`));
+  await step('Blood Check (wrong, -5 s)', () => page.click('main > [data-screen="play"] [data-action="check"]'));
+  await step('Blood Skip', () => page.click('main > [data-screen="play"] [data-action="skip"]'));
   const ev = await page.evaluate(() => window.__m.ev);
   inp.push({ run: i, label: 'EVENT-TIMING max (browser, durationThreshold 16)', ms: Math.round(Math.max(0, ...ev.map((e) => e.d))), detail: ev.sort((a, b) => b.d - a.d).slice(0, 3) });
   await d.close();
@@ -161,12 +165,13 @@ const table = {
     eventTiming: inp.filter((x) => x.label.startsWith('EVENT')),
   },
   budgets: {
-    html: [cold[0].net.html, gzBudget.html],
-    css: [cold[0].net.css, gzBudget.css],
-    jsFirstLoad: [cold[0].net.js, gzBudget.js],
-    font: [cold[0].net.font, gzBudget.font],
-    sprites: [cold[0].net.sprites, gzBudget.sprites],
-    total: [cold[0].net.total, gzBudget.total],
+    // [measured BODY bytes (decides), budget, measured wire bytes (informational)]
+    html: [cold[0].net.body.html, gzBudget.html, cold[0].net.html],
+    css: [cold[0].net.body.css, gzBudget.css, cold[0].net.css],
+    jsFirstLoad: [cold[0].net.body.js, gzBudget.js, cold[0].net.js],
+    font: [cold[0].net.body.font, gzBudget.font, cold[0].net.font],
+    sprites: [cold[0].net.body.sprites, gzBudget.sprites, cold[0].net.sprites],
+    total: [cold[0].net.body.total, gzBudget.total, cold[0].net.total],
   },
   note: 'throttled desktop Chromium (1.6 Mbps, 150 ms RTT, CPU x4), not a real mid-tier Android',
 };

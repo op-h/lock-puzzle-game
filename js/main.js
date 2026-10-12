@@ -126,6 +126,7 @@ async function boot() {
       if (from === 'play') ensure('play').then((p) => p.askQuit()).catch(() => {});
     },
     onShow(name) {
+      doc.body.dataset.screen = name; // CSS hook (replaces :has() on the visible section); set inside the view transition
       chrome.updateTitle(name);
       chrome.measure(); // the play dock exists only on the play screen
       if (name !== 'play' && name !== 'result') delete doc.body.dataset.mode;

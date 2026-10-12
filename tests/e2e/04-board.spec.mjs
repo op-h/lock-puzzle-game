@@ -27,6 +27,11 @@ function seedBoard(backend) {
   rows.forEach(([name, total, blood, solved, bestRun], i) =>
     backend.put(`board/${hex(i + 1)}`, { name: { stringValue: name }, total: int(total), blood: int(blood), solved: int(solved), bestRun: int(bestRun), updatedAt: int(1760000000000 + i) }));
 }
+// A screen change ends with the router focusing the new h1 AFTER the view transition (js/router.js: `await t.done`, then h1.focus()).
+// A test that moves focus earlier (rows may already be painted from cache) has its focus stolen back to the h1 and its keys land on the
+// heading, not the tablist. Wait for the settled state: the screen is shown, the h1 holds focus, the tabs exist.
+const boardSettled = (page) => page.waitForFunction(() => document.activeElement && document.activeElement.id === 'board-title' && !!document.querySelector('#board-tab-all'), null, { timeout: 10000 });
+
 const tabs = (page) => page.$$eval('[role="tab"]', (t) => t.map((b) => ({ id: b.dataset.tab, sel: b.getAttribute('aria-selected'), ti: b.tabIndex })));
 const rows = (page) => page.$$eval('[data-slot="board-rows"] tr', (r) => r.map((x) => [...x.children].map((c) => c.textContent.trim().replace(/\s+/g, ' '))));
 
@@ -36,7 +41,7 @@ async function boardDevice(backend, o = {}) {
   await H.startClassic(d.page, 'rookie');
   await H.solveClassic(d.page);
   await H.waitStatus(d.page);
-  await d.page.click('[data-screen="result"] [data-action="go-home"]');
+  await d.page.click('main > [data-screen="result"] [data-action="go-home"]');
   await d.waitScreen('home');
   return d;
 }
@@ -46,11 +51,11 @@ test('board: All-time and Blood tabs, ranked rows, own row marked by text + aria
   seedBoard(backend);
   const d = await boardDevice(backend);
   const { page } = d;
-  await page.click('[data-screen="home"] [data-action="show-board"]');
+  await page.click('body > header [data-action="show-board"]');
   await d.waitScreen('board');
   await page.waitForSelector('[data-slot="board-rows"] tr');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'board-title', 'h1 takes focus on navigation');
-  assert.match(await page.textContent('[data-screen="board"] p'), /not verified/);
+  assert.match(await page.textContent('main > [data-screen="board"] p'), /self-reported/);
 
   // structure
   assert.deepEqual(await tabs(page), [{ id: 'all', sel: 'true', ti: 0 }, { id: 'blood', sel: 'false', ti: -1 }]);
@@ -79,11 +84,12 @@ test('board: All-time and Blood tabs, ranked rows, own row marked by text + aria
   backend.put(`board/${hex(99)}`, { name: { stringValue: 'Me Myself' }, total: int(100), blood: int(0), solved: int(1), bestRun: int(0), updatedAt: int(1760000009999) });
   await page.click('[data-action="back"]');
   await d.waitScreen('home');
-  await page.click('[data-screen="home"] [data-action="show-board"]');
+  await page.click('body > header [data-action="show-board"]');
   await page.waitForFunction(() => document.querySelectorAll('[data-slot="board-rows"] tr').length >= 5);
   assert.equal(await page.locator('[data-slot="board-rows"] tr[data-self="true"]').count(), 1, 'identity is by board id, never by name');
 
   // keyboard roving
+  await boardSettled(page);
   await page.focus('#board-tab-all');
   await page.keyboard.press('ArrowRight');
   await page.waitForFunction(() => document.querySelector('#board-tab-blood').getAttribute('aria-selected') === 'true');
@@ -107,13 +113,9 @@ test('board: All-time and Blood tabs, ranked rows, own row marked by text + aria
   assert.equal(await page.evaluate(() => document.activeElement.id), 'board-tab-all');
   await page.keyboard.press('ArrowLeft'); // wraps backwards
   assert.equal(await page.evaluate(() => document.activeElement.id), 'board-tab-blood');
-  // Tab order out of the tablist: only the selected tab is a tab stop, then the panel, then Back
-  const order = [];
-  for (let i = 0; i < 2; i++) {
-    await page.keyboard.press('Tab');
-    order.push(await page.evaluate(() => document.activeElement.id || document.activeElement.dataset.action));
-  }
-  assert.deepEqual(order, ['board-panel', 'back']);
+  // Tab order out of the tablist: only the selected tab is a tab stop, then the panel (Back is now in the screen head, before the tabs)
+  await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'board-panel');
   // clicking a tab selects it without stealing the roving state
   await page.click('#board-tab-all');
   assert.deepEqual(await tabs(page), [{ id: 'all', sel: 'true', ti: 0 }, { id: 'blood', sel: 'false', ti: -1 }]);
@@ -132,9 +134,10 @@ test('board: RTL swaps the arrow keys (Left = next tab in Arabic)', async () => 
   const { page } = d;
   await page.click('header [data-action="lang"]');
   await page.waitForFunction(() => document.documentElement.dir === 'rtl');
-  await page.click('[data-screen="home"] [data-action="show-board"]');
+  await page.click('body > header [data-action="show-board"]');
   await d.waitScreen('board');
   await page.waitForSelector('[data-slot="board-rows"] tr');
+  await boardSettled(page);
   await page.focus('#board-tab-all');
   await page.keyboard.press('ArrowLeft');
   assert.equal(await page.evaluate(() => document.activeElement.id), 'board-tab-blood', 'in RTL, ArrowLeft goes to the next (visually left) tab');
@@ -151,30 +154,30 @@ test('board: backend blocked shows the offline message; stale list is kept when 
   const d = await boardDevice(backend, { allow: [/ERR_INTERNET_DISCONNECTED|net::ERR/, /(http403|console\.error: Failed to load resource: the server responded with a status of 403).*runQuery/] });
   const { page } = d;
   // 1. first load works and is cached
-  await page.click('[data-screen="home"] [data-action="show-board"]');
+  await page.click('body > header [data-action="show-board"]');
   await page.waitForSelector('[data-slot="board-rows"] tr');
   const cached = (await rows(page)).length;
   assert.ok(cached >= 4);
-  assert.equal((await page.textContent('[data-screen="board"] [data-out="msg"]')).trim(), '');
+  assert.equal((await page.textContent('main > [data-screen="board"] [data-out="msg"]')).trim(), '');
   // 2. blocked: reopening keeps the stale rows and says so
   d.net.block = true;
   await page.click('[data-action="back"]');
   await d.waitScreen('home');
-  await page.click('[data-screen="home"] [data-action="show-board"]');
-  await page.waitForFunction(() => /Showing the last list/.test(document.querySelector('[data-screen="board"] [data-out="msg"]').textContent));
+  await page.click('body > header [data-action="show-board"]');
+  await page.waitForFunction(() => /Showing last list/.test(document.querySelector('main > [data-screen="board"] [data-out="msg"]').textContent));
   assert.equal((await rows(page)).length, cached, 'stale rows remain visible');
   // 3. never-loaded tab while blocked: plain offline message, no rows
   await page.click('#board-tab-blood');
-  await page.waitForFunction(() => /offline/i.test(document.querySelector('[data-screen="board"] [data-out="msg"]').textContent));
-  assert.match(await page.textContent('[data-screen="board"] [data-out="msg"]'), /You’re offline\. Connect to the internet/);
+  await page.waitForFunction(() => /offline/i.test(document.querySelector('main > [data-screen="board"] [data-out="msg"]').textContent));
+  assert.match(await page.textContent('main > [data-screen="board"] [data-out="msg"]'), /^Offline\. Try again later/);
   assert.equal(await page.locator('[data-slot="board-rows"] tr').count(), 0);
-  assert.equal(await page.getAttribute('[data-screen="board"] [data-out="msg"]', 'aria-live'), 'polite');
+  assert.equal(await page.getAttribute('main > [data-screen="board"] [data-out="msg"]', 'aria-live'), 'polite');
   // 4. permission denied (rules not published / key restricted) is distinct from offline
   d.net.block = false;
   backend.faults.deny = true;
   await page.click('#board-tab-all');
   await page.click('#board-tab-blood');
-  await page.waitForFunction(() => /isn’t available|Showing the last list|offline/i.test(document.querySelector('[data-screen="board"] [data-out="msg"]').textContent));
+  await page.waitForFunction(() => /unavailable|Showing last list|offline/i.test(document.querySelector('main > [data-screen="board"] [data-out="msg"]').textContent));
   backend.faults.deny = false;
   d.assertClean();
   await d.close();
@@ -186,9 +189,9 @@ test('board: signed-out visitors cannot reach the board; empty board has a messa
   await d.goto('#board');
   assert.equal(await d.screen(), 'auth');
   await H.signUp(d, 'Solo');
-  await d.page.click('[data-screen="home"] [data-action="show-board"]');
+  await d.page.click('body > header [data-action="show-board"]');
   await d.waitScreen('board');
-  await d.page.waitForFunction(() => /No scores yet/.test(document.querySelector('[data-screen="board"] [data-out="msg"]').textContent));
+  await d.page.waitForFunction(() => /No scores yet/.test(document.querySelector('main > [data-screen="board"] [data-out="msg"]').textContent));
   d.assertClean();
   await d.close();
 });

@@ -35,16 +35,16 @@ test('classic: play screen shape, dup guess is free, solve scores exactly puzzle
   await H.startClassic(page, 'rookie');
 
   // screen shape
-  assert.equal(await page.textContent('[data-screen="play"] [data-mode-badge]'), 'Classic');
+  assert.equal(await page.textContent('main > [data-screen="play"] [data-mode-badge]'), 'Classic');
   assert.equal(await page.getAttribute('body', 'data-mode'), 'classic');
   assert.equal((await H.dialValues(page)).length, 3);
-  assert.equal(await page.locator('[data-screen="play"] [data-slot="keypad"] button').count(), 10);
+  assert.equal(await page.locator('main > [data-screen="play"] [data-slot="keypad"] button').count(), 10);
   assert.equal(await page.evaluate(() => document.activeElement.tagName + '#' + document.activeElement.id), 'H1#play-title', 'router focuses the h1');
-  assert.equal(await page.getAttribute('[data-screen="play"] [data-action="check"]', 'aria-disabled'), 'true', 'Check is disabled with empty dials');
+  assert.equal(await page.getAttribute('main > [data-screen="play"] [data-action="check"]', 'aria-disabled'), 'true', 'Check is disabled with empty dials');
   // Classic has no skip button and no timer bar; hint exists
-  assert.equal(await page.isVisible('[data-screen="play"] [data-action="skip"]'), false);
-  assert.equal(await page.isVisible('[data-screen="play"] [data-action="hint"]'), true);
-  assert.equal(await page.isVisible('[data-screen="play"] [data-timer-bar]'), false);
+  assert.equal(await page.isVisible('main > [data-screen="play"] [data-action="skip"]'), false);
+  assert.equal(await page.isVisible('main > [data-screen="play"] [data-action="hint"]'), true);
+  assert.equal(await page.isVisible('main > [data-screen="play"] [data-timer-bar]'), false);
 
   const puzzle = await H.currentPuzzle(page);
   assert.equal(puzzle.length, 3);
@@ -57,15 +57,15 @@ test('classic: play screen shape, dup guess is free, solve scores exactly puzzle
   await H.typeWithKeypad(page, w1);
   assert.deepEqual(await H.dialValues(page), w1.map(String));
   await H.pressCheck(page);
-  await page.waitForFunction(() => /Wrong guesses: 1\./.test(document.querySelector('[data-screen="play"] [data-out="msg"]').textContent));
-  assert.equal(await page.locator('[data-screen="play"] [data-slot="attempts"] li').count(), 1);
-  assert.equal(await page.textContent('[data-screen="play"] [data-out="attempts-left"]'), '1');
+  await page.waitForFunction(() => /Wrong guess: 1/.test(document.querySelector('main > [data-screen="play"] [data-out="msg"]').textContent));
+  assert.equal(await page.locator('main > [data-screen="play"] [data-slot="attempts"] li').count(), 1);
+  assert.equal(await page.textContent('main > [data-screen="play"] [data-out="attempts-left"]'), '1');
   // the same wrong guess again: told so, no extra penalty, no extra row
   await H.typeWithKeypad(page, w1);
   await H.pressCheck(page);
-  await page.waitForFunction(() => /already tried/.test(document.querySelector('[data-screen="play"] [data-out="msg"]').textContent));
-  assert.equal(await page.locator('[data-screen="play"] [data-slot="attempts"] li').count(), 1, 'duplicate guess adds no row');
-  assert.equal(await page.textContent('[data-screen="play"] [data-out="attempts-left"]'), '1', 'duplicate guess adds no penalty');
+  await page.waitForFunction(() => /Already tried/.test(document.querySelector('main > [data-screen="play"] [data-out="msg"]').textContent));
+  assert.equal(await page.locator('main > [data-screen="play"] [data-slot="attempts"] li').count(), 1, 'duplicate guess adds no row');
+  assert.equal(await page.textContent('main > [data-screen="play"] [data-out="attempts-left"]'), '1', 'duplicate guess adds no penalty');
 
   // reload mid-round restores the same puzzle and its wrong guess
   await page.reload();
@@ -73,7 +73,7 @@ test('classic: play screen shape, dup guess is free, solve scores exactly puzzle
   await d.waitScreen('play');
   const again = await H.currentPuzzle(page);
   assert.equal(again.id, puzzle.id, 'reload resumes the same puzzle');
-  assert.equal(await page.locator('[data-screen="play"] [data-slot="attempts"] li').count(), 1, 'wrong guess survived the reload');
+  assert.equal(await page.locator('main > [data-screen="play"] [data-slot="attempts"] li').count(), 1, 'wrong guess survived the reload');
 
   // solve
   await H.typeWithKeypad(page, puzzle.answer);
@@ -90,18 +90,18 @@ test('classic: play screen shape, dup guess is free, solve scores exactly puzzle
 
   // result screen
   assert.equal(await page.getAttribute('body', 'data-mode'), 'classic');
-  assert.equal(await page.textContent('[data-screen="result"] [data-mode-badge]'), 'Classic');
-  assert.equal(H.num(await page.textContent('[data-screen="result"] [data-out="score"]')), e.pts);
-  const lines = await page.$$eval('[data-screen="result"] [data-slot="result-lines"] li', (l) => l.map((x) => x.textContent.trim()));
+  assert.equal(await page.textContent('main > [data-screen="result"] [data-mode-badge]'), 'Classic');
+  assert.equal(H.num(await page.textContent('main > [data-screen="result"] [data-out="score"]')), e.pts);
+  const lines = await page.$$eval('main > [data-screen="result"] [data-slot="result-lines"] li', (l) => l.map((x) => x.textContent.trim()));
   assert.match(lines[0], new RegExp(`^Classic, puzzle ${puzzle.id}: \\+${e.pts}\\s?points`));
-  assert.ok(lines.some((l) => l.startsWith('The code was ' + puzzle.answer.join(' '))), 'reveals the code after the solve');
+  assert.ok(lines.some((l) => l.startsWith('Code ' + puzzle.answer.join(' '))), 'reveals the code after the solve');
   assert.ok(lines.some((l) => l === `Total Classic points: ${e.pts}`), lines.join(' | '));
   assert.ok(lines.some((l) => l === 'Total Blood points (from Blood mode): 0'));
   assert.ok(lines.some((l) => l === `Total points: ${e.pts}`));
-  assert.equal(await page.isVisible('[data-screen="result"] dd[data-mode="blood"]'), false, 'no Blood row on a Classic result');
-  assert.equal(await page.isVisible('[data-screen="result"] [data-action="retry"]'), false);
-  assert.equal(await page.isVisible('[data-screen="result"] [data-action="next"]'), true);
-  await page.waitForFunction(() => document.querySelector('[data-screen="result"] [data-out="msg"]').textContent.trim() === 'Lock opened.');
+  assert.equal(await page.isVisible('main > [data-screen="result"] p[data-mode="blood"]'), false, 'no Blood row on a Classic result');
+  assert.equal(await page.isVisible('main > [data-screen="result"] [data-action="retry"]'), false);
+  assert.equal(await page.isVisible('main > [data-screen="result"] [data-action="next"]'), true);
+  await page.waitForFunction(() => document.querySelector('main > [data-screen="result"] [data-out="msg"]').textContent.trim() === 'Unlocked');
   d.assertClean();
   await d.close();
 });
@@ -113,20 +113,20 @@ test('classic: hint halves the points; Next gives a fresh puzzle; a solved seed 
   await H.startClassic(page, 'rookie');
   const p1 = await H.currentPuzzle(page);
 
-  const hintBtn = '[data-screen="play"] [data-action="hint"]';
+  const hintBtn = 'main > [data-screen="play"] [data-action="hint"]';
   assert.equal(await page.getAttribute(hintBtn, 'aria-disabled'), null);
   await page.click(hintBtn);
-  await page.waitForFunction(() => /Hint used: dial \d is \d\./.test(document.querySelector('[data-screen="play"] [data-out="msg"]').textContent));
+  await page.waitForFunction(() => /Hint: dial \d is \d/.test(document.querySelector('main > [data-screen="play"] [data-out="msg"]').textContent));
   assert.equal(await page.getAttribute(hintBtn, 'aria-disabled'), 'true', 'hint is single-use');
-  const locked = await page.$$eval('[data-screen="play"] [data-slot="dials"] > button', (bs) =>
+  const locked = await page.$$eval('main > [data-screen="play"] [data-slot="dials"] > button', (bs) =>
     bs.map((b, i) => ({ i, v: b.textContent.trim(), dis: b.getAttribute('aria-disabled'), label: b.getAttribute('aria-label') })).filter((x) => x.dis === 'true'));
   assert.equal(locked.length, 1, 'exactly one dial is revealed');
   assert.equal(Number(locked[0].v), p1.answer[locked[0].i], 'the revealed digit is the true digit');
   assert.match(locked[0].label, /revealed by hint/);
   // typing the full answer still works (locked dial is skipped by the keypad)
-  await page.click('[data-screen="play"] [data-action="clear"]');
+  await page.click('main > [data-screen="play"] [data-action="clear"]');
   const free = p1.answer.filter((_, i) => i !== locked[0].i);
-  for (const dgt of free) await page.click(`[data-screen="play"] [data-slot="keypad"] [data-digit="${dgt}"]`);
+  for (const dgt of free) await page.click(`main > [data-screen="play"] [data-slot="keypad"] [data-digit="${dgt}"]`);
   assert.deepEqual(await H.dialValues(page), p1.answer.map(String), 'locked digit kept, others filled');
   await H.pressCheck(page);
   await d.waitScreen('result');
@@ -140,12 +140,12 @@ test('classic: hint halves the points; Next gives a fresh puzzle; a solved seed 
   // Next puzzle: new id, play screen, wrong-guess counter reset, hint available again
   const seen = new Set([p1.id]);
   for (let i = 0; i < 4; i++) {
-    await page.click('[data-screen="result"] [data-action="next"]');
+    await page.click('main > [data-screen="result"] [data-action="next"]');
     await d.waitScreen('play');
     const p = await H.currentPuzzle(page);
     assert.ok(!seen.has(p.id), `Next never repeats a seen puzzle (${p.id})`);
     seen.add(p.id);
-    assert.equal(await page.textContent('[data-screen="play"] [data-out="attempts-left"]'), '0');
+    assert.equal(await page.textContent('main > [data-screen="play"] [data-out="attempts-left"]'), '0');
     assert.equal(await page.getAttribute(hintBtn, 'aria-disabled'), null);
     await H.solveClassic(page);
   }
@@ -177,8 +177,8 @@ test('classic: every difficulty is solvable from its clues; clue kinds render; n
   for (const [diff, len] of [['rookie', 3], ['agent', 3], ['hacker', 4], ['master', 5]]) {
     await H.startClassic(page, diff);
     assert.equal((await H.dialValues(page)).length, len, `${diff}: ${len} dials`);
-    assert.equal(await page.getAttribute('[data-screen="play"] [data-slot="dials"]', 'dir'), 'ltr');
-    const texts = await page.$$eval('[data-screen="play"] [data-slot="clues"] > li', (l) => l.map((x) => ({ kind: x.dataset.kind, text: x.textContent.trim() })));
+    assert.equal(await page.getAttribute('main > [data-screen="play"] [data-slot="dials"]', 'dir'), 'ltr');
+    const texts = await page.$$eval('main > [data-screen="play"] [data-slot="clues"] > li', (l) => l.map((x) => ({ kind: x.dataset.kind, text: x.textContent.trim() })));
     for (const t of texts) {
       kindsSeen.add(t.kind);
       assert.ok(t.text.length > 8, `${diff} ${t.kind} clue has text: "${t.text}"`);
@@ -186,7 +186,7 @@ test('classic: every difficulty is solvable from its clues; clue kinds render; n
     }
     const { puzzle } = await H.solveClassic(page);
     assert.equal(puzzle.solutions.length, 1);
-    await page.click('[data-screen="result"] [data-action="go-home"]');
+    await page.click('main > [data-screen="result"] [data-action="go-home"]');
     await d.waitScreen('home');
   }
   assert.ok(kindsSeen.has('feedback'));
@@ -199,7 +199,7 @@ test('classic: Quit asks first; Keep Playing returns focus to the Quit button; c
   const { page } = d;
   await H.signUp(d, 'Quitter');
   await H.startClassic(page, 'rookie');
-  await page.click('[data-screen="play"] [data-action="quit"]');
+  await page.click('main > [data-screen="play"] [data-action="quit"]');
   await page.waitForSelector('dialog[data-dialog="confirm-quit"][open]');
   await page.keyboard.press('Escape'); // Esc is allowed to dismiss this one (nothing is lost by it)
   await page.waitForSelector('dialog[data-dialog="confirm-quit"]:not([open])', { state: 'attached' });

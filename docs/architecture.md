@@ -103,10 +103,11 @@ the router focuses on navigation. Exactly one is visible. Names: `auth`, `home`,
 | `data-action="signup|signin|show-signin|show-signup|copy-code|ack-code|logout|lang|go-home|play-classic|play-blood|check|clear|skip|hint|next|retry|show-board|show-help|back|quit|mute"` | `<button>` (or `<a>` for nav) — one delegated click handler |
 | `data-field="name|code"` | auth inputs. `name`: `autocomplete="username"`, `maxlength=20`. `code`: `inputmode="numeric" pattern="[0-9]{6}" maxlength=6 autocomplete="one-time-code"` |
 | `data-form="signup|signin"` | the two auth `<form>`s (native submit; `novalidate` + custom messages in `[data-error]` live region) |
-| `data-out="code|name|total|classic|blood|status|timer|puzzle-no|difficulty|attempts-left|score|bloodpoints|msg"` | text sinks (`<output>`/`<span>`), CIRCUIT sets `textContent` only |
+| `data-out="code|name|total|classic|blood|status|timer|difficulty|diffline|attempts-left|solved-count|solved|answer|score|bloodpoints|msg"` | text sinks, CIRCUIT sets `textContent` only. (`puzzle-no` was removed by ADR 0005.) Stat/score numbers are `<span>`, not `<output>` (an `<output>` is a live region and would announce every sync update) |
+| `data-stat="classic|blood|total"`, `data-topbar="difficulty|timer|wrong|solved"`, `data-sym="sum|parity|compare|evencount"`, `data-needs-auth`, `data-live="score-sr"`, `data-pb`, `body[data-screen]` | calm-UI hooks added by ADR 0005 / `docs/design-v2.md` section 10 (top bar, stat chips, Help glyphs, header items shown only when signed in, result live region, personal-best marker, current screen for CSS) |
 | `data-slot="dials"` | container for the N dial buttons (CIRCUIT renders `<button role="spinbutton"`-free: see below) |
 | `data-slot="keypad"` | on-screen 0–9 keypad container (CIRCUIT renders `<button data-digit="n">`) |
-| `data-slot="clues|history|board-rows|difficulty-picker|result-lines"` | list containers (`<ol>`/`<ul>`/`<tbody>`), CIRCUIT renders `<li>`/`<tr>` |
+| `data-slot="clues|board-rows|difficulty-picker|result-lines"` (`history` removed by ADR 0005) | list containers (`<ol>`/`<ul>`/`<tbody>`), CIRCUIT renders `<li>`/`<tr>` |
 | `data-live="status|timer-sr"` | `aria-live="polite"` regions. Timer SR announces only at 2:00, 1:00, 0:30, 0:10, 0:00 |
 | `data-tab="all|blood"` | leaderboard tabs (`role="tablist"` pattern) |
 | `data-mode-badge` | element on `play`/`result` showing CLASSIC or BLOOD; `data-mode="classic|blood"` is set on `<body>` for CSS theming (red palette in Blood) |

@@ -11,28 +11,32 @@ service worker / HTTP cache and is not a cold load. **Record both numbers from n
 on-the-wire figure, `encodedDataLength`, is reported next to it for information). Units: the **first-load JS budget is
 45 KiB = 46,080 B**; the other budgets are written in decimal KB (14 KB = 14,000 B, and so on).
 
-Last updated: 2026-10-07 (after SENTRY's gate run and ADR 0004). The app is feature-complete enough to measure; the
+Last updated: 2026-10-12 (Jersey 10 is live and the Pixelify files are deleted; HTML, CSS, JS, font and sprites re-measured from the files on disk on that date; section 1.2 is still SENTRY's 2026-10-07 run). The app is feature-complete enough to measure; the
 measurements in section 1.2 are **throttled desktop Chromium, not a real mid-tier Android**, and INP has not been
 measured on a real device.
 
 ## 1. Budgets and current state (cold first visit, signed out, gzip -9 response bodies)
 
-| Part | Budget | Now (2026-10-07) | Status |
+| Part | Budget | Now (2026-10-12) | Status |
 |---|---|---|---|
-| HTML (`index.html`) | <= 14,000 B | 9,431 B bodies (40,266 B raw), my re-measure of today's tree; SENTRY's run: 9,465 B bodies, 9,770 B on the wire | PASS |
-| CSS (`css/main.css`, one file) | <= 18,000 B | 14,818 B bodies (my re-measure; `main.css` was edited after SENTRY's run); SENTRY: 14,409 B bodies, 14,714 B on the wire | PASS |
-| JS first load, excl. tests | <= **46,080 B (45 KiB)** | **44,342 B bodies** = 38,044 static closure of `main.js` (15 files) + 5,482 `i18n/en.js` + 816 `sync/tabs.js` (both loaded by `import()` at boot); identical to SENTRY's 44,342 B bodies over 17 files; **49,625 B on the wire** (SENTRY) | PASS by 1,738 B (3.8%), thin |
-| Font (`pixelify-sans-latin.woff2`) | <= 20,000 B | 6,292 B body; 6,559 B on the wire (SENTRY) | PASS, final |
-| Sprites (`sprites.svg`) | <= 8,000 B | 1,118 B bodies (5,073 B raw); 1,412 B on the wire (SENTRY) | PASS, final |
-| First-load total (excl. OG/icons) | <= 120,000 B | 9,431 + 14,818 + 44,342 + 6,292 + 1,118 = 76,001 B bodies; SENTRY: 83,300 B on the wire, 23 requests | PASS |
-| Third-party origins at first paint | 0 | 0 (SENTRY) | PASS (Firestore only on user action or session resume, architecture.md) |
+| HTML (`index.html`) | <= 14,000 B | **10,078 B** bodies (46,285 B raw) | PASS |
+| CSS (`css/main.css`, one file) | <= **20,000 B** (ADR 0005 section 7; was 18,000 B) | **17,623 B** bodies (70,947 B raw). **Pre-fix, re-measure before release:** PRISM was editing `main.css` while I measured (file stamp 2026-10-08 14:31) | PASS, provisional |
+| JS first load, excl. tests | <= **46,080 B (45 KiB)** | **English / default: 45,114 B bodies** = 39,460 static closure of `main.js` (15 files) + 4,838 `i18n/en.js` + 816 `sync/tabs.js` (both loaded by `import()` at boot); equals SENTRY's 45,114 B. **Arabic start: 46,204 B** (`i18n/ar.js` 5,928 B replaces `en.js`; `loadLang(startLang)` in `main.js`, English is loaded only if that fails) | EN PASS by 966 B (2.1%); **AR FAIL by 124 B** |
+| Font | <= 20,000 B | `jersey10-latin.woff2` **2,488 B** body (woff2 is not re-gzipped). Pixelify is gone | PASS, final |
+| Sprites (`sprites.svg`) | <= 8,000 B | **1,259 B bodies (6,183 B raw), 24 symbols** | PASS, final |
+| First-load total (excl. OG/icons) | <= 120,000 B | **English: 76,562 B bodies** = 10,078 + 17,623 + 45,114 + 2,488 + 1,259. Arabic start: 77,652 B (JS +1,090). 2026-10-12, arithmetic over the bodies measured above, not a network trace | PASS |
+| Third-party origins at first paint | 0 | 0 (SENTRY, 2026-10-07; not re-run) | PASS (Firestore only on user action or session resume, architecture.md) |
 | Dependencies (gzipped cost) | 0 KB | 0 KB (ADR 0001) | PASS |
 
-The "bodies" figures marked "my re-measure" were computed today from the files on disk with gzip level 9 (JS: zlib level 9 over the static
+Reported by others and **not reproduced** by this method: CIRCUIT 44,304 B (EN) / 45,394 B (AR). Their EN/AR gap (1,090 B) equals mine, but the base differs by 810 B, so
+they likely measured a different file set or an earlier tree; SENTRY's 45,114 B matches mine to the byte. Wire sizes (`encodedDataLength`) were last taken 2026-10-07 and are stale after the CSS/HTML/JS edits.
+The Arabic overage is a defect for CIRCUIT/ATLAS to resolve (the JS budget is per cold first visit and does not name a language): trim comments or lazy-load `sync/merge.js` (4,394 B), see 1.1.
+
+The 2026-10-12 figures were computed from the files on disk with gzip level 9 (JS: zlib level 9 over the static
 `import`/`export ... from` closure of `js/main.js` plus the two boot-time dynamic imports; HTML and CSS: `gzip -9 -n`, the `-n` matters because the CLI
-otherwise stores the file name and adds 10 to 15 bytes); they were not taken from a network trace. The JS body total matches SENTRY's to the byte
-(44,342). SENTRY's other figures come from `tests/e2e/shots/perf.json` (5 cold runs); `index.html` and `css/main.css` have been edited since that run,
-hence the small differences. **Re-measure before release.** (Earlier numbers in this file taken with plain `gzip -9 -c` were a few bytes high for that reason.)
+otherwise stores the file name and adds 10 to 15 bytes); they were not taken from a network trace. The English JS total matches SENTRY's to the byte
+(45,114). The wire figures in section 1.2 and 6 come from SENTRY's `tests/e2e/shots/perf.json` (5 cold runs, 2026-10-07); the tree has changed since.
+**Re-measure before release.** (Earlier numbers in this file taken with plain `gzip -9 -c` were a few bytes high for that reason.)
 
 Not part of the first-load budget (fetched on demand or by crawlers and installers): `assets/og.png` 3,273 B,
 `icon-192.png` 278 B, `icon-512.png` 480 B, `icon-512-maskable.png` 479 B, `apple-touch-icon.png` 269 B,
@@ -40,17 +44,17 @@ Not part of the first-load budget (fetched on demand or by crawlers and installe
 
 ### 1.1 JS structure and the rule for new modules
 
-Static closure of `js/main.js` (15 files, raw / gzip-9 bodies, measured today):
+Static closure of `js/main.js` (15 files, raw / gzip-9 bodies, measured 2026-10-12; `ui/motion.js` is new since 2026-10-07):
 
 ```
- 2949  1474 js/config.js          8292  3342 js/main.js           24169  7304 js/sync/sync.js
- 2523  1262 js/engine/scoring.js  3483  1379 js/router.js         12093  4394 js/sync/merge.js
- 7686  3105 js/i18n/index.js       550   306 js/store.js           8232  2819 js/sync/local.js
- 8744  2943 js/ui/auth.js         6736  2541 js/ui/chrome.js       6495  2968 js/sync/identity.js
- 5911  2514 js/ui/dom.js          1752   831 js/ui/params.js       1791   862 js/sync/index.js
-sum: 101,406 B raw, 38,044 B gzip-9 bodies (zlib level 9)
+ 8487  3422 js/main.js          4439  1715 js/router.js         24169  7304 js/sync/sync.js
+ 2949  1474 js/config.js         550   306 js/store.js          12093  4394 js/sync/merge.js
+ 5201  2254 js/i18n/index.js    2657  1172 js/ui/motion.js       8555  2905 js/sync/local.js
+ 8744  2943 js/ui/auth.js       6204  2609 js/ui/dom.js          6513  2968 js/sync/identity.js
+11210  4197 js/ui/chrome.js     1993   935 js/ui/params.js       1791   862 js/sync/index.js
+sum: 105,555 B raw, 39,460 B gzip-9 bodies (zlib level 9)
 ```
-Loaded at boot by `import()` (not in the static closure, but on the first-load path): `i18n/en.js` 5,482 B and `sync/tabs.js` 816 B.
+Loaded at boot by `import()` (not in the static closure, but on the first-load path): `i18n/en.js` 4,838 B (or `i18n/ar.js` 5,928 B for an Arabic start, via `loadLang`) and `sync/tabs.js` 816 B.
 Lazy, not part of the cold auth load: screens `ui/home.js` 1,164 B, `ui/play.js` 8,206 B (pulls `game/*` and the engine), `ui/result.js` 1,723 B,
 `ui/board.js` 1,769 B, `ui/help.js` 248 B (all via the `import()` map in `main.js`); `ui/sound.js` 990 B (on first sound use); `sync/remote.js` 4,482 B
 (`sync/index.js` imports it on demand); `i18n/ar.js` 6,776 B (only for Arabic). A signed-in return pays for `home.js` and `remote.js` on top
@@ -58,7 +62,7 @@ Lazy, not part of the cold auth load: screens `ui/home.js` 1,164 B, `ui/play.js`
 
 **Rule: any new module that lands in the first-load path needs a budget line here before merge.** That means anything statically imported from
 `main.js` (or its closure), any `import()` that runs at boot, and anything added to the `modulepreload` list in `index.html`. State its gzip-9 body size
-and what it is for; default to a lazy `import()` behind the user action that needs it. The margin is 1,738 B, so one more mid-size module breaks the gate.
+and what it is for; default to a lazy `import()` behind the user action that needs it. The margin is 966 B in English and **negative (124 B over) in Arabic** (see section 1), so any new first-load module breaks the gate.
 Next candidates if the margin vanishes (SENTRY's list, confirmed by the sizes above): load `sync/merge.js` (4,394 B) only when a remote save is pulled, and trim
 the long comment blocks in shipped modules (about 39% of raw JS bytes are comment lines when I counted on 2026-10-07; no build step, so comments ship).
 ATLAS records any budget move in `docs/decisions/`, not before.
@@ -87,145 +91,138 @@ real mid-tier Android may be slower than 4x. Treat LCP and CLS the same way: lab
 **Font preload.** The `<link rel="preload" as="font" ... crossorigin>` tag is shipped in `index.html`. SENTRY did **not** run a with/without comparison, so the
 verdict in 2.3 stays arithmetic, not measured. `docs/qa.md` reports zero "preloaded but not used" warnings in EN and AR.
 
-## 2. Font
+## 2. Font (Jersey 10, ADR 0005 section 1; supersedes Pixelify Sans)
 
-Pixelify Sans, SIL OFL 1.1, from the official `google/fonts` repo (`ofl/pixelifysans/`), whose METADATA
-points at upstream `github.com/eifetx/Pixelify-Sans`. Variable `wght` 400..700 source, 79,160 B TTF
-(sha256 `9ba86cd0...e8a5`). Licence kept verbatim at `assets/fonts/OFL.txt`; its first line is
-`Copyright 2021 The Pixelify Sans Project Authors (https://github.com/eifetx/Pixelify-Sans)`. The licence
-has no Reserved Font Name clause on this font, so a subset may keep the family name.
+**Status 2026-10-12: live.** `index.html`, `css/main.css` and `sw.js` no longer reference Pixelify (scanned 2026-10-12); `assets/fonts/pixelify-sans-latin.woff2` and
+`assets/fonts/OFL.txt` are deleted (still in git history, commit `f6b73fb`). Remaining mentions of "Pixelify" in the repo are a CI guard (`.github/scripts/verify-site.mjs`), tests asserting it is gone,
+and the stale `fonts.pixelify` key name in `tests/e2e/**` (SENTRY).
 
-Result: `assets/fonts/pixelify-sans-latin.woff2` = **6,292 B** (gz 6,341 B), one variable file, wght 400..700 kept.
-Alternatives measured the same way: two static instances (400 + 700) = 4,068 + 4,180 = 8,248 B and two requests, so
-the single variable file won on both bytes and requests. Under MUSE's 16 KB preferred / 20 KB ceiling by about 10 KB.
+Jersey 10, SIL OFL 1.1, from the official `google/fonts` repo (`ofl/jersey10/`; METADATA: designer Sarah Cadigan-Fried, upstream
+`github.com/scfried/soft-type-jersey`, commit `d8446c4c`). One static weight (400), no italics, 77,732 B TTF (sha256 `db9cbd09...3e82`).
+Licence kept verbatim at `assets/fonts/OFL-jersey10.txt` (4,395 B, re-downloaded from the same directory); its first line is
+`Copyright 2023 The Soft Type Project Authors (https://github.com/scfried/soft-type-jersey)`. The copyright line carries no Reserved Font
+Name declaration (the words appear only in the licence boilerplate), so a subset may keep the family name. The old `assets/fonts/OFL.txt`
+(Pixelify) was removed together with the Pixelify file.
 
-Contents: 108 glyphs, 106 code points: U+0020-007E, U+00A0, U+00B7, U+00D7, U+2013, U+2014, U+2019,
-U+201C, U+201D, U+2022, U+2026, U+2212 (MUSE's list plus the typographic quotes, en dash, minus and em dash
-that the copy or placeholders use; U+2014 is only there because `index.html` has `—` as the empty-state placeholder
-in several `data-out` sinks; remove it from the range if GRANITE drops those, saves a few bytes). Layout feature
-`kern` only; hinting, `STAT`, `MVAR`, `gasp`, `prep` dropped; `HVAR` kept so variable advance widths are right.
-Name table trimmed to IDs 0-6, 13, 14 (copyright, family, version, licence text and URL stay).
+Result: `assets/fonts/jersey10-latin.woff2` = **2,488 B** (`gzip -9 -n` 2,511 B; woff2 is not re-gzipped, so the body that counts is 2,488 B).
+Budget (ADR 0004 definition, unchanged): **<= 20,000 B woff2; the task target was <= 12 KB**. Margin 17,512 B against the budget, 9,512 B against the
+target. Saving versus Pixelify (6,292 B) on the first-load total: 3,804 B (arithmetic). Full first-load total re-measured 2026-10-12 in section 1.
 
-Build command (dev-only; fontTools 4.62.1 and brotli were already in the system Python, nothing was installed
-and nothing was added to the project):
+Contents: 115 glyphs, 104 code points = U+0020-007E plus the characters the shipped copy actually uses, computed by script over `index.html`,
+`js/i18n/en.js`, `ar.js`, `js/**` and `css/`: U+00A0 (`&nbsp;`, ` `), U+00B7, U+00D7, U+2013 (number placeholder in `js/i18n/index.js`), U+2019,
+U+2026, U+2212. U+201C/U+201D are not used today and are kept only as cheap insurance (about 30 B). Dropped from the old list: U+2014 and U+2022
+(no longer in the markup or copy). No arrows are used and Jersey 10 has no U+2192; do not add `→` to copy. U+2066/U+2069 (bidi isolates in
+`i18n/index.js`/`dom.js`) are default-ignorable and need no glyph. Arabic stays on the system stack.
+
+Layout features: **`tnum` kept, `kern` not present.** Jersey 10's GPOS holds only `mark` (no `kern` lookup), so the old `--layout-features=kern`
+would be an empty no-op; GPOS, GDEF, `gasp`, `fpgm`, `prep`, `cvt` and hinting are dropped. `tnum` costs 72 B and gives all ten digits the same advance
+(525/1400 = 0.375 em; without it `1` is 300 and 2/3/6/8/9 are 600), so **`font-variant-numeric: tabular-nums` now works** and is the right fix for the Blood timer and
+the score count-up (no fixed `ch` min-width hack needed). Name table trimmed to IDs 0-6, 13, 14.
+
+Build command (dev-only; system Python fontTools, nothing installed or added to the project):
 
 ```
-python3 -m fontTools.subset PixelifySans[wght].ttf \
-  --unicodes=U+0020-007E,U+00A0,U+00B7,U+00D7,U+2013,U+2014,U+2019,U+201C,U+201D,U+2022,U+2026,U+2212 \
-  --layout-features=kern --no-hinting --flavor=woff2 --notdef-outline --no-layout-closure \
-  --name-IDs=0,1,2,3,4,5,6,13,14 --drop-tables+=STAT,MVAR,gasp,prep,DSIG \
-  --output-file=pixelify-sans-latin.woff2
+python3 -m fontTools.subset Jersey10-Regular.ttf \
+  --unicodes=U+0020-007E,U+00A0,U+00B7,U+00D7,U+2013,U+2019,U+201C,U+201D,U+2026,U+2212 \
+  --layout-features=tnum --no-hinting --flavor=woff2 --notdef-outline \
+  --name-IDs=0,1,2,3,4,5,6,13,14 --drop-tables+=DSIG,gasp,prep,fpgm,cvt,GDEF,GPOS \
+  --output-file=jersey10-latin.woff2
 ```
+
+**Render check (headless Chromium, `font-display: block`, 16/20/24/32 px, looked at at 3x; font status `loaded`, no console messages).** Honest result:
+- C vs O: **distinguishable** (C is open on the right, O is a closed ring), also in "Create" vs "Oreate" and "Code" vs "Oode".
+- G vs B: **distinguishable** (G has the open upper right and the inward bar, B is closed with a centre bar).
+- 5 vs S: **distinguishable at 20 px and up; close at 16 px** (both are made of the same horizontal bars; the 5 has a hard square top-left corner).
+- 1 vs I: **weak.** `1` has a small flag and is 300 wide; capital `I` (225 wide) and lowercase `l` are plain bars and are effectively the same glyph. Do not rely
+  on I/l being told apart (IDs, codes with letters). Dial and keypad digits are never confused with them because digits are the only characters there.
+- **0 vs O: nearly identical** (`0` is 525 wide, `O` 600, no slash or dot). Fine for a digits-only context (dials, keypad, timer, score); a mixed code
+  that contains both `0` and `O` would be ambiguous. Report to MUSE/CIRCUIT if any visible alphanumeric code is shown (e.g. an "I have a code" field): keep that field's
+  text in the system monospace stack, not Jersey.
+- 2 vs Z, 8 vs B: distinguishable.
 
 Font facts PRISM and CIRCUIT need:
-- **No `tnum` feature, so `font-variant-numeric: tabular-nums` does nothing.** Digits 0, 2-9 are all 586/1000 em wide
-  at weight 400, but **`1` is 404**. Dial and keypad digits sit in fixed-size buttons so they cannot reflow. The Blood
-  timer readout and the score pop can: give those digit runs a fixed `min-inline-size` (for example `6ch`) or
-  `display: inline-block; inline-size: 1ch` per digit, instead of relying on `tabular-nums`.
-- Vertical metrics: upm 1000, ascent 920, descent 280, line gap 0 (`hhea` equals typo, USE_TYPO_METRICS set).
-- Only the Latin subset is shipped. Arabic falls through to the system font by design (design.md 3.2).
+- Units: upm **1400**. `hhea` = typo: ascent **1125** (0.8036 em), descent **375** (0.2679 em), line gap 0; so `line-height: normal` = **1.0714** (Pixelify: 1.2). `winAscent 1130`,
+  `winDescent 375`; USE_TYPO_METRICS is set, so Windows and Mac agree.
+- Cap height 750 (**0.5357 em**), x-height 600 (**0.4286 em**) and ascender height = cap height (0.5357); all glyphs sit on the baseline (no descender overshoot).
+  Pixelify measured the same way: cap 0.631 em, x-height 0.45 em.
+- Compact in both directions. Average advance over the real English copy (index.html text + en.js values, 18,650 characters): Jersey 0.3436 em vs Pixelify 0.4850 em = **0.71x as wide**.
+  Cap height is **0.85x** and x-height **0.95x** of Pixelify at the same `font-size`; the line box is **0.89x** (1.0714 vs 1.2).
+- Retune guide for PRISM (same visual size as before): multiply font sizes by **1.18 to match cap height, by 1.05 to match x-height**; pick about 1.12 to 1.18 for body and labels,
+  and keep >= 16 px (prefer 18 px) for body text and >= 14 px for the smallest label, since the glyphs are small for their em. At the same `font-size`, lines are shorter
+  and rows are 11% tighter, so `--lp-lh-body`/`--lp-lh-tight` values chosen for Pixelify's 1.2 box leave less air: check that the 44x44 targets still hold when a control's height comes
+  from `line-height` (give them an explicit `min-block-size`).
+- **One weight.** The `font-face` declares 400 only; with `font-synthesis: none` a `font-weight: 700` request renders the regular face (no faux bold). Set `--lp-fw-bold` to 400
+  (or stop using bold) and build hierarchy from size, colour and spacing; do not leave `700` in the CSS because the *fallback* face would then pick a bold system font and the swap would jump. CSS today uses `--lp-fw-bold` on h1-h3, strong, brand,
+  buttons, table headers, timer and dd values (about 20 places).
+- Only the Latin subset is shipped. Arabic falls through to the system font by design.
 
-### 2.1 `@font-face` for PRISM (paste into `css/`, URL is relative to the CSS file in `css/`)
+### 2.1 `@font-face` for PRISM (URL is relative to the CSS file in `css/`)
 
 ```css
 @font-face {
-  font-family: "Pixelify Sans";
-  src: url("../assets/fonts/pixelify-sans-latin.woff2") format("woff2");
-  font-weight: 400 700;
+  font-family: "Jersey 10";
+  src: url("../assets/fonts/jersey10-latin.woff2") format("woff2");
+  font-weight: 400;
   font-style: normal;
-  /* swap: text paints at once in the fallback; the font never blocks the h1 that is our LCP element */
+  /* swap: text paints at once in the metric-matched fallback; the font never blocks the LCP text */
   font-display: swap;
-  unicode-range: U+0020-007E, U+00A0, U+00B7, U+00D7, U+2013, U+2014, U+2019, U+201C, U+201D, U+2022, U+2026, U+2212;
+  unicode-range: U+0020-007E, U+00A0, U+00B7, U+00D7, U+2013, U+2019, U+201C, U+201D, U+2026, U+2212;
 }
 ```
-Keep `font-synthesis: none` on `html` (design.md 3.1).
+Keep `font-synthesis: none` on `html`.
 
-### 2.2 Size-adjusted fallback (computed from the real metrics, not guessed)
+### 2.2 Size-adjusted fallback (computed from the real metrics)
 
-The size-adjust ratio is the average advance of Pixelify Sans divided by the average advance of Arial
-(Liberation Sans, metric-compatible with Arial, was the measuring face), weighted over the actual English copy
-of `index.html` text nodes plus the `js/i18n/en.js` strings (8,627 printable-ASCII characters). The copy is
-not final, so recompute (average advance of the corpus in both fonts, via fontTools `hmtx`) if the copy changes a lot; the ratios move slowly.
-
-| Weight | Pixelify avg advance | Arial avg advance | `size-adjust` | `ascent-override` | `descent-override` |
-|---|---|---|---|---|---|
-| 400 | 0.4840 em | 0.4387 em | 110.34% | 83.38% | 25.38% |
-| 700 | 0.4985 em | 0.4705 em | 105.96% | 86.82% | 26.42% |
-
-Override formula (the percentages apply before `size-adjust`, so divide by it): `ascent-override = 920 / (1000 x size-adjust)`,
-`descent-override = 280 / (1000 x size-adjust)`, `line-gap-override = 0`.
+`size-adjust` = average advance of Jersey 10 / average advance of Arial (Liberation Sans, metric-compatible, was the measuring face, `hmtx`), over the printable-ASCII
+characters of the English copy: 0.3436 / 0.4367 = **78.69%**, written 78.7%. Sensitivity (four corpus choices: HTML text only, en.js values, en.js strings with a space, both): 78.66 to 78.77%,
+so the ratio is stable even though ADR 0005 is rewriting the copy; recompute only if the copy changes character mix a lot.
+Override formula (percentages apply before `size-adjust`, so divide by it): `ascent-override = 1125 / 1400 / 0.787 = 102.1%`, `descent-override = 375 / 1400 / 0.787 = 34.0%`, `line-gap-override = 0%`.
 
 ```css
 @font-face {
-  font-family: "Pixelify Fallback";
+  font-family: "Jersey Fallback";
   src: local("Arial"), local("Helvetica"), local("Liberation Sans");
   font-weight: 400;
-  size-adjust: 110.34%;
-  ascent-override: 83.38%;
-  descent-override: 25.38%;
-  line-gap-override: 0%;
-}
-@font-face {
-  font-family: "Pixelify Fallback";
-  src: local("Arial Bold"), local("Arial-BoldMT"), local("Helvetica-Bold"), local("Liberation Sans Bold");
-  font-weight: 700;
-  size-adjust: 105.96%;
-  ascent-override: 86.82%;
-  descent-override: 26.42%;
+  size-adjust: 78.7%;
+  ascent-override: 102.1%;
+  descent-override: 34%;
   line-gap-override: 0%;
 }
 ```
-Stack (this edits MUSE's 3.1 stack by inserting one family; ATLAS/MUSE to confirm):
-`--lp-font-latin: "Pixelify Sans", "Pixelify Fallback", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;`
-and the same insertion in `--lp-font-arabic` right after `"Pixelify Sans"`. If no `local()` source exists, the face is
-skipped and the browser continues down the list to the monospace fallback, so nothing breaks.
+Single face, weight 400 only (do not add a bold face: Jersey has none). Delete both `Pixelify Fallback` faces.
+Stack (insert one family, as before):
+`--lp-font-latin: "Jersey 10", "Jersey Fallback", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;`
+and in `--lp-font-arabic` insert `"Jersey 10", "Jersey Fallback"` before `system-ui`, as `"Pixelify Sans", "Pixelify Fallback"` is today.
 
-Measured effect (headless Chromium 1x, this machine, `local("Arial")` resolving to Liberation Sans, 93 distinct copy
-strings from the app set at 16 px / line-height 1.4 in a column of the given width; a "mismatch" means the wrapped
-height differs by more than 1 px from the Pixelify rendering, i.e. a line break moved):
+**Not measured:** the wrap-mismatch test of the old fallback (1-6 of 93 strings re-wrapped) was **not re-run** for Jersey, because the copy is being rewritten under
+ADR 0005; only the ratios above are computed. Re-run it (and Android Roboto / iOS, which were never measured either) after PRISM's CSS and the new copy land.
+Note: at this `size-adjust` the Arial fallback glyphs are drawn at 78.7% of the font size, so the fallback looks slightly smaller than Jersey (fallback x-height
+1082/2048 x 0.787 = 0.416 em vs Jersey 0.4286 em, from Liberation Sans' OS/2 `sxHeight`); that is the price of matching widths and line breaks.
 
-| Column | monospace stack (today) | raw Arial | **adjusted fallback** |
-|---|---|---|---|
-| 280 px, 400 | 26 / 93 | 11 / 93 | **2 / 93** |
-| 320 px, 400 | 28 / 93 | 16 / 93 | **4 / 93** |
-| 360 px, 400 | 31 / 93 | 11 / 93 | **1 / 93** |
-| 390 px, 400 | 28 / 93 | 5 / 93 | **2 / 93** |
-| 320 px, 700 | 26 / 93 | 10 / 93 | **6 / 93** |
-| 390 px, 700 | 24 / 93 | 5 / 93 | **1 / 93** |
+### 2.3 Preload
 
-(Test: a throwaway page in the session scratchpad, not in the repo; four widths x two weights were run, six rows shown. Single-line
-height was identical in every family only because `line-height` was a fixed 1.4, so the `ascent/descent-override` effect is not
-exercised by this test; it matters only where `line-height: normal` is used.)
-Not measured and not assumed: Android Roboto and iOS system fonts. On Android, Chrome may not resolve `local("Arial")`
-to Roboto; if it does not, the stack falls back to the unadjusted monospace and the real shift is bounded by the layout
-rules in section 4. Re-check on a real device or with the Playwright `Pixel` profile once CSS exists.
-
-### 2.3 Is preloading the font worth it?
-
-Yes, narrowly; recommended, with `crossorigin` (required even for same-origin fonts, otherwise the file downloads twice):
+Same reasoning as before, now cheaper (arithmetic, not a measured A/B): 2,488 B at 1.6 Mbps is about 12 ms of transfer; the gain is that the request leaves with the HTML head instead of
+after `main.css` is parsed (about one RTT, 150-200 ms). It does not move LCP (`font-display: swap`). `crossorigin` is required. Do not add `fetchpriority`.
 
 ```html
-<link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/pixelify-sans-latin.woff2">
+<link rel="preload" as="font" type="font/woff2" crossorigin href="./assets/fonts/jersey10-latin.woff2">
 ```
-Reasoning (arithmetic on the stated throttle profile, **not a measured A/B**): 6,292 B at 1.6 Mbps is about 31 ms of
-transfer, so bytes are not the issue; the latency is. Without preload the browser only learns it needs the font after
-`main.css` has arrived and been parsed and layout has found Pixelify text: one extra round trip (150 ms RTT plus TTFB)
-after the CSS. With preload the request leaves with the HTML head, in parallel with the CSS. The cost is about 31 ms of
-shared bandwidth, the file is always used on first paint, and the URL resolves to the same absolute URL as the
-`@font-face` one (`./assets/fonts/...` from `/`, `../assets/fonts/...` from `/css/`), so it is a cache hit, not a double fetch.
-Gain: the swap from fallback to pixel font lands roughly one RTT (~150-200 ms) earlier, which shortens the window in which
-a reflow can happen. It does **not** move LCP, because `font-display: swap` paints the h1 in the fallback immediately.
-To confirm, once CSS exists, run section 7 twice (with and without the tag) and compare the time of the swap
-(`document.fonts` `loadingdone`) and CLS; delete the tag if the difference is nil. Do not add `fetchpriority`.
+If a with/without run (section 7) shows no difference in swap time or CLS, delete the tag.
+
+### 2.4 Switch from Pixelify (done 2026-10-12)
+
+The CSS, preload, service-worker precache and CI required-files list now point at `jersey10-latin.woff2`; the Pixelify font and licence files are deleted. The service-worker cache name
+carries the build id (`lp1-${VERSION}`), so returning visitors pick up the new font on the next release. Left for SENTRY: rename the `fonts.pixelify` key (see the handoff of 2026-10-12)
+in `tests/e2e/support/measure.mjs`, `tests/e2e/matrix/run-matrix.mjs` and the generated `tests/e2e/shots/matrix.json`.
 
 ## 3. Sprites, icons, social card
 
 `assets/sprites.svg` is generated mechanically from design.md section 9 maps (the maps are read from the doc,
 every row length is asserted, every pixel is asserted covered exactly once by the emitted rectangles). 18 symbols:
 `lp-lock-closed lp-lock-open lp-vault-door lp-check lp-x lp-clock lp-bulb lp-skull lp-drop lp-trophy lp-user
-lp-speaker-on lp-speaker-off lp-arrow-left lp-sum lp-parity lp-compare lp-even-count`.
+lp-speaker-on lp-speaker-off lp-arrow-left lp-sum lp-parity lp-compare lp-even-count`, plus six added 2026-10-08 from `docs/design-v2.md` section 8 (3.1).
 `lp-d0..lp-d9` are omitted (MUSE allows it; unused at launch; add back about 1 KB raw if Plan B digits are needed).
-- 5,073 B raw, 1,118 B gz. One `<path>` per colour; rows merged into horizontal runs and identical runs stacked into taller rectangles;
+- Before the 2026-10-08 addition: 5,073 B raw, 1,118 B gz (now 6,183 B raw, 1,259 B gz, see 3.1). One `<path>` per colour; rows merged into horizontal runs and identical runs stacked into taller rectangles;
   relative `m` after `z`. Well-formed XML (`xmllint --noout`), no `<script>`, no `<style>`.
 - Single-colour icons: `fill="currentColor"` on the `<symbol>`. Multi-colour: `fill="var(--lp-spr-k,#0A0C12)"` etc.
   (`K` outline, `B` body, `H` highlight, `S` steel, `L` lamp = `--lp-spr-lamp`). **Deviation from design.md 9.1, intentional:**
@@ -240,6 +237,16 @@ lp-speaker-on lp-speaker-off lp-arrow-left lp-sum lp-parity lp-compare lp-even-c
   (2 px per art pixel). If PRISM's CSS does not override that, the lock is half-size and breaks the pixel grid rule.
 - External `<use>` is one extra same-origin request (about 1.1 KB gz, cached, off the LCP path). Inlining the sheet into the HTML
   would save the request but resend 5 KB raw in every HTML response; not worth it while the service worker caches the file.
+
+### 3.1 Sprites added for design-v2 (2026-10-08)
+
+Six single-colour 8x8 symbols (`viewBox="0 0 8 8" fill="currentColor"`, same format as `lp-check`) appended after `lp-even-count`, built mechanically from the maps in
+`docs/design-v2.md` section 8 (every row 8 characters; path -> pixel grid round trip compared with the map for all six, no overlap). Ids: `lp-help`, `lp-backspace`, `lp-skip`,
+`lp-alert`, `lp-none`, `lp-key`. All 18 earlier ids are unchanged and the earlier bytes of the file are identical. Cost: +1,110 B raw, +141 B gz
+(`gzip -9 -n` 1,118 -> 1,259). `xmllint --noout` clean, no `<script>`, no `<style>`, 24 unique ids. The generator also reproduces all 15 existing single-colour symbols byte for byte, so the path style is the same.
+Contact sheet (Chromium, 128 px, 32 px and 16 px, light and dark) was looked at: help reads as `?`, backspace as a left-pointing tag with an x cut-out (the x is centred on art row 3 of 8, so it sits half a
+pixel above the tag's centre; that is how the map in design-v2 is drawn and it reads fine), skip as a right-pointing triangle plus bar, alert as `!`, none as a slashed circle, key as a ring-and-stem key. No pixel mistakes
+found. Usage: 16 px = 2 px per art pixel, 32 px = 4 px per art pixel; `skip` is directional, so mirror it with CSS in RTL (`.lp-icon--flip`, design-v2). The sheet has no `lp-d0..lp-d9`, so there is nothing to prune.
 
 Icons (all opaque, 4-colour palette PNG from the lock map by exact nearest-neighbour drawing, no resampling blur):
 
@@ -278,8 +285,8 @@ but it means LCP is at best "time until the boot modules have loaded and run" (m
 - If the 3 s fail-safe ever shows in a trace, treat it as an LCP failure, not a corner case; shorten it only with CIRCUIT and ATLAS agreement.
 
 **CLS plan (target < 0.1; aim for 0):**
-1. Font swap: `font-display: swap` plus the size-adjusted `Pixelify Fallback` face (2.2). Weighted copy shows 1-6 of 93 strings re-wrap
-   (vs 22-31 with the bare monospace stack).
+1. Font swap: `font-display: swap` plus the size-adjusted `Jersey Fallback` face (2.2). The old Pixelify fallback measured 1-6 of 93 strings re-wrapping
+   (vs 22-31 with the bare monospace stack); the Jersey fallback ratios are computed but its wrap test is **not yet run** (2.2).
 2. Sprite hosts: every `<svg>` has `width` and `height` attributes in the markup (GRANITE does this) and PRISM sets
    `inline-size/block-size: calc(var(--lp-px) * W)` plus `aspect-ratio: 1`, so a late-arriving `sprites.svg` paints into reserved space.
 3. Reserved dock height: the play dock/keypad uses CSS-derived `--lp-dock-h: calc(var(--lp-px) * 100)` (design.md 10.2); `main` gets
@@ -296,8 +303,8 @@ but it means LCP is at best "time until the boot modules have loaded and run" (m
 
 | Item | Gzipped cost | Justification |
 |---|---|---|
-| Pixelify Sans subset (self-hosted) | 6,292 B | MUSE's single family; no third-party request, no SRI needed |
-| `sprites.svg` | 1,118 B | first-party, generated |
+| Jersey 10 subset (self-hosted) | 2,488 B | ADR 0005's single family; no third-party request, no SRI needed |
+| `sprites.svg` | 1,259 B | first-party, generated |
 | Everything else | 0 | no framework, no bundler, no CDN (ADR 0001) |
 
 Cross-origin at runtime: only `firestore.googleapis.com` via `fetch`, after user action or on session resume (not part of first paint).
@@ -311,8 +318,8 @@ Generator and test scripts live in the session scratchpad, not the repo.
 ```sh
 gzs() { for f in "$@"; do gzip -9 -n -c "$f" | wc -c; done | paste -sd+ | bc; }   # sum of per-file gzip sizes
 echo "HTML  $(gzs index.html)   (budget 14000)"
-echo "CSS   $(gzs css/*.css)    (budget 18000)"
-echo "FONT  $(wc -c < assets/fonts/pixelify-sans-latin.woff2)   (budget 20000; woff2 is not re-gzipped)"
+echo "CSS   $(gzs css/*.css)    (budget 20000, ADR 0005 section 7)"
+echo "FONT  $(wc -c < assets/fonts/jersey10-latin.woff2)   (budget 20000; woff2 is not re-gzipped)"
 echo "SPR   $(gzs assets/sprites.svg)    (budget 8000)"
 ```
 First-load JS is not `find js`: that over-counts the lazy screens, `ar.js`, `remote.js` and `sound.js`. Sum the static import closure of `js/main.js` plus the
@@ -330,9 +337,9 @@ const extra=['js/i18n/en.js','js/sync/tabs.js'].reduce((n,f)=>n+z.gzipSync(fs.re
 console.log('static closure',seen.size,'files',closure,'+ boot imports',extra,'=',closure+extra,'(budget 46080)');
 EOF
 ```
-(On 2026-10-07 this printed `static closure 15 files 38044 + boot imports 6298 = 44342`.)
+(On 2026-10-12 this printed `static closure 15 files 39460 + boot imports 5654 = 45114`. It measures the English start; for Arabic swap `js/i18n/en.js` for `js/i18n/ar.js`: 46,204.)
 
-Snapshot taken 2026-10-07 (bodies, gzip -9): HTML 9,431 | CSS 14,818 | JS first load 44,342 (38,044 closure + 5,482 + 816) | FONT 6,292 | SPR 1,118. On the wire per SENTRY: HTML 9,770 | CSS 14,714 | JS 49,625 | FONT 6,559 | SPR 1,412 | total 83,300.
+Snapshot taken 2026-10-12 (bodies, gzip -9, English start): HTML 10,078 | CSS 17,623 (pre-fix) | JS first load 45,114 (39,460 closure + 4,838 + 816) | FONT 2,488 | SPR 1,259 | total 76,562. On the wire: not re-taken since SENTRY's 2026-10-07 run (HTML 9,770 | CSS 14,714 | JS 49,625 | FONT 6,559 (Pixelify) | SPR 1,412 | total 83,300), now stale.
 
 ## 7. Measuring on a throttled mid-tier Android over 4G
 

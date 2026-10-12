@@ -1,28 +1,26 @@
 /* =============================================================================
-   LOCK PUZZLE: main.css  (PRISM)   Spec: docs/design.md ("VAULT PANEL")
+   LOCK PUZZLE: main.css  (PRISM)   Spec: docs/design-v2.md ("VAULT PANEL, CALM"), ADR 0005
 
-   WHY ONE FILE (decision, replaces the architecture.md tokens/base/components/screens
-   split): GitHub Pages has no build step. Partials need @import, and every @import
-   level is a serial round trip that blocks first paint (CSS is render-blocking, so
-   two partials on 4G add ~2 x RTT = 300-600 ms to LCP). One hand-maintained file
-   keeps a single request and lets cascade layers do the separation the partials
-   were for. Sections below are in layer order; search for "@layer NAME". Expected
-   size is well under the 18 KB gzip budget (QUARTZ to confirm).
+   ONE hand-maintained file, no @import: GitHub Pages has no build step and every @import
+   level is a serial round trip on the render-blocking path. Sections are in layer order
+   (search "@layer NAME").
 
-   THEMING: `color-scheme` + light-dark() gives the four schemes from two token
-   blocks (Classic, Blood) instead of four. Light/dark follows the OS by default and
-   `html[data-theme="light|dark"]` overrides it. Mode = body[data-mode="classic|blood"]
-   or any element carrying data-mode. light-dark() needs Chrome 123 / Safari 17.5 /
-   Firefox 120 (all Baseline 2024).
+   THEMING: `color-scheme` + light-dark() gives the four schemes from two token blocks
+   (Classic, Blood). OS preference by default, `html[data-theme="light|dark"]` overrides it.
+   Mode = body[data-mode="classic|blood"] or any element carrying data-mode.
+
+   CALM RULES (ADR 0005): flat page (no dither, no rules under headings), frames only on
+   controls, ledge only on primary buttons, one face (Jersey 10, one weight, sentence case),
+   motion = short eased transitions inside prefers-reduced-motion: no-preference.
    ============================================================================= */
 
 @layer reset, tokens, base, components, screens, utilities;
 
-/* @property: lets calc() treat the CIRCUIT-set value as a number and gives the bar a
-   defined fallback (full) if it is never set. --_pulse needs it to step in a keyframe. */
+/* @property: numeric --lp-timer-left for calc() with a defined fallback (full bar); --_pulse
+   lets the Blood last-10 cue step between two colours; --_rf is a NON-inheriting copy of the
+   frame shadow for the focus ring (a focusable child must not draw its parent's frame bars). */
 @property --lp-timer-left { syntax: "<number>"; inherits: false; initial-value: 18; }
 @property --_pulse { syntax: "<color>"; inherits: false; initial-value: #888; }
-/* Non-inheriting, so a focusable child (a link inside a framed panel) never draws its parent's frame bars in its ring. */
 @property --_rf { syntax: "*"; inherits: false; }
 
 /* ===================================================================== reset */
@@ -36,21 +34,18 @@
   button, input, select, textarea { font: inherit; color: inherit; letter-spacing: inherit; margin: 0; }
   button { background: none; border: 0; padding: 0; text-align: center; cursor: pointer; }
   table { border-collapse: collapse; }
-  /* The author rule must beat any display value set below; svg[hidden] is NOT honoured
-     by UAs, so markup never relies on it (GRANITE). */
+  /* must beat any display value set below; svg[hidden] is NOT honoured by UAs, so markup never relies on it */
   [hidden] { display: none !important; }
 }
 
 /* ==================================================================== tokens */
 @layer tokens {
-  /* Color-scheme plumbing (light-dark() reads the used scheme of the element). */
   :root { color-scheme: dark light; }
   :root[data-theme="dark"] { color-scheme: dark; }
   :root[data-theme="light"] { color-scheme: light; }
 
-  /* Pixel grid. 4px from 320 to ~1279, 5px at ~1600, 6px from ~2000. round() keeps
-     it an integer; the @supports gate keeps 4px where round() is unknown (a custom
-     property cannot fall back by itself). vw shrinks with zoom: 200% zoom is 4px. */
+  /* Pixel grid: 4px from 320 to ~1279, 5px at ~1600, 6px from ~2000 (integer-snapped; the @supports
+     gate keeps 4px where round() is unknown). vw shrinks with zoom, so 200% zoom is 4px. */
   :root {
     --lp-px: 4px;
     --lp-bw: var(--lp-px);
@@ -66,17 +61,21 @@
     --lp-space-7: calc(var(--lp-px) * 12);
     --lp-space-8: calc(var(--lp-px) * 16);
     --lp-tap: calc(var(--lp-px) * 12);
-    --lp-icon: calc(var(--lp-px) * 8);
-    /* One symmetric value: env() insets are physical, max() of both keeps RTL safe. */
+    --lp-icon: calc(var(--lp-px) * 8);          /* 32px sprite */
+    --lp-icon-sm: calc(var(--lp-px) * 4);       /* 16px sprite (2px per art pixel) */
+    --lp-lock-sm: calc(var(--lp-px) * 8);       /* 32px top-bar lock */
+    --lp-icon-btn: calc(var(--lp-px) * 11);     /* 44px unframed icon button */
+    /* 12px below 22.5em, 16px from there; max() with the safe-area insets (physical, so symmetric) */
     --lp-gutter: max(var(--lp-space-3), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
     --lp-container: calc(var(--lp-px) * 256);
-    /* Fallbacks only. ui/chrome.js measures the real header and dock and writes both on :root (inline wins).
-       Header = one 52px row on phones (44px targets + frame margins); dock fallback is deliberately generous. */
+    --lp-col: 28rem;                            /* Auth, Home, Result */
+    --lp-col-wide: 36rem;                       /* Board, Help */
+    /* Fallbacks only: ui/chrome.js measures the real header/top bar/dock and writes them on :root. */
     --lp-header-h: calc(var(--lp-px) * 13);
-    --lp-dock-h: calc(var(--lp-px) * 108);
-    --lp-dial-h: calc(var(--lp-px) * 16);
-    --lp-key-h: calc(var(--lp-px) * 13);
-    --lp-btn-h: var(--lp-tap);
+    --lp-topbar-h: calc(var(--lp-px) * 13);
+    --lp-dock-h: calc(var(--lp-px) * 73);       /* 292: tall tier; compact tier overrides to 232 */
+    --lp-btn-h: calc(var(--lp-px) * 12);        /* 48 */
+    --lp-btn-lg: calc(var(--lp-px) * 14);       /* 56 */
     --lp-seg: calc(var(--lp-px) * 3);
     --lp-z-header: 10;
     --lp-z-dock: 20;
@@ -84,38 +83,91 @@
     --lp-focus-in: #0A0C12;
     --lp-focus-out: #FFFFFF;
 
-    --lp-dur-1: 80ms; --lp-dur-2: 160ms; --lp-dur-3: 360ms; --lp-dur-4: 720ms;
-    --lp-ease-step-2: steps(2, end); --lp-ease-step-4: steps(4, end); --lp-ease-hold: steps(1, end);
+    /* play layout, TALL tier (viewport >= 704px high). COMPACT overrides below. */
+    --lp-dial-w: calc(var(--lp-px) * 12);       /* 48 below 24em, 56 from 24em, 64 from 80em */
+    --lp-dial-cell: calc(var(--lp-dial-w) + var(--lp-px) * 2);
+    --lp-dial-h: calc(var(--lp-px) * 16);       /* 64 */
+    --lp-key-h: calc(var(--lp-px) * 13);        /* 52 */
+    --lp-row-h: calc(var(--lp-px) * 12);        /* 48 clue row */
+    --lp-row-gap: var(--lp-space-2);
+    --lp-dock-gap: var(--lp-space-2);
+    --lp-dock-pad: var(--lp-space-2);
+    --lp-fs-dial: 48px;                         /* tied to the dial box, not to rem */
+    --lp-fs-key: 32px;
 
-    --lp-font-latin: "Pixelify Sans", "Pixelify Fallback", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
-    --lp-font-arabic: "Pixelify Sans", "Pixelify Fallback", system-ui, "Segoe UI", Tahoma, "Noto Sans Arabic", "Droid Arabic Kufi", "Geeza Pro", sans-serif;
+    /* motion tokens (sprites keep steps(); UI uses eased transitions) */
+    --lp-dur-1: 80ms; --lp-dur-2: 160ms; --lp-dur-3: 360ms; --lp-dur-4: 720ms;
+    --lp-dur-press: 80ms; --lp-dur-release: 120ms; --lp-dur-base: 160ms; --lp-dur-screen: 180ms; --lp-dur-count: 600ms;
+    --lp-ease-step-2: steps(2, end); --lp-ease-step-4: steps(4, end); --lp-ease-hold: steps(1, end);
+    --lp-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --lp-ease-in: cubic-bezier(0.64, 0, 0.78, 0);
+
+    /* type: Jersey 10, one weight. Sizes in rem so the user's font size still applies. */
+    --lp-font-latin: "Jersey 10", "Jersey Fallback", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --lp-font-arabic: "Jersey 10", "Jersey Fallback", system-ui, "Segoe UI", Tahoma, "Noto Sans Arabic", "Droid Arabic Kufi", "Geeza Pro", sans-serif;
     --lp-font-ui: var(--lp-font-latin);
-    --lp-text-scale: 1;
-    --lp-fs-0: calc(0.875rem * var(--lp-text-scale));
-    --lp-fs-1: calc(1rem * var(--lp-text-scale));
-    --lp-fs-2: calc(1.25rem * var(--lp-text-scale));
-    --lp-fs-3: calc(1.5rem * var(--lp-text-scale));
-    --lp-fs-4: 2rem;
-    --lp-fs-5: 2.5rem;
-    --lp-fs-6: 3rem;
-    --lp-fs-dial: var(--lp-fs-5);   /* Latin digits: never scaled by --lp-text-scale */
-    --lp-fs-key: 1.5rem;
-    --lp-lh-body: 1.4;
-    --lp-lh-tight: 1.15;
-    --lp-ls-caps: 0.06em;
+    --lp-font-code: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;  /* alphanumeric code entry: 0/O and I/l are weak in Jersey */
+    --lp-fs-label: 1.125rem;                    /* 18 | 18 | 20 */
+    --lp-fs-body: 1.375rem;                     /* 22 | 22 | 24 */
+    --lp-fs-h2: 1.75rem;                        /* 28 | 28 | 32 */
+    --lp-fs-h1: 2.25rem;                        /* 36 | 40 | 48 */
+    --lp-fs-timer: 1.5rem;                      /* 24 | 28 | 32 */
+    --lp-fs-timer-blood: 2rem;                  /* 32 | 40 | 48 */
+    --lp-fs-stat: 1.75rem;                      /* 28 | 32 | 36 */
+    --lp-fs-score: 3.5rem;                      /* 56 | 64 | 80 */
+    --lp-fs-code: 2.5rem;                       /* 40 | 48 | 48 */
+    --lp-lh-body: 1.3;
+    --lp-lh-tight: 1.1;
     --lp-fw-regular: 400;
-    --lp-fw-bold: 700;
+    --lp-fw-bold: 400;                          /* Jersey has one weight: hierarchy = size, colour, space */
   }
   @supports (width: round(down, 10px, 1px)) {
     :root { --lp-px: round(down, clamp(4px, 0.25vw + 1px, 6px), 1px); }
   }
   :root[dir="rtl"] { --lp-dir: -1; }
+
+  @media (min-width: 22.5em) { :root { --lp-gutter: max(var(--lp-space-4), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px)); } }
+  @media (min-width: 24em) {
+    :root {
+      --lp-dial-w: calc(var(--lp-px) * 14);
+      --lp-fs-h1: 2.5rem; --lp-fs-timer: 1.75rem; --lp-fs-timer-blood: 2.5rem; --lp-fs-stat: 2rem; --lp-fs-score: 4rem; --lp-fs-code: 3rem;
+    }
+  }
+  @media (min-width: 48em) {
+    :root {
+      --lp-header-h: calc(var(--lp-px) * 16);
+      --lp-fs-label: 1.25rem; --lp-fs-body: 1.5rem; --lp-fs-h2: 2rem; --lp-fs-h1: 3rem;
+      --lp-fs-timer: 2rem; --lp-fs-timer-blood: 3rem; --lp-fs-stat: 2.25rem; --lp-fs-score: 5rem;
+    }
+  }
+  @media (min-width: 80em) {
+    :root { --lp-dial-w: calc(var(--lp-px) * 16); --lp-dial-h: calc(var(--lp-px) * 18); --lp-fs-dial: 56px; }
+  }
+  /* COMPACT tier: viewport <= 700px high (iPhone SE / small Android). 232px dock, 40px clue rows. */
+  @media (max-height: 43.75em) {
+    :root {
+      --lp-dial-h: calc(var(--lp-px) * 12);     /* 48 */
+      --lp-key-h: calc(var(--lp-px) * 11);      /* 44 */
+      --lp-row-h: calc(var(--lp-px) * 10);      /* 40 */
+      --lp-row-gap: var(--lp-space-1);
+      --lp-dock-gap: var(--lp-space-1);
+      --lp-dock-pad: var(--lp-space-1);
+      --lp-dock-h: calc(var(--lp-px) * 58);     /* 232 */
+      --lp-fs-dial: 40px;
+      --lp-fs-key: 28px;
+    }
+  }
+
+  /* Arabic: system face reads larger than Jersey at the same px, so the sizes step DOWN (v2 2.2).
+     Digits, dial, key, timer, stat and score tokens are Latin digits in Jersey and do not change. */
   html[lang="ar"] {
     --lp-font-ui: var(--lp-font-arabic);
-    --lp-text-scale: 1.125;
     --lp-lh-body: 1.7;
     --lp-lh-tight: 1.5;
+    --lp-fs-label: 1rem; --lp-fs-body: 1.125rem; --lp-fs-h2: 1.5rem; --lp-fs-h1: 2rem;
   }
+  @media (min-width: 24em) { html[lang="ar"] { --lp-fs-h1: 2.25rem; } }
+  @media (min-width: 48em) { html[lang="ar"] { --lp-fs-label: 1.125rem; --lp-fs-body: 1.25rem; --lp-fs-h2: 1.75rem; --lp-fs-h1: 2.5rem; } }
 
   /* Classic: dark, light       (light-dark(LIGHT, DARK)) */
   :root, [data-mode="classic"] {
@@ -124,7 +176,7 @@
     --lp-bg-2: light-dark(#C5CCDD, #262D44);
     --lp-field: light-dark(#C5CCDD, #12151C);
     --lp-text: light-dark(#151A2E, #ECEFF7);
-    --lp-text-dim: light-dark(#444C6B, #A9B1CC);
+    --lp-text-dim: light-dark(#3A4160, #A9B1CC);   /* light value darkened from #444C6B (v2 2.4): 7.41 on bg-0 */
     --lp-line: light-dark(#151A2E, #8E98BE);
     --lp-line-soft: light-dark(#A3ABC2, #3A4466);
     --lp-ledge: light-dark(#8F99B5, #0A0C12);
@@ -138,8 +190,9 @@
     --lp-info: light-dark(#1F4EA6, #7DB2FF);
     --lp-danger: light-dark(#9E1B24, #FF7B7B);
     --lp-on-danger: light-dark(#F3F5FA, #12151C);
-    --lp-inv-bg: light-dark(#151A2E, #ECEFF7);
-    --lp-inv-text: light-dark(#F3F5FA, #12151C);
+    /* inverse pair (toasts, skip link): a dark slab on the light scheme; on the dark scheme the raised surface (= bg-2/text), not a white slab */
+    --lp-inv-bg: light-dark(#151A2E, #262D44);
+    --lp-inv-text: light-dark(#F3F5FA, #ECEFF7);
     --lp-spr-k: light-dark(#151A2E, #0A0C12);
     --lp-spr-b: light-dark(#F0A81C, #F5B942);
     --lp-spr-h: light-dark(#F3F5FA, #ECEFF7);
@@ -166,8 +219,8 @@
     --lp-info: light-dark(#1F4EA6, #7DB2FF);
     --lp-danger: light-dark(#9E1B24, #FF9A9A);
     --lp-on-danger: light-dark(#FFF1F0, #160709);
-    --lp-inv-bg: light-dark(#2A0A0E, #FBEEEF);
-    --lp-inv-text: light-dark(#FFF1F0, #160709);
+    --lp-inv-bg: light-dark(#2A0A0E, #35161C);
+    --lp-inv-text: light-dark(#FFF1F0, #FBEEEF);
     --lp-spr-k: light-dark(#2A0A0E, #0A0304);
     --lp-spr-b: light-dark(#C4202A, #FF5A5A);
     --lp-spr-h: light-dark(#FFF1F0, #FBEEEF);
@@ -175,9 +228,9 @@
   }
 
   /* Derived tokens must be re-declared wherever the base tokens change, otherwise a
-     data-mode child would inherit the PARENT's resolved colors. */
+     data-mode child would inherit the PARENT's resolved colours. */
   :root, [data-mode] {
-    --lp-dither: color-mix(in srgb, var(--lp-text) 8%, transparent);
+    --lp-dither: color-mix(in srgb, var(--lp-text) 8%, transparent);   /* prefers-contrast hook only; the page is flat */
     --lp-scrim: color-mix(in srgb, var(--lp-bg-0) 86%, transparent);
     --lp-spr-lamp: var(--lp-text-dim);
     --lp-shadow-frame:
@@ -186,11 +239,8 @@
       calc(var(--lp-bw) * -1) 0 0 0 var(--_c, var(--lp-line)),
       var(--lp-bw) 0 0 0 var(--_c, var(--lp-line));
     --lp-shadow-ledge: 0 calc(var(--lp-bw) * 2) 0 0 var(--lp-ledge);
-    /* private helpers (2x2 checkers, dashed pixel rule) */
+    /* 2x2 checker at 14% ink: the ONLY texture left (disabled + pressed controls) */
     --_chk: conic-gradient(color-mix(in srgb, var(--lp-ink) 14%, transparent) 25%, transparent 0 50%, color-mix(in srgb, var(--lp-ink) 14%, transparent) 0 75%, transparent 0);
-    --_chk50: conic-gradient(color-mix(in srgb, var(--lp-ink) 50%, transparent) 25%, transparent 0 50%, color-mix(in srgb, var(--lp-ink) 50%, transparent) 0 75%, transparent 0);
-    --_rule: linear-gradient(to right, var(--lp-line-soft) 50%, transparent 0) bottom / calc(var(--lp-px) * 2) var(--lp-px) repeat-x;
-    --_scan: light-dark(transparent, color-mix(in srgb, var(--lp-ink) 18%, transparent));
   }
   [data-lock="success"] { --lp-spr-lamp: var(--lp-ok); }
   [data-lock="fail"] { --lp-spr-lamp: var(--lp-bad); }
@@ -198,12 +248,11 @@
   @media (prefers-reduced-transparency: reduce) {
     :root, [data-mode] { --lp-scrim: var(--lp-bg-0); }
   }
-  /* More contrast: thicker frames, no texture, dim text becomes full text. */
+  /* More contrast: thicker frames, dim text becomes full text. */
   @media (prefers-contrast: more) {
     :root { --lp-bw: calc(var(--lp-px) * 2); }
     :root, [data-mode] {
       --lp-dither: transparent;
-      --_scan: transparent;
       --lp-text-dim: var(--lp-text);
       --lp-line-soft: var(--lp-line);
     }
@@ -212,33 +261,23 @@
 
 /* ===================================================================== base */
 @layer base {
-  /* Font: one self-hosted subset (QUARTZ owns the file). swap = text paints at once
-     in the monospace fallback; the face is preloaded from <head>. */
+  /* Jersey 10: one weight, Latin subset (assets/fonts/jersey10-latin.woff2, docs/perf.md 2). swap = text paints at
+     once in the metric-matched fallback below. font-synthesis: none, so a 700 request can never fake a bold. */
   @font-face {
-    font-family: "Pixelify Sans";
-    src: url("../assets/fonts/pixelify-sans-latin.woff2") format("woff2");
-    font-weight: 400 700;
+    font-family: "Jersey 10";
+    src: url("../assets/fonts/jersey10-latin.woff2") format("woff2");
+    font-weight: 400;
     font-style: normal;
     font-display: swap;
-    unicode-range: U+0020-007E, U+00A0, U+00B7, U+00D7, U+2013, U+2014, U+2019, U+201C, U+201D, U+2022, U+2026, U+2212;
+    unicode-range: U+0020-007E, U+00A0, U+00B7, U+00D7, U+2013, U+2019, U+201C, U+201D, U+2026, U+2212;
   }
-  /* Metric-matched local fallback (QUARTZ, docs/perf.md 2.2): keeps line breaks stable across the swap (CLS). */
   @font-face {
-    font-family: "Pixelify Fallback";
+    font-family: "Jersey Fallback";
     src: local("Arial"), local("Helvetica"), local("Liberation Sans");
     font-weight: 400;
-    size-adjust: 110.34%;
-    ascent-override: 83.38%;
-    descent-override: 25.38%;
-    line-gap-override: 0%;
-  }
-  @font-face {
-    font-family: "Pixelify Fallback";
-    src: local("Arial Bold"), local("Arial-BoldMT"), local("Helvetica-Bold"), local("Liberation Sans Bold");
-    font-weight: 700;
-    size-adjust: 105.96%;
-    ascent-override: 86.82%;
-    descent-override: 26.42%;
+    size-adjust: 78.7%;
+    ascent-override: 102.1%;
+    descent-override: 34%;
     line-gap-override: 0%;
   }
 
@@ -248,80 +287,74 @@
     line-height: var(--lp-lh-body);
     font-synthesis: none;
     -webkit-tap-highlight-color: transparent;
-    /* WCAG 2.4.11: a focused control must not hide under the sticky header (and, on Play phones,
-       the dock: see the screens layer). The header's own controls cancel this with a negative
-       scroll-margin so focusing them does not scroll the page. */
-    scroll-padding-block-start: calc(var(--lp-header-h) + var(--lp-space-3));
+    /* The header is static now, so only a little air is needed above a focused control. The Play dock
+       is a grid row (or in normal flow in the fallback), never a sticky overlay, so nothing covers focus. */
+    scroll-padding-block: var(--lp-space-3);
   }
-  header :is(button, a, summary, [tabindex]) { scroll-margin-block-start: calc((var(--lp-header-h) + var(--lp-space-3)) * -1); }
-  /* flex column (not grid): a sticky header/dock inside a grid item cannot leave its grid area. */
+  /* flex column so main can fill the viewport and screens can pin their action area to the bottom */
   body {
     min-block-size: 100dvh;
     display: flex;
     flex-direction: column;
-    font-size: var(--lp-fs-1);
-    background:
-      conic-gradient(var(--lp-dither) 25%, transparent 0 50%, var(--lp-dither) 0 75%, transparent 0)
-        0 0 / calc(var(--lp-px) * 2) calc(var(--lp-px) * 2),
-      var(--lp-bg-0);
-    /* break-word: whole words move to the next line first; only a word wider than its box splits.
-       `anywhere` is reserved for user content (names), below. */
+    font-size: var(--lp-fs-body);
+    background: var(--lp-bg-0);            /* FLAT: no dither, no rules (ADR 0005 s6) */
+    /* whole words move to the next line first; only a word wider than its box splits */
     overflow-wrap: break-word;
     word-break: normal;
   }
-  [data-out="name"], tbody th, [data-slot="attempts"], input { overflow-wrap: anywhere; }
+  [data-out="name"], tbody th, input { overflow-wrap: anywhere; }   /* user content only */
   [data-mode] { color: var(--lp-text); }
-  html[lang="ar"] { letter-spacing: 0; text-transform: none; }
 
-  h1, h2, h3 { font-weight: var(--lp-fw-bold); line-height: var(--lp-lh-tight); text-wrap: balance; }
-  h1 { font-size: var(--lp-fs-4); }
-  h2 { font-size: var(--lp-fs-2); padding-block-end: var(--lp-space-2); background: var(--_rule); }
-  h3 { font-size: var(--lp-fs-1); }
+  /* no bold, italic or caps anywhere (v2 2.1); Arabic system fonts would otherwise render a real bold */
+  h1, h2, h3, strong, b, th, dt, summary, button { font-weight: var(--lp-fw-bold); }
+  em, i, cite, address { font-style: normal; }
+  h1, h2, h3 { line-height: var(--lp-lh-tight); text-wrap: balance; }
+  h1 { font-size: var(--lp-fs-h1); }
+  h2 { font-size: var(--lp-fs-h2); }
+  h3 { font-size: var(--lp-fs-body); }
   p, dd, li { text-wrap: pretty; }
-  strong { font-weight: var(--lp-fw-bold); }
   label, legend { display: block; }
+  /* links: accent-text + 2px underline is the only underline in the UI */
   a {
     color: var(--lp-accent-text);
     text-decoration: underline;
     text-decoration-thickness: 2px;
     text-underline-offset: 0.2em;
   }
-  @media (min-width: 48em) { h1 { font-size: var(--lp-fs-5); } }
-
-  /* ADR 0004: UI text is sentence case (the pixel face reads C as O, B as G in caps). Uppercase
-     survives only on the two-word mode badge and the "YOU" row marker. Arabic never gets either. */
-  .lp-badge:lang(en), tbody tr[data-self] th > span:lang(en) {
-    text-transform: uppercase;
-    letter-spacing: var(--lp-ls-caps);
-  }
 
   /* ---- page chrome ---- */
-  header {
-    position: sticky;
-    inset-block-start: 0;
+  body > header {
+    position: relative;                    /* containing block for the account menu */
     z-index: var(--lp-z-header);
     display: flex;
-    flex-wrap: wrap;           /* a 5th item at 320px wraps instead of overflowing */
+    flex-wrap: wrap;                       /* safety net only: the row is built to fit at 320 */
     align-items: center;
-    gap: 0 var(--lp-space-1);
+    gap: 0;
     min-block-size: var(--lp-header-h);
+    padding-block: var(--lp-space-1);
     padding-inline: max(var(--lp-gutter), calc((100% - var(--lp-container)) / 2 + var(--lp-gutter)));
-    background: var(--_rule), var(--lp-bg-1);
   }
+  @media (min-width: 22.5em) { body > header { gap: 0 var(--lp-space-1); } }
   main {
     flex: 1 0 auto;
+    display: flex;
+    flex-direction: column;
     inline-size: min(100%, var(--lp-container));
     margin-inline: auto;
     padding-inline: var(--lp-gutter);
-    padding-block: var(--lp-space-4) max(var(--lp-space-4), env(safe-area-inset-bottom, 0px));
+    padding-block: 0 max(var(--lp-space-3), env(safe-area-inset-bottom, 0px));
   }
   footer {
-    padding: var(--lp-space-3) var(--lp-gutter) max(var(--lp-space-3), env(safe-area-inset-bottom, 0px));
+    padding: 0 var(--lp-gutter) max(var(--lp-space-1), env(safe-area-inset-bottom, 0px));
     text-align: center;
     color: var(--lp-text-dim);
-    background: linear-gradient(to right, var(--lp-line-soft) 50%, transparent 0) top / calc(var(--lp-px) * 2) var(--lp-px) repeat-x;
+    font-size: var(--lp-fs-label);
   }
-  footer a { display: inline-flex; align-items: center; min-block-size: var(--lp-tap); padding-inline: var(--lp-space-2); }
+  footer p { margin: 0; }
+  /* 44x44 target: a short word ("OPH") is only ~39px wide with padding alone */
+  footer a { display: inline-flex; align-items: center; justify-content: center; min-block-size: var(--lp-icon-btn); min-inline-size: var(--lp-icon-btn); padding-inline: var(--lp-space-2); }
+  /* the action area owns the bottom of Play and Result */
+  body[data-screen="play"] > footer, body[data-screen="result"] > footer { display: none; }
 
   .skip-link {
     position: absolute;
@@ -331,23 +364,18 @@
     padding: var(--lp-space-3) var(--lp-space-4);
     background: var(--lp-inv-bg);
     color: var(--lp-inv-text);
-    font-weight: var(--lp-fw-bold);
     translate: 0 -200%;          /* parked above the viewport but still focusable */
   }
   .skip-link:focus { translate: 0 0; }
 
-  /* Brand lock: 16x16 art. Phones: 48px (3px per art pixel) so the whole header is ONE 52px row.
-     From 48em: 64px (4px per art pixel, on the grid) and a 64px header. */
-  .lp-brand { display: flex; align-items: center; gap: var(--lp-space-2); margin-inline-end: auto; font-weight: var(--lp-fw-bold); font-size: var(--lp-fs-2); line-height: 1; }
-  .lp-brand .lp-sprite { inline-size: var(--lp-space-7); block-size: var(--lp-space-7); }
-  @media (min-width: 48em) {
-    :root { --lp-header-h: calc(var(--lp-px) * 16); }
-    .lp-brand .lp-sprite { inline-size: calc(var(--lp-px) * 16); block-size: calc(var(--lp-px) * 16); }
-  }
+  /* Brand: 16x16 lock at 2px per art pixel = 32px; wordmark from 30em (hidden below, utilities layer) */
+  .lp-brand { display: flex; align-items: center; gap: var(--lp-space-2); margin-inline-end: auto; min-inline-size: 0; font-size: var(--lp-fs-body); line-height: 1; }
+  .lp-brand .lp-sprite { inline-size: var(--lp-lock-sm); block-size: var(--lp-lock-sm); }
 
   /* Sprites. Sized in CSS only; width/height attributes are the no-CLS fallback. */
   .lp-icon, .lp-sprite { display: inline-block; flex: none; aspect-ratio: 1; color: inherit; shape-rendering: crispEdges; vertical-align: middle; }
   .lp-icon { inline-size: var(--lp-icon); block-size: var(--lp-icon); }
+  .lp-icon-sm { inline-size: var(--lp-icon-sm); block-size: var(--lp-icon-sm); }
   .lp-sprite { inline-size: calc(var(--lp-px) * 16); block-size: calc(var(--lp-px) * 16); }
   .lp-vault-door { display: grid; place-items: center; }
   .lp-vault-door .lp-sprite { inline-size: calc(var(--lp-px) * 24); block-size: calc(var(--lp-px) * 24); }
@@ -356,35 +384,30 @@
 
 /* ================================================================ components */
 @layer components {
-  /* 8x8 pixel icons as masks, for the places a CSS pseudo-element must draw one
-     (dial corner marks, checked radio/checkbox). Everything else uses sprites.svg. */
+  /* 8x8 pixel icons as masks, for the few places a CSS pseudo-element must draw one
+     (dial corner marks, checkbox tick, toast/message tone). Everything else uses sprites.svg. */
   :root {
     --_ico-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Cpath d='M7 1h1v1H7zM6 2h2v1H6zM0 3h1v1H0zM5 3h2v1H5zM0 4h2v1H0zM4 4h2v1H4zM1 5h4v1H1zM2 6h2v1H2z'/%3E%3C/svg%3E");
     --_ico-x: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h2v1H0zM6 0h2v1H6zM0 1h3v1H0zM5 1h3v1H5zM1 2h6v1H1zM2 3h4v2H2zM1 5h6v1H1zM0 6h3v1H0zM5 6h3v1H5zM0 7h2v1H0zM6 7h2v1H6z'/%3E%3C/svg%3E");
   }
 
-  /* ---- stepped-corner frame (design 4.3): four edge bars as box-shadows, the corner
-     pixels are never painted. The bars live outside the box, so the margin reserves them. */
-  :where(button, summary, input, dialog, output[data-out="code"], .lp-chip, .lp-badge, .lp-stamp, [data-timer-bar], [data-toast],
-         [data-slot="difficulty-picker"] label, [data-screen="play"] > section[aria-labelledby="play-guess-title"],
-         section[aria-labelledby="home-points-title"], [data-screen="help"] [data-mode="blood"], noscript > section) {
+  /* ---- stepped-corner frame (v1 4.3), CONTROLS ONLY (v2 10.1): buttons, inputs, difficulty options.
+     Four edge bars as box-shadows, corner pixels never painted; the margin reserves the bars. ---- */
+  :where(button, input, [data-slot="difficulty-picker"] label) {
     --_c: var(--lp-line);
     --lp-shadow-frame:
       0 calc(var(--lp-bw) * -1) 0 0 var(--_c),
       0 var(--lp-bw) 0 0 var(--_c),
       calc(var(--lp-bw) * -1) 0 0 0 var(--_c),
       var(--lp-bw) 0 0 0 var(--_c);
-    --_rf: var(--lp-shadow-frame);   /* non-inherited copy for the focus ring (see @property) */
+    --_rf: var(--lp-shadow-frame);   /* non-inherited copy for the focus ring */
     box-shadow: var(--lp-shadow-frame);
     margin: var(--lp-bw);
     border: 0;
     border-radius: 0;
   }
-  :where(.lp-chip, [data-screen="play"] > section[aria-labelledby="play-guess-title"], section[aria-labelledby="home-points-title"], [data-screen="help"] [data-mode="blood"], noscript > section) {
-    --_c: var(--lp-line-soft);
-  }
 
-  /* ---- buttons ---- */
+  /* ---- buttons: framed secondary by default, ledge only on the primary ones ---- */
   button {
     display: inline-flex;
     align-items: center;
@@ -395,80 +418,120 @@
     padding: var(--lp-space-2) var(--lp-space-4);
     background: var(--lp-bg-2);
     color: var(--lp-text);
-    font-weight: var(--lp-fw-bold);
     line-height: var(--lp-lh-tight);
-    box-shadow: var(--lp-shadow-frame), var(--lp-shadow-ledge);
+    box-shadow: var(--lp-shadow-frame);
     touch-action: manipulation;
   }
-  /* ghost: frame always present, no fill, no ledge */
-  header button, nav button, [data-action="back"], [data-action="quit"], [data-action="show-help"] {
-    background: transparent;
-    box-shadow: var(--lp-shadow-frame);
-  }
-  /* primary */
+  /* primary: accent fill + ledge. --_ledge is swapped to an equal-length zero shadow on press so it tweens. */
   [data-action="signup"], [data-action="signin"], [data-action="play-classic"], [data-action="check"],
-  [data-action="next"], [data-action="retry"], [data-action="ack-code"], button[data-mode="blood"] {
+  [data-action="next"], [data-action="retry"], [data-action="ack-code"] {
+    --_ledge: var(--lp-shadow-ledge);
     background: var(--lp-accent);
     color: var(--lp-on-accent);
+    box-shadow: var(--lp-shadow-frame), var(--_ledge);
   }
-  [data-action="play-classic"], [data-action="play-blood"], [data-action="check"] { min-block-size: calc(var(--lp-px) * 14); }
+  [data-action="signup"], [data-action="signin"], [data-action="next"], [data-action="retry"], [data-action="ack-code"] { min-block-size: var(--lp-btn-lg); }
+  [data-action="go-home"] { background: transparent; }
   /* danger confirm inside dialogs */
-  dialog [data-action="logout"], dialog [data-action="quit"] {
-    background: var(--lp-danger);
-    color: var(--lp-on-danger);
-    box-shadow: var(--lp-shadow-frame), var(--lp-shadow-ledge);
-  }
-  /* header controls are 44px (11 units) so the whole header is one 52px row at 320px */
-  header button, header summary { flex: none; min-block-size: calc(var(--lp-px) * 11); min-inline-size: calc(var(--lp-px) * 11); }
-  header button { inline-size: auto; padding-inline: var(--lp-space-1); }
-  header summary { padding-inline: var(--lp-space-1); }
-  /* 320px row budget: brand 48 + lang ~72 + sound 52 + chip 40 + account 52 + 4 gaps x 4 = ~280 of 296 */
-  @media (max-width: 47.999em) { header .lp-chip { padding-inline-end: 0; } }
+  dialog [data-action="logout"], dialog [data-action="quit"] { background: var(--lp-danger); color: var(--lp-on-danger); }
 
-  /* disabled: native attribute (out of tab order); checker + dim text, no ledge */
+  /* unframed icon buttons (header, top bar, screen head): 44px, no frame, no margin. --lp-bw: 0 makes the
+     frame shadow, the margin and the focus-ring maths collapse to nothing (ring: 2px ink + 2px white). */
+  :is(.lp-iconbtn, body > header > button, body > header summary, .lp-topbar button, .lp-screenhead button) {
+    --lp-bw: 0px;
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    inline-size: var(--lp-icon-btn);
+    min-block-size: var(--lp-icon-btn);
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--lp-text);
+  }
+  /* text links: no frame, no fill; the "I have a code" / "New player" switches */
+  :is(.lp-link, [data-action="show-signin"], [data-action="show-signup"]) {
+    --lp-bw: 0px;
+    inline-size: auto;
+    min-block-size: var(--lp-icon-btn);
+    margin: 0;
+    padding-inline: var(--lp-space-2);
+    justify-self: center;
+    background: transparent;
+    box-shadow: none;
+    color: var(--lp-accent-text);
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.2em;
+  }
+
+  /* disabled / aria-disabled: checker + dim text, no ledge (exempt from contrast, still readable) */
   button:disabled, button[aria-disabled="true"] {
     --_c: var(--lp-line-soft);
+    --_ledge: 0 0 0 0 var(--lp-ledge);
     background: var(--_chk) 0 0 / calc(var(--lp-px) * 2) calc(var(--lp-px) * 2), var(--lp-bg-2);
     color: var(--lp-text-dim);
-    box-shadow: var(--lp-shadow-frame);
     cursor: not-allowed;
   }
-  /* pressed: sinks one unit, loses the ledge, 14% ink checker */
-  button:not(:disabled):active, button[aria-pressed="true"], button[data-pressed] {
+  /* pressed: sinks one unit, ledge collapses, 14% ink checker (instant; it cannot tween) */
+  button:not(:disabled):active, button[data-pressed] {
+    --_ledge: 0 0 0 0 var(--lp-ledge);
     translate: 0 var(--lp-bw);
-    box-shadow: var(--lp-shadow-frame);
     background-image: var(--_chk);
     background-size: calc(var(--lp-px) * 2) calc(var(--lp-px) * 2);
   }
+  :is(.lp-iconbtn, body > header > button, body > header summary, .lp-topbar button, .lp-screenhead button):not(:disabled):active {
+    translate: 0 2px;
+    background-color: var(--lp-bg-2);
+    background-image: none;
+  }
   @media (hover: hover) {
-    button:not(:disabled):hover, summary:hover { --_c: var(--lp-text); }
+    button:not(:disabled):hover { --_c: var(--lp-text); }
+    :is(.lp-iconbtn, body > header > button, body > header summary, .lp-topbar button, .lp-screenhead button):hover { background: var(--lp-bg-2); }
+    .lp-link:hover, [data-action="show-signin"]:hover, [data-action="show-signup"]:hover { background: transparent; }
   }
   button[aria-busy="true"]::after { content: "..."; }
+
+  /* ---- Home mode buttons: icon | label over subline (Classic = primary, Blood = the Blood-tokens button) ---- */
+  .lp-play { display: grid; gap: var(--lp-space-1); }
+  .lp-play button {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--lp-space-3);
+    align-items: center;
+    justify-items: start;
+    min-block-size: calc(var(--lp-px) * 18);      /* 72 box (tall) */
+    padding: var(--lp-space-2) var(--lp-space-4);
+    text-align: start;
+  }
+  @media (max-height: 43.75em) { .lp-play button { min-block-size: calc(var(--lp-px) * 16); } }
+  .lp-play button > .lp-icon { grid-row: 1 / span 2; grid-column: 1; }
+  .lp-btn__label { grid-column: 2; font-size: var(--lp-fs-body); line-height: 1.1; }
+  .lp-btn__sub { grid-column: 2; font-size: var(--lp-fs-label); line-height: 1.1; }
+  /* Blood button: Blood tokens on a bg-1 fill, label in text, skull + subline in accent-text; no ledge */
+  button[data-mode="blood"] { background: var(--lp-bg-1); color: var(--lp-text); }
+  button[data-mode="blood"] .lp-icon, button[data-mode="blood"] .lp-btn__sub { color: var(--lp-accent-text); }
 
   /* ---- inputs ---- */
   input:not([type="checkbox"], [type="radio"]) {
     display: block;
     inline-size: calc(100% - var(--lp-bw) * 2);
-    min-block-size: var(--lp-tap);
+    min-block-size: var(--lp-btn-h);
     padding: var(--lp-space-2) var(--lp-space-3);
     background: var(--lp-field);
     color: var(--lp-text);
-    font-size: max(1rem, var(--lp-fs-1));          /* >= 16px: no iOS focus zoom */
+    font-size: max(1rem, var(--lp-fs-body));        /* >= 16px: no iOS focus zoom */
     box-shadow: var(--lp-shadow-frame), inset 0 var(--lp-bw) 0 0 color-mix(in srgb, var(--lp-ink) 40%, transparent);
     touch-action: manipulation;
   }
   input::placeholder { color: var(--lp-text-dim); opacity: 1; }
-  input:disabled { background: var(--_chk) 0 0 / calc(var(--lp-px) * 2) calc(var(--lp-px) * 2), var(--lp-field); color: var(--lp-text-dim); }
   input[aria-invalid="true"] { --_c: var(--lp-bad); }
-  input[data-field="code"] {
-    font-size: var(--lp-fs-3);
-    letter-spacing: 0.3em;
-    direction: ltr;
-    text-align: start;
-  }
-  label:has(+ input) { margin-block-end: var(--lp-space-2); }
+  /* alphanumeric code entry: system monospace (Jersey draws 0 and O, I and l alike) */
+  input[data-field="code"] { font-family: var(--lp-font-code); letter-spacing: 0.2em; direction: ltr; text-align: start; }
+  label:has(+ input) { margin-block-end: var(--lp-space-1); color: var(--lp-text-dim); font-size: var(--lp-fs-label); }
 
-  /* pixel checkbox */
+  /* pixel checkbox (code dialog) */
   input[type="checkbox"] {
     appearance: none;
     flex: none;
@@ -491,160 +554,109 @@
   input[type="checkbox"]:checked { background: var(--lp-accent); }
   input[type="checkbox"]:checked::before { visibility: visible; }
   p:has(> input[type="checkbox"]) { display: flex; align-items: center; gap: var(--lp-space-2); }
-  p:has(> input[type="checkbox"]) > label { flex: 1; display: flex; align-items: center; min-block-size: var(--lp-tap); margin: 0; }
+  p:has(> input[type="checkbox"]) > label { flex: 1; display: flex; align-items: center; min-block-size: var(--lp-icon-btn); margin: 0; }
 
-  /* difficulty picker: native radios, visually replaced by the label (input stays
-     in the a11y tree as an invisible full-cell overlay, so the tap target is the cell) */
-  [data-slot="difficulty-picker"] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lp-space-1); }
+  /* ---- difficulty picker: 4 options in one row; native radios stay in the a11y tree as an invisible
+     full-cell overlay (the tap target is the cell). Selected = accent fill + on-accent squares (not colour only). ---- */
+  [data-slot="difficulty-picker"] { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--lp-space-1); }
   [data-slot="difficulty-picker"] > li { position: relative; display: grid; }
   [data-slot="difficulty-picker"] input { position: absolute; inset: 0; z-index: 1; inline-size: 100%; block-size: 100%; margin: 0; opacity: 0; box-shadow: none; cursor: pointer; }
   [data-slot="difficulty-picker"] label {
-    --_c: var(--lp-line);
-    position: relative;
     display: grid;
     align-content: center;
     justify-items: center;
-    row-gap: 0;
-    min-block-size: var(--lp-btn-h);
-    margin: var(--lp-bw);
-    padding: var(--lp-space-2) var(--lp-space-3);
-    line-height: var(--lp-lh-tight);
+    row-gap: var(--lp-space-1);
+    min-block-size: calc(var(--lp-px) * 13);      /* 52 box */
+    padding: var(--lp-space-1) var(--lp-space-1);
     background: var(--lp-bg-2);
-    font-weight: var(--lp-fw-bold);
+    color: var(--lp-text);
+    line-height: var(--lp-lh-tight);
     text-align: center;
-    box-shadow: var(--lp-shadow-frame), var(--lp-shadow-ledge);
   }
   [data-slot="difficulty-picker"] input:checked + label { background: var(--lp-accent); color: var(--lp-on-accent); }
-  /* two lines (name / digit count), each a whole-word block; the second is the smaller line */
-  [data-slot="difficulty-picker"] label > span:last-child { font-size: var(--lp-fs-0); font-weight: var(--lp-fw-regular); }
-  /* non-color cue for the checked option: a check in the top corner */
-  [data-slot="difficulty-picker"] input:checked + label::before {
-    content: "";
-    position: absolute;
-    inset-block-start: calc(var(--lp-px) / 2);
-    inset-inline-end: calc(var(--lp-px) / 2);
-    inline-size: var(--lp-space-4);
-    block-size: var(--lp-space-4);
-    background-color: currentColor;
-    mask: var(--_ico-check) 0 0 / 100% 100% no-repeat;
+  /* digit-count squares: --n solid 8px squares, 4px apart */
+  .lp-dig {
+    display: block;
+    inline-size: calc(var(--n, 3) * var(--lp-seg) - var(--lp-px));
+    block-size: var(--lp-space-2);
+    background: repeating-linear-gradient(90deg, currentColor 0 var(--lp-space-2), transparent 0 var(--lp-seg));
+    color: var(--lp-text-dim);
   }
-  [data-slot="difficulty-picker"] input:disabled + label { color: var(--lp-text-dim); background: var(--_chk) 0 0 / calc(var(--lp-px) * 2) calc(var(--lp-px) * 2), var(--lp-bg-2); --_c: var(--lp-line-soft); }
+  [data-slot="difficulty-picker"] input:checked + label .lp-dig { color: var(--lp-on-accent); }
   @media (hover: hover) { [data-slot="difficulty-picker"] input:not(:disabled):hover + label { --_c: var(--lp-text); } }
 
-  /* ---- account disclosure (header) ---- */
-  /* The menu is positioned against the HEADER (sticky = containing block), not against the summary:
-     it hangs from the header's inline-end edge, so it stays inside the viewport whatever the summary's
-     position or direction (EN/AR, left/middle/right of a wrapped header). */
-  summary {
-    display: flex;
-    align-items: center;
-    gap: var(--lp-space-1);
-    min-block-size: var(--lp-tap);
-    min-inline-size: var(--lp-tap);
-    padding-inline: var(--lp-space-2);
-    list-style: none;
-    cursor: pointer;
-    touch-action: manipulation;
-  }
+  /* ---- account menu (header): the summary is an unframed avatar button; the panel hangs from the
+     header's inline-end edge (header = containing block), so it can never leave the viewport. ---- */
+  summary { list-style: none; cursor: pointer; touch-action: manipulation; }
   summary::-webkit-details-marker { display: none; }
-  details[open] > summary { background: var(--lp-bg-2); }
-  details[data-account] > button {
+  details[data-account] > summary .lp-icon { margin: 0; }
+  /* block-level grid, not inline-grid: an inline box sits on a text baseline and made the closed <details> 47px high */
+  details[data-account] > summary { display: grid; }
+  /* BUG FIX: the panel paints (padding, bg, ledge lip) only while OPEN. Styling it in the closed state left an
+     empty 208x16 box under the header even though its content is hidden. */
+  details[data-account]:not([open])::details-content { content-visibility: hidden; block-size: 0; padding: 0; border: 0; background: none; box-shadow: none; }
+  details[data-account]:not([open]) > :not(summary) { display: none; }
+  details[data-account][open]::details-content {
     position: absolute;
     inset-block-start: 100%;
     inset-inline-end: var(--lp-gutter);
     z-index: 1;
-    inline-size: calc(100% - 2 * var(--lp-gutter) - 2 * var(--lp-bw));   /* phones: full-width row under the header */
-    margin-block-start: var(--lp-space-1);
+    display: grid;
+    gap: var(--lp-space-2);
+    min-inline-size: min(12rem, calc(100% - 2 * var(--lp-gutter)));
+    max-inline-size: calc(100% - 2 * var(--lp-gutter));
+    padding: var(--lp-space-2);
     background: var(--lp-bg-1);
+    box-shadow: 0 var(--lp-space-1) 0 0 var(--lp-ledge);      /* 4px lip, no frame */
   }
-  @media (min-width: 30em) {
-    details[data-account] > button { inline-size: max-content; min-inline-size: 12rem; max-inline-size: calc(100% - 2 * var(--lp-gutter) - 2 * var(--lp-bw)); }
+  details[data-account] > :not(summary):is(p, div, span) { display: flex; align-items: center; min-block-size: var(--lp-icon-btn); padding-inline: var(--lp-space-2); overflow-wrap: anywhere; }
+  /* browsers without ::details-content: only the Log out button is positioned (the name stays in the summary's name) */
+  @supports not selector(::details-content) {
+    details[data-account] > button { position: absolute; inset-block-start: 100%; inset-inline-end: var(--lp-gutter); z-index: 1; inline-size: max-content; min-inline-size: 12rem; background: var(--lp-bg-1); }
+    details[data-account] > :not(summary):is(p, div, span) { display: none; }
   }
 
-  /* ---- chip, badge, stamp ---- */
-  .lp-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--lp-space-2);
-    min-block-size: var(--lp-icon);
-    padding-inline-end: var(--lp-space-2);
-    background: var(--lp-bg-2);
-    font-size: var(--lp-fs-0);
-    line-height: 1;
-  }
-  .lp-chip .lp-icon { margin: 0; }
-  :is(.lp-chip[data-status="synced"], .lp-chip:has([data-status="synced"])) .lp-icon { color: var(--lp-ok); }
-  :is(.lp-chip[data-status="saving"], .lp-chip:has([data-status="saving"])) .lp-icon { color: var(--lp-info); }
+  /* ---- sync chip: icon only, and only when attention is needed (CIRCUIT hides it for synced/saving) ---- */
+  .lp-chip { display: inline-flex; align-items: center; flex: none; min-block-size: var(--lp-icon-btn); margin: 0; line-height: 1; }
   :is(.lp-chip[data-status="offline"], .lp-chip:has([data-status="offline"])) .lp-icon { color: var(--lp-bad); }
-  :is(.lp-chip[data-status="local"], .lp-chip:has([data-status="local"])) .lp-icon { color: var(--lp-text-dim); }
-
-  .lp-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--lp-space-2);
-    min-block-size: var(--lp-icon);
-    padding: var(--lp-space-1) var(--lp-space-3);
-    background: var(--lp-bg-2);
-    font-size: var(--lp-fs-0);
-    font-weight: var(--lp-fw-bold);
-    line-height: 1;
-  }
-  body[data-mode="blood"] .lp-badge, body[data-mode="blood"] .lp-badge .lp-icon { color: var(--lp-accent-text); }
-  .lp-icon--when-blood, .lp-icon--when-selected { display: none; }
-  body[data-mode="blood"] .lp-icon--when-blood, [aria-selected="true"] > .lp-icon--when-selected { display: inline-block; }
-
-  .lp-stamp {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--lp-space-3);
-    padding: var(--lp-space-4);
-    background: var(--lp-bg-1);
-    font-size: var(--lp-fs-4);
-    font-weight: var(--lp-fw-bold);
-    line-height: var(--lp-lh-tight);
-    text-align: center;
-  }
-  [data-screen="result"]:has([data-lock="success"]) .lp-stamp { --_c: var(--lp-ok); }
-  [data-screen="result"]:has([data-lock="fail"]) .lp-stamp { --_c: var(--lp-bad); }
-  [data-screen="result"]:has([data-lock="success"]) .lp-stamp .lp-icon { color: var(--lp-ok); }
-  [data-screen="result"]:has([data-lock="fail"]) .lp-stamp .lp-icon { color: var(--lp-bad); }
+  :is(.lp-chip[data-status="local"], .lp-chip:has([data-status="local"])) .lp-icon { color: var(--lp-info); }
 
   /* ---- error line: icon is a sibling of the live region, never inside it ---- */
-  .lp-error { display: flex; align-items: center; gap: var(--lp-space-2); color: var(--lp-bad); font-weight: var(--lp-fw-bold); }
+  .lp-error { display: flex; align-items: center; gap: var(--lp-space-2); color: var(--lp-bad); }
+  .lp-error .lp-icon { inline-size: var(--lp-icon-sm); block-size: var(--lp-icon-sm); }
   /* Collapse with size, never display:none, so role=alert announcements stay reliable. */
   .lp-error:has(> [data-error]:empty) { block-size: 0; overflow: hidden; margin-block-start: calc(var(--_g, 0px) * -1); }
   .lp-error:has(> [data-error]:empty) .lp-icon--when-error { display: none; }
   p[data-out="msg"]:empty { block-size: 0; overflow: hidden; margin-block-start: calc(var(--_g, 0px) * -1); }
 
-  /* status messages written by say(): tone is a hook, text + icon carry it (never color alone) */
+  /* status messages written by say(): tone is a hook, text + icon carry it (never colour alone) */
   [data-out="msg"][data-tone="ok"] { color: var(--lp-ok); }
   [data-out="msg"][data-tone="bad"] { color: var(--lp-bad); }
   [data-out="msg"][data-tone="ok"]::before, [data-out="msg"][data-tone="bad"]::before, [data-toast][data-tone="ok"]::before, [data-toast][data-tone="bad"]::before {
     content: "";
     display: inline-block;
     flex: none;
-    inline-size: var(--lp-space-4);
-    block-size: var(--lp-space-4);
+    inline-size: var(--lp-icon-sm);
+    block-size: var(--lp-icon-sm);
     margin-inline-end: var(--lp-space-2);
-    vertical-align: -0.15em;
+    vertical-align: -0.1em;
     background-color: currentColor;
     mask: var(--_ico-check) 0 0 / 100% 100% no-repeat;
   }
   [data-out="msg"][data-tone="bad"]::before, [data-toast][data-tone="bad"]::before { mask-image: var(--_ico-x); }
-  .lp-stamp [data-out="msg"]::before { display: none; }
+  h1[data-out="msg"]::before { display: none; }
 
-  /* ---- dials + keypad (always LTR: position 1 is the left dial in both languages) ---- */
-  [data-slot="dials"], [data-slot="keypad"] {
+  /* ---- dials + keypad + actions share one 5-column grid of --lp-dial-cell, so keys sit under dials.
+     Always LTR: position 1 is the left dial in both languages. ---- */
+  [data-slot="dials"], [data-slot="keypad"], main > [data-screen="play"] menu {
     display: grid;
-    gap: var(--lp-space-1);
+    column-gap: var(--lp-dock-gap);
+    row-gap: var(--lp-dock-gap);
+    justify-content: center;
     direction: ltr;
-    inline-size: min(100%, calc(var(--lp-px) * 104));
-    margin-inline: auto;
   }
-  /* cell = box + 2 frame bars; 5 cells + 4 gaps = 296px at 320 -> 48px boxes */
-  [data-slot="dials"] { grid-template-columns: repeat(var(--lp-n), minmax(0, calc(var(--lp-px) * 20))); justify-content: center; }
-  [data-slot="keypad"] { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  [data-slot="dials"] { grid-template-columns: repeat(var(--lp-n), minmax(0, var(--lp-dial-cell))); }
+  [data-slot="keypad"], main > [data-screen="play"] menu { grid-template-columns: repeat(5, minmax(0, var(--lp-dial-cell))); }
   [data-slot="dials"] > button, [data-slot="keypad"] > button {
     padding: 0;
     font-family: var(--lp-font-latin);
@@ -659,11 +671,11 @@
     box-shadow: var(--lp-shadow-frame), inset 0 var(--lp-bw) 0 0 color-mix(in srgb, var(--lp-ink) 40%, transparent);
   }
   [data-slot="keypad"] > button { min-block-size: var(--lp-key-h); font-size: var(--lp-fs-key); }
-  /* idle/selected cursor bar under the digit (non-color cue for the selected dial) */
+  /* idle/selected cursor bar under the digit (non-colour cue for the selected dial) */
   [data-slot="dials"] > button:not([data-state="filled"], [data-state="correct"], [data-state="wrong"])::after {
     content: "";
     position: absolute;
-    inset-block-end: var(--lp-space-2);
+    inset-block-end: var(--lp-space-1);
     inset-inline-start: calc(50% - var(--lp-px) * 1.5);
     inline-size: var(--lp-space-3);
     block-size: var(--lp-px);
@@ -678,74 +690,62 @@
     position: absolute;
     inset-block-start: calc(var(--lp-px) / 2);
     inset-inline-end: calc(var(--lp-px) / 2);
-    inline-size: var(--lp-space-4);
-    block-size: var(--lp-space-4);
+    inline-size: var(--lp-icon-sm);
+    block-size: var(--lp-icon-sm);
     background-color: var(--_c);
     mask: var(--_ico-check) 0 0 / 100% 100% no-repeat;
   }
   [data-slot="dials"] > button[data-state="wrong"]::before { mask-image: var(--_ico-x); }
   [data-slot="dials"] > button:is([aria-disabled="true"], [data-state="correct"]) { cursor: default; }
-  @media (min-width: 80em) { :root { --lp-dial-h: calc(var(--lp-px) * 20); } }
+  /* actions row: Clear | Check (3 columns) | Hint or Skip */
+  main > [data-screen="play"] menu > li:nth-child(1) { grid-column: 1; }
+  main > [data-screen="play"] menu > li:nth-child(2) { grid-column: 2 / 5; }
+  main > [data-screen="play"] menu > li:nth-child(n + 3) { grid-column: 5; }
+  main > [data-screen="play"] menu button { min-block-size: var(--lp-key-h); padding-inline: var(--lp-space-1); }
+  main > [data-screen="play"] menu button .lp-icon { margin: 0; }
+  main > [data-screen="play"] menu [data-action="check"] { font-size: var(--lp-fs-body); }
 
-  /* wrong guesses so far: compact wrap of small chips; capped at ~2 rows, scrolls inside beyond that */
-  [data-slot="attempts"] {
+  /* wrong guesses: kept for assistive tech only (visually hidden in utilities); the count is in the top bar */
+
+  /* ---- Play top bar: quit | lock | difficulty ........ timer | wrong | sound ---- */
+  .lp-topbar {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     gap: var(--lp-space-1);
-    max-block-size: calc(var(--lp-px) * 19);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    direction: ltr;
-    justify-content: center;
-    font-size: var(--lp-fs-0);
-    line-height: 1;
+    min-block-size: var(--lp-topbar-h);
+    padding-block: var(--lp-space-1);
+    padding-inline: var(--lp-gutter);
+    font-size: var(--lp-fs-body);
   }
-  [data-slot="attempts"]:empty { display: none; }
-  [data-slot="attempts"] > li {
-    --_c: var(--lp-line-soft);
-    margin: var(--lp-bw);
-    padding: var(--lp-space-1) var(--lp-space-2);
-    background: var(--lp-bg-2);
-    color: var(--lp-text-dim);
-    box-shadow: 0 calc(var(--lp-bw) * -1) 0 0 var(--_c), 0 var(--lp-bw) 0 0 var(--_c), calc(var(--lp-bw) * -1) 0 0 0 var(--_c), var(--lp-bw) 0 0 0 var(--_c);
-    white-space: nowrap;
-  }
-
-  /* ---- timer (Blood bar, Classic plain text); data-phase/data-urgent live on the <dd> and the bar ---- */
-  dd:has(> output[data-out="timer"]) { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: var(--lp-space-2); }
+  /* the four top-bar groups are p[data-topbar]: difficulty | timer | wrong | solved. Numbers inside are always LTR. */
+  .lp-topbar > p[data-topbar] { display: inline-flex; align-items: center; gap: var(--lp-space-1); flex: none; margin: 0; padding-inline: var(--lp-space-1); direction: ltr; unicode-bidi: isolate; }
+  .lp-topbar > p[data-topbar="difficulty"] { flex: 0 1 auto; min-inline-size: 0; margin-inline-end: auto; padding-inline: 0; }
+  .lp-topbar > p[data-topbar="solved"] { color: var(--lp-accent-text); font-size: var(--lp-fs-label); }
+  .lp-topbar [data-lock] .lp-sprite { inline-size: var(--lp-lock-sm); block-size: var(--lp-lock-sm); }
   output[data-out="timer"] {
-    position: relative;
-    isolation: isolate;
-    font-size: var(--lp-fs-3);
+    font-size: var(--lp-fs-timer);
     line-height: 1;
+    font-variant-numeric: tabular-nums;     /* Jersey 10 ships tnum: digits never jitter */
     direction: ltr;
     unicode-bidi: isolate;
     white-space: nowrap;
   }
-  /* dark-only scanlines BEHIND the readout (z-index -1 inside an isolated context) */
-  output[data-out="timer"]::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    background: repeating-linear-gradient(to bottom, transparent 0 calc(var(--lp-px) - 1px), var(--_scan) 0 var(--lp-px));
-  }
-  body[data-mode="blood"] output[data-out="timer"] { font-size: var(--lp-fs-6); }
-  dd[data-urgent] output[data-out="timer"] { font-weight: var(--lp-fw-bold); color: var(--lp-accent-text); }
+  body[data-mode="blood"] output[data-out="timer"] { font-size: var(--lp-fs-timer-blood); }
+  [data-urgent] output[data-out="timer"] { color: var(--lp-accent-text); }
   .lp-timer-icon__skull { display: none; }
-  dd:is([data-phase="last30"], [data-phase="last10"]) .lp-timer-icon__clock { display: none; }
-  dd:is([data-phase="last30"], [data-phase="last10"]) .lp-timer-icon__skull { display: inline; }
+  :is([data-phase="last30"], [data-phase="last10"]) .lp-timer-icon__clock { display: none; }
+  :is([data-phase="last30"], [data-phase="last10"]) .lp-timer-icon__skull { display: inline; }
+  .lp-icon--when-blood, .lp-icon--when-selected { display: none; }
+  body[data-mode="blood"] .lp-icon--when-blood, [aria-selected="true"] > .lp-icon--when-selected { display: inline-block; }
+  .lp-topbar .lp-icon--when-blood { color: var(--lp-accent-text); }
 
-  /* 18 segments x 3 units; the fill is drawn from --lp-timer-left (0..18) */
+  /* Blood only: 18 segments x 12px, unframed 8px strip under the bar; the fill is drawn from --lp-timer-left (0..18) */
   [data-timer-bar] {
-    grid-column: 1 / -1;
     display: block;
     flex: none;
-    inline-size: calc(var(--lp-seg) * 18);
-    max-inline-size: 100%;
-    block-size: var(--lp-space-1);
-    margin: var(--lp-space-2);
+    inline-size: min(100%, calc(var(--lp-seg) * 18));
+    block-size: var(--lp-space-2);
+    margin: 0 auto;
     direction: ltr;
     background:
       repeating-linear-gradient(to right, var(--lp-line-soft) 0 calc(var(--lp-seg) - var(--lp-px)), transparent 0 var(--lp-seg)),
@@ -756,118 +756,98 @@
     display: block;
     inline-size: calc(var(--lp-timer-left) * var(--lp-seg));
     block-size: 100%;
-    background: repeating-linear-gradient(to right, var(--lp-meter) 0 calc(var(--lp-seg) - var(--lp-px)), transparent 0 var(--lp-seg));
+    background: repeating-linear-gradient(to right, var(--_seg, var(--lp-meter)) 0 calc(var(--lp-seg) - var(--lp-px)), transparent 0 var(--lp-seg));
   }
-  /* last30: structural change (hatch), not a hue change; last10: static 2-unit text-colored frame
-     (the pulse in the motion block only alternates this frame's color) */
+  /* last30: structural change (hatch), not only a hue change */
   [data-timer-bar]:is([data-phase="last30"], [data-phase="last10"])::before {
     background:
       var(--_chk) 0 0 / calc(var(--lp-px) * 2) calc(var(--lp-px) * 2),
-      repeating-linear-gradient(to right, var(--lp-meter) 0 calc(var(--lp-seg) - var(--lp-px)), transparent 0 var(--lp-seg));
+      repeating-linear-gradient(to right, var(--_seg, var(--lp-meter)) 0 calc(var(--lp-seg) - var(--lp-px)), transparent 0 var(--lp-seg));
   }
-  [data-timer-bar][data-phase="last10"] { --lp-bw: calc(var(--lp-px) * 2); --_c: var(--lp-text); }
+  /* last10: the timer group gets a static 1-unit frame (the 1 Hz alternation is in the motion block) */
+  .lp-topbar > [data-phase="last10"] {
+    --_c: var(--lp-accent-text);
+    box-shadow: 0 calc(var(--lp-bw) * -1) 0 0 var(--_c), 0 var(--lp-bw) 0 0 var(--_c), calc(var(--lp-bw) * -1) 0 0 0 var(--_c), var(--lp-bw) 0 0 0 var(--_c);
+  }
 
   /* ---- lock host: both <use> present, only the active one shows ---- */
-  .lp-lock { display: inline-grid; place-items: center; }
+  .lp-lock { display: inline-grid; place-items: center; flex: none; }
   .lp-lock__open { display: none; }
   [data-lock="success"] .lp-lock__closed { display: none; }
   [data-lock="success"] .lp-lock__open { display: inline; }
 
-  /* ---- clue cards: newest on top, start bar is decor ---- */
-  [data-slot="clues"] { display: grid; gap: var(--lp-space-2); }
-  [data-slot="clues"] > li {
-    contain: layout paint;   /* no focusable content and the frames sit inside their margins */
+  /* ---- clue rows (also the Help legend): flat bands, always LTR so digit i sits above dial i ---- */
+  [data-slot="clues"] { display: grid; gap: var(--lp-row-gap); align-content: start; }
+  :is([data-slot="clues"], .lp-example) > li {
+    contain: layout paint;
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: var(--lp-space-1);
-    padding: var(--lp-space-3);
-    background: var(--lp-bg-2);
-    border-inline-start: var(--lp-bw) solid var(--lp-line-soft);
-  }
-  [data-slot="clues"] > li::before {
-    content: "#" attr(data-n);
-    flex: none;
-    min-inline-size: 3ch;
-    color: var(--lp-text-dim);
-    font-size: var(--lp-fs-0);
+    min-block-size: var(--lp-row-h);
+    padding-inline: var(--lp-space-3);
+    background: var(--lp-bg-1);
     direction: ltr;
     unicode-bidi: isolate;
   }
-  [data-slot="clues"] .digit {
-    display: grid;
-    place-items: center;
+  :is([data-slot="clues"], .lp-legend, .lp-example) .digit {
     flex: none;
-    inline-size: var(--lp-space-6);
-    block-size: var(--lp-space-6);
-    margin: var(--lp-bw);
-    background: var(--lp-field);
-    box-shadow: var(--lp-shadow-frame);
-    font-family: var(--lp-font-latin);
-    font-size: var(--lp-fs-2);
+    inline-size: calc(var(--lp-px) * 5);       /* 20 */
+    text-align: center;
+    font-size: var(--lp-fs-body);
     line-height: 1;
-    direction: ltr;
+    color: var(--lp-text);
   }
-  [data-slot="clues"] .clue-text { flex: 1 1 8rem; min-inline-size: 0; overflow-wrap: anywhere; }
-  [data-slot="clues"] > li[data-kind="feedback"] .clue-text { flex-basis: 100%; color: var(--lp-text-dim); font-size: var(--lp-fs-0); }
-  /* Feedback clues: the guess digits and the pips are one LTR row, in the same x-order as the dial row
-     (digit i sits where dial i sits, in Arabic too). The li is a flat flex row (no wrapper element), so
-     the whole card is forced LTR and only the sentence goes back to the page direction. */
-  [data-slot="clues"] > li[data-kind="feedback"] { direction: ltr; unicode-bidi: isolate; }
-  [data-slot="clues"] > li[data-kind="feedback"] .clue-text { direction: inherit; unicode-bidi: isolate; }
-  :root[dir="rtl"] [data-slot="clues"] > li[data-kind="feedback"] .clue-text { direction: rtl; text-align: start; }
-  /* the decorative start bar must stay on the RTL start (right) edge like the other card kinds */
-  :root[dir="rtl"] [data-slot="clues"] > li[data-kind="feedback"] { border-inline-start: 0; border-inline-end: var(--lp-bw) solid var(--lp-line-soft); }
-  /* single values that may carry ids or digits inside RTL text */
-  [data-out="puzzle-no"], [data-out="attempts-left"] { display: inline-block; direction: ltr; unicode-bidi: isolate; }
-  /* pips: SHAPE carries the meaning. right = filled, wrong = hollow */
-  [data-pip] { display: inline-block; flex: none; inline-size: var(--lp-space-3); block-size: var(--lp-space-3); margin-inline-end: var(--lp-space-1); vertical-align: middle; }
-  [data-slot="clues"] [data-pip] { margin: 0; }
-  [data-pip="right"] { background: var(--lp-ok); }
-  [data-pip="wrong"] { border: var(--lp-bw) solid var(--lp-info); }
+  /* pips: SHAPE carries the meaning, one colour. filled = right place, hollow = right digit wrong place */
+  [data-pip] { display: inline-block; flex: none; inline-size: var(--lp-space-3); block-size: var(--lp-space-3); box-sizing: border-box; }
+  [data-pip="right"] { background: var(--lp-text); }
+  [data-pip="wrong"] { border: var(--lp-px) solid var(--lp-text); }
+  .digit + [data-pip], .digit + .lp-icon { margin-inline-start: var(--lp-space-4); }
+  [data-pip] + [data-pip] { margin-inline-start: var(--lp-space-1); }
+  :is([data-slot="clues"], .lp-legend, .lp-example) :is(.lp-icon, .lp-icon-sm) { inline-size: var(--lp-icon-sm); block-size: var(--lp-icon-sm); color: var(--lp-text-dim); }
+  /* symbol text (= 12, 2nd: even, 1st > 2nd) is LTR in both languages so ">" never mirrors */
+  .sym { font-size: var(--lp-fs-body); line-height: 1; direction: ltr; unicode-bidi: isolate; white-space: nowrap; }
+  :is([data-slot="clues"], .lp-legend, .lp-example) .sym { margin-inline-start: var(--lp-space-3); }
+  /* the full sentence stays for assistive tech (visually hidden in utilities) */
+  @container (min-width: 28rem) { [data-slot="clues"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
-  /* ---- tabs ---- */
+  /* ---- tabs (Board) ---- */
   [role="tablist"] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lp-space-1); }
-  [role="tab"][aria-selected="true"] { background: var(--lp-accent); color: var(--lp-on-accent); translate: 0 var(--lp-bw); box-shadow: var(--lp-shadow-frame); }
+  [role="tab"] { min-block-size: calc(var(--lp-px) * 12); }
+  [role="tab"][aria-selected="true"] { background: var(--lp-accent); color: var(--lp-on-accent); translate: 0 var(--lp-bw); }
 
-  /* ---- leaderboard table: fixed layout so 20-char names wrap and never widen the page ---- */
-  table { inline-size: 100%; table-layout: fixed; }
-  caption { padding-block-end: var(--lp-space-2); color: var(--lp-text-dim); font-size: var(--lp-fs-0); text-align: start; }
-  th, td { padding: var(--lp-space-2) var(--lp-space-1); text-align: start; vertical-align: baseline; }
-  thead th { color: var(--lp-text-dim); font-size: var(--lp-fs-0); font-weight: var(--lp-fw-bold); background: var(--_rule); }
-  /* F-13: the rank column must hold the longest header word on one line ("الترتيب" is about 52px at 15.75px bold) */
-  thead th:first-child { inline-size: calc(var(--lp-px) * 18); overflow-wrap: normal; }
-  thead th:last-child, tbody td:last-child { inline-size: calc(var(--lp-px) * 28); text-align: end; }
-  /* isolate only: forcing direction:ltr here would flip text-align:end to the wrong edge in RTL */
+  /* ---- leaderboard: flat row bands 4px apart; fixed layout so a 20-char name wraps and never widens the page ---- */
+  table { inline-size: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0 var(--lp-space-1); }
+  caption { padding-block-end: var(--lp-space-1); color: var(--lp-text-dim); font-size: var(--lp-fs-label); text-align: start; }
+  th, td { padding: var(--lp-space-2); text-align: start; vertical-align: middle; }
+  thead th { padding-block: 0; color: var(--lp-text-dim); font-size: var(--lp-fs-label); }
+  thead th:first-child { inline-size: calc(var(--lp-px) * 12); overflow-wrap: normal; }
+  thead th:last-child, tbody td:last-child { inline-size: calc(var(--lp-px) * 20); text-align: end; }
   tbody td { unicode-bidi: isolate; }
-  tbody tr { background: var(--_rule); }
-  tbody th { font-weight: var(--lp-fw-regular); }
-  /* own row: fill + start bar + the "YOU" text badge (never color only) */
-  tbody tr[data-self] { background: var(--lp-bg-2); font-weight: var(--lp-fw-bold); }
-  tbody tr[data-self] > :first-child { background: linear-gradient(var(--lp-accent), var(--lp-accent)) left / var(--lp-bw) 100% no-repeat; }
-  [dir="rtl"] tbody tr[data-self] > :first-child { background-position: right; }
-  tbody tr[data-self] th > span { display: inline-block; margin-inline: var(--lp-space-2) var(--lp-bw); padding-inline: var(--lp-space-1); background: var(--lp-accent); color: var(--lp-on-accent); font-size: var(--lp-fs-0); box-shadow: var(--lp-shadow-frame); }
+  tbody tr > * { background: var(--lp-bg-1); block-size: var(--lp-icon-btn); }
+  /* own row: bg-2 fill (text stays --lp-text), 4px accent start bar, and a "You" mark (never colour only) */
+  tbody tr[data-self] > * { background: var(--lp-bg-2); }
+  tbody tr[data-self] > :first-child { background: linear-gradient(var(--lp-accent), var(--lp-accent)) left / var(--lp-bw) 100% no-repeat, var(--lp-bg-2); }
+  [dir="rtl"] tbody tr[data-self] > :first-child { background-position: right, 0 0; }
+  tbody tr[data-self] th > span { display: inline-block; margin-inline-start: var(--lp-space-2); padding-inline: var(--lp-space-1); background: var(--lp-accent); color: var(--lp-on-accent); font-size: var(--lp-fs-label); }
 
-  /* ---- toast (CIRCUIT appends body > [data-toast][role=status]; empty = hidden).
-     Parked under the header, not above the dock: it can never cover Check/the keypad and it
-     stays visible when a mobile keyboard is open. ---- */
+  /* ---- global toast (CIRCUIT appends body > [data-toast][role=status]; empty = hidden). Parked under the header:
+     it never covers the dock, and stays visible when a mobile keyboard is open. Flat, no frame. ---- */
   [data-toast] {
     position: fixed;
-    inset-block-start: calc(var(--lp-header-h) + var(--lp-space-3));
+    inset-block-start: calc(var(--lp-header-h) + var(--lp-space-2));
     inset-inline: var(--lp-gutter);
     z-index: var(--lp-z-toast);
     inline-size: min(calc(100% - 2 * var(--lp-gutter)), 28rem);
     margin-inline: auto;
     display: flex;
     align-items: center;
-    padding: var(--lp-space-3) var(--lp-space-4);
+    padding: var(--lp-space-2) var(--lp-space-3);
     background: var(--lp-inv-bg);
     color: var(--lp-inv-text);
-    font-weight: var(--lp-fw-bold);
+    border-inline-start: var(--lp-space-1) solid var(--lp-accent);   /* edge cue, since the dark slab is a raised surface not a white bar */
   }
   [data-toast]:empty { display: none; }
 
-  /* ---- dialog: frame + dither "shadow" drawn in the border area (so overflow:auto cannot clip it) ---- */
+  /* ---- dialog: flat bg-1 panel with one 8px ledge lip, no frame, no dither ---- */
   dialog {
     --_g: var(--lp-space-3);
     inline-size: min(calc(100% - 2 * var(--lp-gutter)), 28rem);
@@ -875,18 +855,15 @@
     margin: auto;
     padding: var(--lp-space-4);
     border: 0;
-    border-inline-end: var(--lp-space-2) solid transparent;
-    border-block-end: var(--lp-space-2) solid transparent;
     overflow: auto;
     overscroll-behavior: contain;
     color: var(--lp-text);
-    background:
-      linear-gradient(var(--lp-bg-1), var(--lp-bg-1)) padding-box,
-      var(--_chk50) 0 0 / calc(var(--lp-px) * 2) calc(var(--lp-px) * 2) border-box;
+    background: var(--lp-bg-1);
+    box-shadow: 0 var(--lp-space-2) 0 0 var(--lp-ledge);
   }
   dialog[open] { display: grid; gap: var(--_g); align-content: start; }
   dialog::backdrop { background: var(--lp-scrim, rgb(0 0 0 / 0.8)); }
-  dialog h2 { font-size: var(--lp-fs-3); }
+  dialog h2 { font-size: var(--lp-fs-h2); }
   dialog > form { display: grid; gap: var(--_g); }
   dialog menu { display: grid; gap: var(--lp-space-1); }
   @media (min-width: 30em) {
@@ -898,234 +875,299 @@
     padding: var(--lp-space-3);
     padding-inline-start: calc(var(--lp-space-3) + 0.3em);   /* balances the trailing letter-space */
     background: var(--lp-field);
-    font-family: var(--lp-font-latin);
-    font-size: var(--lp-fs-5);
-    letter-spacing: 0.3em;
+    font-size: var(--lp-fs-code);
+    letter-spacing: 0.3em;          /* the one place tracking is allowed: digits, not shaped text */
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
     text-align: center;
     direction: ltr;
     unicode-bidi: isolate;
-    user-select: all;    /* the code must stay selectable/copyable */
+    user-select: all;               /* the code must stay selectable/copyable */
   }
 
-  /* ---- motion (opt-in; the static equivalents above are the default) ---- */
+  /* Help example: the only <details> besides the account menu. Flat band summary, + / - marker. */
+  details:not([data-account]) > summary {
+    display: flex;
+    align-items: center;
+    min-block-size: var(--lp-btn-h);
+    padding-inline: var(--lp-space-3);
+    background: var(--lp-bg-1);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  details:not([data-account]) > summary::after { content: "+"; margin-inline-start: auto; }
+  details:not([data-account])[open] > summary::after { content: "\2212"; }
+
+  /* ---- Result score hooks (the count-up itself is JS): fixed box + tabular digits so it never reflows ---- */
+  main > [data-screen="result"] [data-out="score"], main > [data-screen="result"] [data-out="bloodpoints"], .lp-count {
+    display: inline-block;
+    min-inline-size: 4ch;
+    font-variant-numeric: tabular-nums;
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+
+  /* ---- motion (v2 7): opt-in. Default and `reduce` are the identical final states, instantly.
+     Only transform/translate/scale/opacity/background-color/box-shadow move; sprites keep steps(). ---- */
   @media (prefers-reduced-motion: no-preference) {
+    :root { interpolate-size: allow-keywords; }
     @keyframes lp-shake { 0%, 100% { translate: 0 0; } 20%, 60% { translate: calc(var(--lp-px) * -1) 0; } 40%, 80% { translate: var(--lp-px) 0; } }
     @keyframes lp-hop { 0%, 49.9% { translate: 0 calc(var(--lp-px) * -2); } 50%, 100% { translate: 0 0; } }
-    @keyframes lp-pulse { 0%, 49.9% { --_pulse: var(--lp-line); } 50%, 100% { --_pulse: var(--lp-text); } }
+    @keyframes lp-pulse { 0%, 49.9% { --_pulse: var(--lp-meter); } 50%, 100% { --_pulse: var(--lp-text); } }
     @keyframes lp-dots { 0% { clip-path: inset(0 100% 0 0); } 33% { clip-path: inset(0 66% 0 0); } 66% { clip-path: inset(0 33% 0 0); } 100% { clip-path: inset(0); } }
-    @keyframes lp-toast-in { from { translate: 0 calc(var(--lp-px) * -1); } to { translate: 0 0; } }
+    @keyframes lp-rise { from { opacity: 0; translate: 0 8px; } }
+    @keyframes lp-fill { from { scale: 0.94; } to { scale: 1; } }
+    @keyframes lp-fill-b { from { scale: 0.94; } to { scale: 1; } }
+    @keyframes lp-toast-in { from { opacity: 0; translate: 0 8px; } }
+    @keyframes lp-menu-in { from { opacity: 0; translate: 0 -4px; } }
+    @keyframes lp-vt-out { to { opacity: 0; } }
+    @keyframes lp-vt-in { from { opacity: 0; transform: translateY(8px); } }
+
+    /* screen change (View Transitions; CIRCUIT only starts one when motion is allowed). Header keeps its own name so it does not flicker. */
+    body > header { view-transition-name: lp-header; }
+    ::view-transition-old(root) { animation: lp-vt-out var(--lp-dur-release) var(--lp-ease-in) both; }
+    ::view-transition-new(root) { animation: lp-vt-in var(--lp-dur-screen) var(--lp-ease-out) both; }
+
+    /* buttons: eased press / release. Equal-length shadow lists (ledge collapses to 0) so box-shadow tweens. */
+    button { transition: translate var(--lp-dur-release) var(--lp-ease-out), box-shadow var(--lp-dur-release) var(--lp-ease-out), background-color var(--lp-dur-release) var(--lp-ease-out); }
+    button:active { transition-duration: var(--lp-dur-press); }
+    /* dials: a small settle when a digit lands (two names so selected -> filled restarts it) */
+    [data-slot="dials"] > button[data-state="selected"] { animation: lp-fill var(--lp-dur-base) var(--lp-ease-out) 1; }
+    [data-slot="dials"] > button[data-state="filled"] { animation: lp-fill-b var(--lp-dur-base) var(--lp-ease-out) 1; }
+    /* lock: success hop (after 160ms on Result so it reads "opens as you arrive"), fail shake; sprites keep steps() */
     [data-lock="fail"], [data-slot="dials"] > button[data-state="wrong"] { animation: lp-shake var(--lp-dur-4) var(--lp-ease-hold) 1; }
     [data-lock="success"] { animation: lp-hop 320ms var(--lp-ease-hold) 1; }
-    [data-timer-bar][data-phase="last10"] { --_c: var(--_pulse); animation: lp-pulse 1000ms steps(1, end) infinite; }
+    main > [data-screen="result"] [data-lock="success"] { animation-delay: 160ms; }
+    /* clue entrance: <= 5 steps, 40ms apart (CIRCUIT sets data-enter once the screen transition is done) */
+    main > [data-screen="play"][data-enter] [data-slot="clues"] > li { animation: lp-rise var(--lp-dur-base) var(--lp-ease-out) both; animation-delay: calc(var(--i, 0) * 40ms); }
+    [data-slot="clues"] > li:nth-child(2) { --i: 1; }
+    [data-slot="clues"] > li:nth-child(3) { --i: 2; }
+    [data-slot="clues"] > li:nth-child(4) { --i: 3; }
+    [data-slot="clues"] > li:nth-child(n + 5) { --i: 4; }
+    /* Blood last 10 s: segment fill and the timer group's frame alternate at 1 Hz (readout digits never blink) */
+    [data-timer-bar][data-phase="last10"], .lp-topbar > [data-phase="last10"] { animation: lp-pulse 1000ms steps(1, end) infinite; }
+    [data-timer-bar][data-phase="last10"] { --_seg: var(--_pulse); }
+    .lp-topbar > [data-phase="last10"] { --_c: var(--_pulse); }
     button[aria-busy="true"]::after { animation: lp-dots 1200ms steps(1, end) infinite; }
-    [data-toast] { animation: lp-toast-in var(--lp-dur-2) var(--lp-ease-step-2) 1; }
+    /* backwards fill only: a forwards fill would pin opacity and swallow the leaving fade below */
+    [data-toast]:not(:empty) { animation: lp-toast-in var(--lp-dur-base) var(--lp-ease-out) backwards; }
+    details[data-account][open]::details-content { animation: lp-menu-in var(--lp-dur-release) var(--lp-ease-out) backwards; }
+    /* leaving: CIRCUIT sets data-leaving, then removes the text after the fade (or 150ms). Reduced motion: no style, it just goes. */
+    [data-out="msg"][data-leaving], [data-toast][data-leaving] { opacity: 0; transition: opacity var(--lp-dur-release) var(--lp-ease-in); }
+    details:not([data-account])::details-content { block-size: 0; overflow: clip; transition: block-size var(--lp-dur-base) var(--lp-ease-out), content-visibility var(--lp-dur-base) allow-discrete; }
+    details:not([data-account])[open]::details-content { block-size: auto; }
   }
 }
 
 /* ================================================================== screens */
 @layer screens {
-  /* every section is a one-column grid; the gap token also feeds the empty-message collapse rules */
+  /* every section is a one-column grid; --_g is the gap token that also feeds the empty-message collapse rules */
   main section, form { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--_g); align-content: start; --_g: var(--lp-space-3); }
-  main > [data-screen] { --_g: var(--lp-space-4); padding-block-end: var(--lp-space-4); }
-  fieldset { display: grid; gap: var(--lp-space-3); }
-  legend { color: var(--lp-text-dim); font-size: var(--lp-fs-0); margin-block-end: var(--lp-space-2); }
+  main > [data-screen] { flex: 1 1 auto; --_g: var(--lp-space-4); padding-block-end: var(--lp-space-2); }
+  fieldset { display: grid; gap: var(--lp-space-2); }
+  legend { color: var(--lp-text-dim); font-size: var(--lp-fs-label); }
   dd { margin-inline-start: 0; }
+  /* SCOPE RULE: <body> carries data-screen too, so a bare [data-screen="x"] also styles <body> (F-16). Screen rules are
+     main > [data-screen="x"]; body-level hooks say body[data-screen="x"] > ... */
+  /* the centered single-column screens */
+  main > :is([data-screen="auth"], [data-screen="home"], [data-screen="result"]) { inline-size: min(100%, var(--lp-col)); margin-inline: auto; }
+  main > :is([data-screen="board"], [data-screen="help"]) { inline-size: min(100%, var(--lp-col-wide)); margin-inline: auto; }
 
-  /* shared list rows: dashed pixel leader under each */
-  [data-slot="history"] > li, [data-slot="result-lines"] > li { padding-block: var(--lp-space-2); background: var(--_rule); }
-  [data-slot="result-lines"] > li[data-mode="blood"] { color: var(--lp-accent-text); }
-  /* menus of buttons: stack at 320, flow into columns when there is room */
-  main menu, main nav ul, section[aria-labelledby="home-play-title"] > ul {
+  /* ---------------------------------------------------------------- AUTH
+     390x844: 52 header + 32 + vault 96 + 16 + title 44 + 24 + field 24+56 + 16 + Start 64 + 8 + link 52 = ~484 */
+  main > [data-screen="auth"] { padding-block-start: var(--lp-space-6); }
+  main > [data-screen="auth"] > .lp-vault-door { order: -1; }       /* decorative, aria-hidden: no focus-order effect */
+  main > [data-screen="auth"] > h1 { text-align: center; }
+  main > [data-screen="auth"] > form { margin-block-start: var(--lp-space-2); }
+  main > [data-screen="auth"] form p { margin: 0; }
+  #auth-privacy { margin: 0; text-align: center; color: var(--lp-text-dim); font-size: var(--lp-fs-label); }
+  @media (max-height: 37.5em) { main > [data-screen="auth"] > .lp-vault-door { display: none; } }
+
+  /* ---------------------------------------------------------------- HOME
+     one viewport: [who + stats] up top, [difficulty + two mode buttons] pinned to the bottom (thumb zone) */
+  main > [data-screen="home"] { display: flex; flex-direction: column; padding-block-start: var(--lp-space-5); gap: var(--lp-space-5); }
+  .lp-who { display: flex; align-items: center; gap: var(--lp-space-3); min-block-size: calc(var(--lp-px) * 14); font-size: var(--lp-fs-h1); line-height: 1; }
+  @media (max-height: 43.75em) { .lp-who { min-block-size: var(--lp-icon-btn); } }
+  .lp-who [data-out="name"] { min-inline-size: 0; }
+  .lp-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--lp-space-1); }
+  .lp-stats > * {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+    align-content: start;
     gap: var(--lp-space-1);
-  }
-  li:has(> button + p) { display: grid; gap: var(--lp-space-2); }
-  li > button + p { color: var(--lp-text-dim); font-size: var(--lp-fs-0); }
-
-  /* ---------------------------------------------------------------- AUTH */
-  [data-screen="auth"] > .lp-vault-door { order: -1; }
-  [data-screen="auth"] > p:not(:last-of-type) { color: var(--lp-text-dim); }
-  form p[id$="-hint"] { color: var(--lp-text-dim); font-size: var(--lp-fs-0); }
-  @media (max-height: 37.5em) { [data-screen="auth"] > .lp-vault-door { display: none; } }
-  @media (min-width: 48em) {
-    [data-screen="auth"] { grid-template-columns: minmax(0, 1fr) minmax(0, 28rem); grid-template-rows: repeat(4, auto) 1fr auto; column-gap: var(--lp-space-7); }
-    [data-screen="auth"] > .lp-vault-door { order: 0; grid-column: 1; grid-row: 1; justify-self: start; }
-    [data-screen="auth"] > h1 { grid-column: 1; grid-row: 2; }
-    [data-screen="auth"] > p:first-of-type { grid-column: 1; grid-row: 3; }
-    [data-screen="auth"] > #auth-privacy { grid-column: 1; grid-row: 4; }
-    [data-screen="auth"] > form { grid-column: 2; grid-row: 1 / span 5; }
-    [data-screen="auth"] > p:last-of-type { grid-column: 2; grid-row: 6; }
-  }
-
-  /* ---------------------------------------------------------------- HOME */
-  [data-screen="home"] { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
-  [data-screen="home"] > * { grid-column: 1 / -1; }
-  [data-screen="home"] > h1 { grid-column: 1; grid-row: 1; }
-  [data-screen="home"] > p { grid-column: 1; grid-row: 2; color: var(--lp-text-dim); }
-  [data-screen="home"] > .lp-vault-door { grid-column: 2; grid-row: 1 / span 2; }
-  @media (max-width: 29.99em) { [data-screen="home"] > .lp-vault-door { display: none; } }
-  section[aria-labelledby="home-points-title"] { padding: var(--lp-space-4); background: var(--lp-bg-1); }
-  section[aria-labelledby="home-points-title"] dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--lp-space-2) var(--lp-space-3); }
-  section[aria-labelledby="home-points-title"] dt, [data-screen="result"] > dl dt { display: flex; align-items: center; gap: var(--lp-space-2); color: var(--lp-text-dim); font-size: var(--lp-fs-0); }
-  section[aria-labelledby="home-points-title"] dd, [data-screen="result"] > dl dd { font-size: var(--lp-fs-3); font-weight: var(--lp-fw-bold); text-align: end; direction: ltr; unicode-bidi: isolate; }
-  dt[data-mode="blood"] { color: var(--lp-accent-text); }
-  @media (min-width: 48em) {
-    [data-screen="home"] { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto auto auto 1fr; column-gap: var(--lp-space-6); }
-    [data-screen="home"] > .lp-vault-door { grid-column: 2; grid-row: 1 / span 2; justify-self: end; }
-    [data-screen="home"] > section[aria-labelledby="home-points-title"] { grid-column: 1; grid-row: 3; }
-    /* focus order == DOM order: right column holds Play then the nav buttons (design: ghost row under the PLAY buttons) */
-    [data-screen="home"] > section[aria-labelledby="home-play-title"] { grid-column: 2; grid-row: 3; }
-    [data-screen="home"] > section[aria-labelledby="home-history-title"] { grid-column: 1; grid-row: 4; }
-    [data-screen="home"] > nav { grid-column: 2; grid-row: 4; }
-  }
-
-  /* ---------------------------------------------------------------- PLAY */
-  /* Mobile: flex-wrap rows (NOT grid) so the dock can be sticky against the whole section. */
-  [data-screen="play"] { display: flex; flex-wrap: wrap; align-items: center; gap: var(--lp-space-3); }
-  [data-screen="play"] > * { flex: 1 1 100%; min-inline-size: 0; }
-  [data-screen="play"] > h1 { flex: 1 1 0; font-size: var(--lp-fs-2); }
-  [data-screen="play"] > .lp-badge { flex: none; }
-  /* DOM order is h1, badge, status, clues, Quit, guess dock: visual order == DOM order, no `order` needed.
-     Quit is found by its hook, not by position. */
-  [data-screen="play"] > p:has(> [data-action="quit"]) { text-align: end; }
-  [data-screen="play"] > p:has(> [data-action="quit"]) button { inline-size: auto; }
-  /* status strip */
-  [data-screen="play"] > dl { display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--lp-space-1) var(--lp-space-3); }
-  [data-screen="play"] > dl > dt { color: var(--lp-text-dim); font-size: var(--lp-fs-0); }
-  [data-screen="play"] > dl > dd { font-weight: var(--lp-fw-bold); }
-  [data-screen="play"] > dl > dd:has(> output[data-out="timer"]) { grid-column: 2 / -1; }
-  /* F-12: under 480px label and value stack as two columns, so "Master · 5 digits, all different" gets the whole row
-     and wraps at its spaces instead of inside a word */
-  @media (max-width: 29.99em) {
-    [data-screen="play"] > dl { grid-template-columns: auto minmax(0, 1fr); }
-  }
-
-  /* dock (guess area): lock + message / dials / wrong guesses / keypad / actions */
-  [data-screen="play"] > section[aria-labelledby="play-guess-title"] {
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas: "lock msg" "dials dials" "att att" "keys keys" "menu menu";
-    align-items: center;
-    gap: var(--lp-space-2);   /* cell gap 8 + two 4px frame margins = 16px between boxes (12px is the floor) */
-    margin-block: 0;
-    margin-inline: calc(var(--lp-gutter) * -1);
-    padding: var(--lp-space-2) var(--lp-gutter) max(var(--lp-space-2), env(safe-area-inset-bottom, 0px));
+    min-inline-size: 0;
+    padding: var(--lp-space-3) var(--lp-space-2);
     background: var(--lp-bg-1);
   }
-  [data-screen="play"] > section[aria-labelledby="play-guess-title"] > [data-slot="dials"] { grid-area: dials; }
-  [data-screen="play"] > section[aria-labelledby="play-guess-title"] > [data-slot="attempts"] { grid-area: att; }
-  [data-screen="play"] > section[aria-labelledby="play-guess-title"] > [data-slot="keypad"] { grid-area: keys; }
-  [data-screen="play"] > section[aria-labelledby="play-guess-title"] > menu { grid-area: menu; inline-size: min(100%, calc(var(--lp-px) * 104)); margin-inline: auto; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.1fr) minmax(0, 1.3fr); }
-  [data-screen="play"] > section[aria-labelledby="play-guess-title"] > .lp-lock { grid-area: lock; }
-  [data-screen="play"] > section[aria-labelledby="play-guess-title"] > p[data-live="status"] { grid-area: msg; min-block-size: calc(var(--lp-lh-body) * 2em); }
-  /* actions in DOM order, ONE row on phones: Clear | Check | Skip-or-Hint (only one of the last two is ever shown).
-     Labels wrap inside their button; targets stay >= 44px tall. */
-  [data-screen="play"] menu button { min-block-size: calc(var(--lp-px) * 12); padding-inline: var(--lp-space-2); }
-  @media (max-width: 29.99em) { [data-screen="play"] menu .lp-icon { display: none; } }
+  @media (min-width: 24em) { .lp-stats > * { padding-inline: var(--lp-space-4); } }
+  .lp-stats dt { display: flex; align-items: center; gap: var(--lp-space-1); color: var(--lp-text-dim); font-size: var(--lp-fs-label); line-height: 1.1; }
+  .lp-stats dt .lp-icon { inline-size: var(--lp-icon-sm); block-size: var(--lp-icon-sm); }
+  .lp-stats dd { font-size: var(--lp-fs-stat); line-height: 1; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: isolate; }
+  .lp-stats [data-mode="blood"] dd { color: var(--lp-accent-text); }
+  section[aria-labelledby="home-play-title"] { margin-block-start: auto; --_g: var(--lp-space-1); }
+  main > [data-screen="home"] > .lp-vault-door { display: none; margin-block: auto; }
+  @media (min-height: 47.5em) { main > [data-screen="home"] > .lp-vault-door { display: grid; } }
 
-  /* Dock budget (px, 4px unit; boxes include the 4px frame margin each side):
-       default phone (e.g. 390x844): pad 8 + lock/msg 64 + 8 + dials 72 + 8 + keys 2x60+4 + 8 + actions 56 + pad 8 = 352
-         -> 844 - header 52 - 352 = 440px beside the dock (+ about 38 per row of wrong guesses)
-       compact (height <= 700, e.g. 320x568): pad 8 + msg 24 + 8 + dials 56 + 8 + keys 2x52+4 + 8 + actions 52 + pad 8 = 280
-         -> 568 - 52 - 280 = 236px beside the dock (one attempts row = +38 -> 198) */
-  @media (max-width: 47.999em) {
-    /* thumb-reachable dock; only when the viewport is tall enough that it cannot swallow the page (zoom / landscape).
-       Below that it stays in normal flow and is reached by scrolling. */
-    @media (min-height: 34em) {
-      [data-screen="play"] > section[aria-labelledby="play-guess-title"] { position: sticky; inset-block-end: 0; z-index: var(--lp-z-dock); }
-      /* WCAG 2.4.11: keyboard focus anywhere above the dock (Quit, clues) scrolls clear of it. The value is the
-         MEASURED dock height once ui/chrome.js has written it. Only while Play is showing: elsewhere there is no dock.
-         The dock's own controls cancel the padding with a negative margin, so tabbing through them never scrolls the page. */
-      html:has([data-screen="play"]:not([hidden])) { scroll-padding-block-end: calc(var(--lp-dock-h) + var(--lp-space-3)); }
-      [data-screen="play"] > section[aria-labelledby="play-guess-title"] :is(button, a, [tabindex]) { scroll-margin-block-end: calc((var(--lp-dock-h) + var(--lp-space-3)) * -1); }
-    }
-    /* compact phones (SE class): 48px dials, 44px keys and actions, no lock sprite, one wrong-guess row */
-    @media (max-height: 43.75em) {
-      :root { --lp-dial-h: calc(var(--lp-px) * 12); --lp-key-h: calc(var(--lp-px) * 11); }
-      /* F-09b: 4px row gaps (box-to-box 12px, the floor) and 4px dock padding, so a wrong guess + a hint
-         message on a 5-digit puzzle still leaves room for clues. Saves 4 gaps x 4 + 2 x 4 = 24px. */
-      [data-screen="play"] > section[aria-labelledby="play-guess-title"] {
-        grid-template-areas: "msg msg" "dials dials" "att att" "keys keys" "menu menu";
-        gap: var(--lp-space-1);
-        padding-block: var(--lp-space-1) max(var(--lp-space-1), env(safe-area-inset-bottom, 0px));
-      }
-      [data-screen="play"] > section[aria-labelledby="play-guess-title"] > .lp-lock { display: none; }
-      /* 14px / 1.3 message: a 2-line hint note is 36px instead of 45px, a 3-line Arabic one 61px instead of 92px */
-      [data-screen="play"] > section[aria-labelledby="play-guess-title"] > p[data-live="status"] { font-size: var(--lp-fs-0); line-height: 1.3; min-block-size: 1.3em; }
-      [data-slot="dials"] > button { font-size: var(--lp-fs-4); }
-      [data-slot="attempts"] { max-block-size: calc(var(--lp-px) * 10); }
-      [data-screen="play"] menu button { min-block-size: calc(var(--lp-px) * 11); font-size: var(--lp-fs-0); line-height: 1.15; }
-      body[data-mode="blood"] output[data-out="timer"] { font-size: var(--lp-fs-5); }
-    }
-  }
-  @media (min-width: 48em) {
-    [data-screen="play"] { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 22rem); align-items: start; column-gap: var(--lp-space-6); }
-    [data-screen="play"] > h1 { grid-column: 1; grid-row: 1; font-size: var(--lp-fs-3); }
-    [data-screen="play"] > .lp-badge { grid-column: 2; grid-row: 1; justify-self: end; }
-    [data-screen="play"] > dl { grid-column: 1 / -1; grid-row: 2; }
-    [data-screen="play"] > section[aria-labelledby="play-clues-title"] { grid-column: 1; grid-row: 3; }
-    [data-screen="play"] > section[aria-labelledby="play-guess-title"] {
-      grid-column: 2;
-      grid-row: 3;
-      position: sticky;
-      inset-block-start: calc(var(--lp-header-h) + var(--lp-space-3));
-      margin: var(--lp-bw);
-      padding: var(--lp-space-4);
-    }
-    /* the console column is narrow: Clear | Check on row 1, Skip or Hint full width on row 2 */
-    [data-screen="play"] > section[aria-labelledby="play-guess-title"] > menu { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
-    [data-screen="play"] menu > li:nth-child(n + 3) { grid-column: 1 / -1; }
-    /* reading order: clues, Quit, dock. Quit sits under the clues. */
-    [data-screen="play"] > p:has(> [data-action="quit"]) { grid-column: 1; grid-row: 4; text-align: start; }
-    #play-guess-help { color: var(--lp-text-dim); font-size: var(--lp-fs-0); grid-column: 1 / -1; }
-  }
-  @media (min-width: 48em) and (max-height: 37.5em) {
-    [data-screen="play"] > section[aria-labelledby="play-guess-title"] { position: static; }
-  }
-  @media (min-width: 80em) {
-    [data-screen="play"] { grid-template-columns: minmax(0, 1fr) minmax(0, 28rem); }
-  }
-
-  /* -------------------------------------------------------------- RESULT */
-  [data-screen="result"] { inline-size: min(100%, 36rem); margin-inline: auto; justify-items: stretch; }
-  [data-screen="result"] > h1 { text-align: center; font-size: var(--lp-fs-2); color: var(--lp-text-dim); }
-  [data-screen="result"] > .lp-lock { justify-self: center; }
-  [data-screen="result"] > .lp-badge { justify-self: center; }
-  body[data-mode="blood"] .lp-stamp .lp-icon { color: var(--lp-accent-text); }
-  /* personal best: heavier frame in the accent (the message text also says it) */
-  .lp-stamp:has(> [data-pb]) { --_c: var(--lp-accent); --lp-bw: calc(var(--lp-px) * 2); }
-  [data-screen="result"] > dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--lp-space-2) var(--lp-space-3); }
+  /* -------------------------------------------------------------- RESULT
+     lock, result word, big score, Blood line, then the two buttons pinned to the bottom */
+  main > [data-screen="result"] { display: flex; flex-direction: column; align-items: center; gap: var(--lp-space-3); padding-block-start: var(--lp-space-5); text-align: center; }
+  main > [data-screen="result"] > h1 { margin-block-end: var(--lp-space-2); }
+  .lp-score { display: grid; justify-items: center; gap: var(--lp-space-1); margin: 0; color: var(--lp-text-dim); font-size: var(--lp-fs-label); }
+  /* .lp-count is the aria-hidden count-up copy that stands in for [data-out="score"] (visually hidden while it runs):
+     same box, size, colour and tabular digits, same grid cell, so nothing shifts on the swap */
+  .lp-score > * { grid-column: 1; grid-row: 2; }
+  .lp-score > :is([data-out="score"], .lp-count) { grid-row: 1; color: var(--lp-accent-text); font-size: var(--lp-fs-score); line-height: 1; }
+  main > [data-screen="result"] p[data-mode="blood"] { display: flex; align-items: center; justify-content: center; gap: var(--lp-space-2); margin: 0; color: var(--lp-accent-text); font-size: var(--lp-fs-label); }
+  /* icon + text rows: the trophy used to touch "New best!" (no whitespace between the svg and the span in the markup) */
+  main > [data-screen="result"] .lp-pb { display: flex; align-items: center; justify-content: center; gap: var(--lp-space-2); }
+  main > [data-screen="result"] p { margin: 0; }
+  main > [data-screen="result"] > menu { inline-size: 100%; margin-block-start: auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--lp-space-1); padding-block-end: var(--lp-space-2); }
 
   /* --------------------------------------------------------------- BOARD */
-  [data-screen="board"] { inline-size: 100%; max-inline-size: 40rem; margin-inline: auto; }
-  [data-screen="board"] h1 { display: flex; align-items: center; gap: var(--lp-space-3); }
-  [data-screen="board"] > p:not(:last-child) { color: var(--lp-text-dim); font-size: var(--lp-fs-0); }
+  .lp-screenhead { display: flex; align-items: center; gap: var(--lp-space-1); min-block-size: var(--lp-topbar-h); }
+  .lp-screenhead h1 { font-size: var(--lp-fs-h2); }
+  main > [data-screen="board"] > p { margin: 0; color: var(--lp-text-dim); font-size: var(--lp-fs-label); }
 
   /* ---------------------------------------------------------------- HELP */
-  [data-screen="help"], noscript > section { max-inline-size: 60ch; inline-size: 100%; margin-inline: auto; }
-  :is([data-screen="help"], noscript) dl { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--lp-space-1) var(--lp-space-4); }
-  :is([data-screen="help"], noscript) dt { display: flex; align-items: center; flex-wrap: wrap; gap: var(--lp-space-1) var(--lp-space-2); font-weight: var(--lp-fw-bold); margin-block-start: var(--lp-space-2); }
-  :is([data-screen="help"], noscript) dd { color: var(--lp-text-dim); }
-  :is([data-screen="help"], noscript) :is(ul, ol) { display: grid; gap: var(--lp-space-2); padding-inline-start: 2.5ch; list-style: square; }
-  :is([data-screen="help"], noscript) ol { list-style: decimal; }
-  [data-screen="help"] > section[data-mode="blood"], noscript > section { padding: var(--lp-space-4); background: var(--lp-bg-1); }
-  [data-screen="help"] h2 { display: flex; align-items: center; gap: var(--lp-space-3); }
-  @media (min-width: 48em) {
-    :is([data-screen="help"], noscript) dl { grid-template-columns: minmax(0, 14rem) minmax(0, 1fr); }
-    :is([data-screen="help"], noscript) dt { margin-block-start: 0; }
+  main > [data-screen="help"] h2 { display: flex; align-items: center; gap: var(--lp-space-2); }
+  .lp-legend { display: grid; grid-template-columns: minmax(0, 7.5rem) minmax(0, 1fr); align-items: center; gap: var(--lp-space-1) var(--lp-space-4); }
+  .lp-legend dt { display: flex; align-items: center; min-block-size: calc(var(--lp-px) * 12); direction: ltr; unicode-bidi: isolate; }
+  .lp-legend dd { margin: 0; }
+  main > [data-screen="help"] :is(ul, ol) { display: grid; gap: var(--lp-space-2); }
+  main > [data-screen="help"] ol { padding-inline-start: 2.5ch; list-style: decimal; }
+  /* the worked-example clue rows are the real clue component: no list marker, flat bands 4px/8px apart */
+  main > [data-screen="help"] ol.lp-example { padding-inline-start: 0; list-style: none; gap: var(--lp-row-gap); }
+  main > [data-screen="help"] .lp-dig { display: inline-block; vertical-align: middle; }
+  main > [data-screen="help"] section[data-mode="blood"] h2 { color: var(--lp-accent-text); }
+  /* no-JS fallback: one flat readable panel (no frame: ADR 0005 frames controls only), shown by the scripting:none block at the end */
+  noscript > section { inline-size: min(100%, var(--lp-col-wide)); margin-inline: auto; padding: var(--lp-space-4); background: var(--lp-bg-1); }
+  noscript dl { display: grid; gap: var(--lp-space-1); }
+  noscript dt { margin-block-start: var(--lp-space-2); }
+  noscript dd { color: var(--lp-text-dim); }
+  noscript :is(ul, ol) { display: grid; gap: var(--lp-space-2); padding-inline-start: 2.5ch; list-style: square; }
+  noscript ol { list-style: decimal; }
+
+  /* ---------------------------------------------------------------- PLAY
+     Three layouts, one DOM: [h1] top bar / Blood strip / clue area / dock
+       1. base            normal page flow: short viewports (< 544px high), zoom, small landscape. The page scrolls,
+                          the dock is in flow, nothing is fixed, clipped or overlapped.
+       2. phone fixed     < 48em AND >= 544px high: a viewport-tall grid, only the clue list scrolls, dock is a grid row
+       3. >= 48em         two columns: clues | dock (24rem, 28rem from 80em)
+     The Play section is a flex/grid item, never <body> (see the scope rule above). */
+  main > [data-screen="play"] { display: flex; flex-direction: column; gap: 0; padding-block-start: 0; }
+  main > [data-screen="play"] > * { min-inline-size: 0; }
+  main > [data-screen="play"] > section[aria-labelledby="play-clues-title"] { position: relative; container-type: inline-size; align-content: start; gap: 0; }
+  [data-slot="clues"] { padding: var(--lp-space-2) var(--lp-gutter); margin: 0; }
+  main > [data-screen="play"] > section[aria-labelledby="play-guess-title"] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--lp-dock-gap);
+    padding: var(--lp-dock-pad) var(--lp-gutter) max(var(--lp-dock-pad), env(safe-area-inset-bottom, 0px));
+    background: var(--lp-bg-1);
   }
-  /* no JS: the game cannot run, so the dead auth form is hidden and the rules above stay readable */
+  /* the bar and the dock never give up height to the clue list (flex-shrink / grid min size), whatever the text size */
+  main > [data-screen="play"] > .lp-topbar { flex-shrink: 0; }
+  main > [data-screen="play"] > section[aria-labelledby="play-guess-title"] { flex-shrink: 0; min-block-size: min-content; }
+  /* messages: a transient toast over the bottom of the clue area (not a dock row); never covers a control */
+  main > [data-screen="play"] p[data-live="status"] {
+    position: absolute;
+    inset-inline: var(--lp-space-2);
+    inset-block-end: var(--lp-space-2);
+    z-index: 1;
+    margin: 0;
+    padding: var(--lp-space-2) var(--lp-space-3);
+    background: var(--lp-inv-bg);
+    color: var(--lp-inv-text);
+    border-inline-start: var(--lp-space-1) solid var(--lp-accent);
+    font-size: var(--lp-fs-body);
+    line-height: 1.2;
+    pointer-events: none;
+  }
+  main > [data-screen="play"] p[data-live="status"] [data-out="msg"] { color: inherit; }
+  /* empty = collapsed but still in the tree (a live region must not toggle display) */
+  main > [data-screen="play"] p[data-live="status"]:has(> [data-out="msg"]:empty) { opacity: 0; block-size: 0; padding-block: 0; overflow: hidden; }
+
+  /* phones <= 48em: the top bar replaces the global header; Play goes edge to edge */
+  @media (max-width: 47.999em) {
+    body[data-screen="play"] > header { display: none; }
+    body[data-screen="play"] main { inline-size: 100%; padding-inline: 0; padding-block-end: 0; }
+    .lp-topbar { padding-block-start: max(var(--lp-space-1), env(safe-area-inset-top, 0px)); }
+  }
+  /* sound lives in the header from 48em, so the top bar's copy goes */
+  @media (min-width: 48em) { .lp-topbar [data-action="mute"] { display: none; } }
+
+  /* 2. phone fixed-viewport grid: only the clue list scrolls (tabindex=0 for keyboards). Text-zoom proof: all rows are
+     content-sized except the clue row, floored at two rows of max(row token, text). The list is absolute so its length
+     never feeds the grid's intrinsic size; 100dvh is the target and min-content the floor, so when bar + dock + floor
+     outgrow the viewport the grid grows and the page scrolls instead of rows overlapping. */
+  @media (max-width: 47.999em) and (min-height: 34em) {
+    main > [data-screen="play"] {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto auto minmax(calc(max(var(--lp-row-h), var(--lp-fs-body)) * 2 + var(--lp-row-gap) + var(--lp-space-4)), 1fr) auto;
+      block-size: 100dvh;
+      min-block-size: min-content;
+      padding-block-end: 0;
+    }
+    main > [data-screen="play"] > .lp-topbar { grid-row: 1; }
+    main > [data-screen="play"] > [data-timer-bar] { grid-row: 2; }
+    main > [data-screen="play"] > section[aria-labelledby="play-clues-title"] { grid-row: 3; min-block-size: 0; }
+    main > [data-screen="play"] > section[aria-labelledby="play-guess-title"] { grid-row: 4; }
+    main > [data-screen="play"] [data-slot="clues"] { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; scroll-padding-block: var(--lp-space-2); }
+  }
+
+  /* 1b. landscape phones (short, wide enough for a >= 44px keypad): clues left, dock right, page flow. Narrower or
+     taller viewports use the single-column flow (1). */
+  @media (min-width: 40em) and (max-width: 47.999em) and (orientation: landscape) and (max-height: 31.25em) {
+    main > [data-screen="play"] { display: grid; grid-template-columns: minmax(0, 1fr) min(22rem, 50%); grid-template-rows: auto auto 1fr; }
+    main > [data-screen="play"] > .lp-topbar, main > [data-screen="play"] > [data-timer-bar] { grid-column: 1 / -1; }
+    main > [data-screen="play"] > section[aria-labelledby="play-clues-title"] { grid-column: 1; grid-row: 3; }
+    main > [data-screen="play"] > section[aria-labelledby="play-guess-title"] { grid-column: 2; grid-row: 3; align-self: start; }
+  }
+
+  /* 3. tablet / desktop: two columns under a 52px top bar. The dock column is capped at 55% so text-only zoom
+     (24rem grows with the font) can never push the page sideways. */
+  @media (min-width: 48em) {
+    main > [data-screen="play"] {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) min(24rem, 55%);
+      grid-template-rows: auto auto 1fr;
+      column-gap: var(--lp-space-6);
+      align-items: start;
+      padding-block-start: var(--lp-space-3);
+    }
+    main > [data-screen="play"] > .lp-topbar, main > [data-screen="play"] > [data-timer-bar] { grid-column: 1 / -1; }
+    .lp-topbar { padding-inline: 0; }
+    main > [data-screen="play"] > section[aria-labelledby="play-clues-title"] { grid-column: 1; grid-row: 3; }
+    [data-slot="clues"] { padding-inline: 0; }
+    main > [data-screen="play"] > section[aria-labelledby="play-guess-title"] { grid-column: 2; grid-row: 3; padding: var(--lp-space-4); }
+  }
+  /* sticky only when the dock (about 264-310px) fits the viewport with room to spare; a sticky box taller than the viewport hides its bottom row */
+  @media (min-width: 48em) and (min-height: 25em) {
+    main > [data-screen="play"] > section[aria-labelledby="play-guess-title"] { position: sticky; inset-block-start: var(--lp-space-3); }
+  }
+  @media (min-width: 80em) { main > [data-screen="play"] { grid-template-columns: minmax(0, 1fr) min(28rem, 55%); } }
+
+  /* the message toast eases in/out (state only; reduced motion shows/hides it instantly) */
+  @media (prefers-reduced-motion: no-preference) {
+    main > [data-screen="play"] p[data-live="status"] { transition: opacity var(--lp-dur-base) var(--lp-ease-out), translate var(--lp-dur-base) var(--lp-ease-out); }
+    main > [data-screen="play"] p[data-live="status"]:has(> [data-out="msg"]:empty) { translate: 0 8px; }
+    /* the Play toast box (not just its text) fades out while the message is leaving */
+    main > [data-screen="play"] p[data-live="status"]:has(> [data-out="msg"][data-leaving]) { opacity: 0; transition: opacity var(--lp-dur-release) var(--lp-ease-in); }
+  }
+
+  /* no JS: every screen section (all need JS), the JS-only header controls and the footer go; never <body>. The <noscript>
+     block (a child of main, not a screen) stays and carries the one credit. !important: a screen's own display must not win. */
   @media (scripting: none) {
-    [data-screen="auth"], header button, header .lp-chip, header details, footer { display: none; }
-    /* footer is hidden because <noscript> already carries the single credit */
+    main > [data-screen], body > header button, body > header .lp-chip, body > header details, footer { display: none !important; }
     noscript { display: block; }
   }
 }
 
 /* ================================================================ utilities */
 @layer utilities {
-  /* Visually hidden but still read aloud and focusable-safe. Never display:none for these. */
-  .visually-hidden, header .lp-chip > span, header [data-action="mute"] > span, #play-guess-title {
+  /* Visually hidden but still read aloud. Never display:none for these (icon-only buttons keep their names). */
+  .visually-hidden, .clue-text, [data-slot="attempts"], main > [data-screen="result"] [data-slot="result-lines"],
+  .lp-chip > span, .lp-chip output, [data-action="mute"] > span, #play-guess-title, #play-guess-help, #play-clues-title {
     position: absolute;
     inline-size: 1px;
     block-size: 1px;
@@ -1136,55 +1178,57 @@
     clip-path: inset(50%);
     white-space: nowrap;
   }
-  /* phones: wordmark (under 480px) and chip text / account name / guess help (under 768px) go visually, so the
-     header stays one row at 320px; the accessible names stay. */
+  /* phones: wordmark under 480px, difficulty name under 360px (the lock host keeps the description) */
   @media (max-width: 29.99em) {
-    .lp-brand > span {
+    .lp-brand__name {
       position: absolute; inline-size: 1px; block-size: 1px; margin: -1px; padding: 0; border: 0;
       overflow: hidden; clip-path: inset(50%); white-space: nowrap;
     }
   }
-  @media (max-width: 47.999em) {
-    #play-guess-help, header [data-out="name"], .lp-chip output {
+  @media (max-width: 22.49em) {
+    .lp-topbar [data-out="difficulty"] {
       position: absolute; inline-size: 1px; block-size: 1px; margin: -1px; padding: 0; border: 0;
       overflow: hidden; clip-path: inset(50%); white-space: nowrap;
     }
   }
   a, label, summary { touch-action: manipulation; }
 
-  /* ---- focus ring (design 8): 2px ink inside, 2px white outside, drawn OUTSIDE the 1-unit frame
-     bar so the bar is never covered. Identical on all four schemes; the pair guarantees >= 3:1
-     against any surface. Utilities layer + :focus-visible only (mouse clicks do not show it). ---- */
+  /* ---- focus ring (v1 8): 2px ink inside, 2px white outside, drawn OUTSIDE the frame bar so the bar is
+     never covered. Identical on all four schemes; the pair guarantees >= 3:1 against any surface.
+     Unframed controls have --lp-bw: 0, so the same maths gives a 4px ring that fits the 4px header padding. ---- */
   :where(button, a, input:not([type="radio"]), select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible,
   input[type="radio"]:focus-visible + label {
     outline: 2px solid var(--lp-focus-out);
     outline-offset: calc(var(--lp-bw) + 2px);
     box-shadow: var(--_rf, 0 0 #0000), 0 0 0 calc(var(--lp-bw) + 2px) var(--lp-focus-in);
   }
+  /* the clue list is a full-width scroller: draw its ring inside so the viewport edge never clips it */
+  [data-slot="clues"]:focus-visible { outline-offset: -4px; box-shadow: inset 0 0 0 2px var(--lp-focus-in); }
 
-  /* ---- reduced motion: no translate/pulse/shake/blink/stepping. Every state keeps its static
-     equivalent (frames, icons, text). The boot fail-safe (0-length, not motion) is exempt. ---- */
+  /* ---- reduced motion: no translate, scale, fade, count-up, pulse or view transition. Every state keeps
+     its static equivalent (frames, icons, text). The boot fail-safe (0-length, not motion) is exempt. ---- */
   @media (prefers-reduced-motion: reduce) {
     *:not(main > [data-screen]), *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+    ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
   }
 
-  /* ---- forced colors: box-shadow frames vanish, so draw real borders ---- */
+  /* ---- forced colors: box-shadow frames vanish, so draw real borders on controls (not on the unframed icon buttons / links) ---- */
   @media (forced-colors: active) {
-    :is(button, summary, input, dialog, output[data-out="code"], .lp-chip, .lp-badge, .lp-stamp, [data-timer-bar], [data-toast],
-        [data-slot="difficulty-picker"] label, [data-screen="play"] > section[aria-labelledby="play-guess-title"],
-        section[aria-labelledby="home-points-title"], [data-screen="help"] [data-mode="blood"], noscript > section) {
+    :is(input, dialog, output[data-out="code"], [data-slot="difficulty-picker"] label, noscript > section, [data-toast]),
+    button:not(.lp-iconbtn, .lp-link, [data-action="show-signin"], [data-action="show-signup"], body > header > button, .lp-topbar button, .lp-screenhead button) {
       box-shadow: none;
       border: 2px solid CanvasText;
       margin: 0;
     }
     button:disabled, button[aria-disabled="true"] { border-color: GrayText; color: GrayText; }
-    [data-slot="dials"] > button[data-state="selected"], input:checked + label, [role="tab"][aria-selected="true"] { outline: 3px solid Highlight; outline-offset: -3px; }
+    [data-slot="dials"] > button[data-state="selected"], [data-slot="difficulty-picker"] input:checked + label, [role="tab"][aria-selected="true"] { outline: 3px solid Highlight; outline-offset: -3px; }
     [data-slot="dials"] > button::after, [data-slot="dials"] > button::before, input[type="checkbox"]::before,
-    [data-slot="difficulty-picker"] input:checked + label::before, [data-out="msg"]::before, [data-toast]::before, [data-pip] {
+    [data-out="msg"]::before, [data-toast]::before, [data-pip] {
       forced-color-adjust: none;
       background-color: CanvasText;
     }
     [data-pip="wrong"] { background: none; border-color: CanvasText; }
+    tbody tr[data-self] th > span { border: 2px solid CanvasText; }
     [data-timer-bar] { forced-color-adjust: none; background: repeating-linear-gradient(to right, GrayText 0 calc(var(--lp-seg) - var(--lp-px)), transparent 0 var(--lp-seg)), Canvas; }
     [data-timer-bar]::before { background: repeating-linear-gradient(to right, CanvasText 0 calc(var(--lp-seg) - var(--lp-px)), transparent 0 var(--lp-seg)); }
     :focus-visible { outline: 3px solid Highlight; outline-offset: 2px; box-shadow: none; }
@@ -1196,7 +1240,6 @@
    reveals them after 3s if JS never clears the flag; it is not visual motion, so it is deliberately
    outside the reduced-motion gate. */
 html[data-boot="pending"] main > [data-screen]{visibility:hidden;animation:lp-boot-failsafe 0s linear 3s forwards}@keyframes lp-boot-failsafe{to{visibility:visible}}
-
 
 
 

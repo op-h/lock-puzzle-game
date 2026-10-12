@@ -5,8 +5,9 @@ import assert from 'node:assert/strict';
 
 import {
   SUPPORTED, catalogs, resolveLang, getLang, setLang, onLangChange, dirFor, pluralCategory, plural,
-  formatNumber, formatDuration, t, tFor, feedbackText, clueText,
+  formatNumber, formatDuration, t, tFor,
 } from '../../js/i18n/index.js';
+import { feedbackText, clueText } from '../../js/i18n/clue-text.js';
 import { loadLang } from '../../js/i18n/index.js';
 
 // Catalogs are lazy-loaded in production; the catalog tests need both present.

@@ -12,6 +12,7 @@ import { sanitizeProgress, isForeignActive, HEARTBEAT_STALE_MS } from '../../js/
 import { asciiDigit } from '../../js/ui/dom.js';
 import { createFakeFirestore } from './helpers/fake-firestore.mjs';
 import { createDevice, guardGlobalFetch, solve } from './helpers/harness.mjs';
+import './helpers/merge-ready.mjs';
 
 let guard;
 before(() => {

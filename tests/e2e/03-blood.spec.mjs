@@ -16,12 +16,12 @@ after(async () => {
   await srv.close();
 });
 
-const T = '[data-screen="play"]';
+const T = 'main > [data-screen="play"]';
 const norm = (s) => s.replace(/\u00a0/g, ' ').trim();
 const timerText = (page) => page.textContent(`${T} [data-out="timer"]`).then((s) => s.trim());
 const sel = {
-  puzzleNo: `${T} [data-out="puzzle-no"]`,
-  diff: `${T} [data-out="difficulty"]`,
+  puzzleNo: `${T} [data-out="solved-count"]`, // ADR 0005: the Blood top bar shows the solved COUNT (the puzzle number is gone)
+  diff: `${T} [data-out="diffline"]`, // full line, visually hidden; the visible cell is just the name
   msg: `${T} [data-out="msg"]`,
   sr: `${T} [data-live="timer-sr"]`,
 };
@@ -75,25 +75,25 @@ test('blood: countdown shape, wrong -5 s, skip -10 s, per-solve points x2, diffi
   assert.equal(await page.isVisible(`${T} [data-timer-bar]`), true);
   assert.equal(await page.getAttribute(`${T} [data-out="timer"]`, 'role'), 'timer');
   assert.notEqual(await page.getAttribute(`${T} [data-out="timer"]`, 'aria-live'), 'polite', 'timer itself is not a polite live region');
-  assert.equal(await page.textContent(sel.puzzleNo), '#1');
+  assert.equal((await page.textContent(sel.puzzleNo)).trim(), '0');
   assert.match(norm(await page.textContent(sel.diff)), /^Rookie · 3 digits, all different$/);
 
   // wrong guess: -5 s
   const p1 = await H.currentPuzzle(page);
   await H.typeWithKeypad(page, H.wrongGuess(p1.answer, 0));
   await H.pressCheck(page);
-  await page.waitForFunction((s) => /Wrong guess: .5/.test(document.querySelector(s).textContent), sel.msg);
+  await page.waitForFunction((s) => /Wrong .5/.test(document.querySelector(s).textContent), sel.msg);
   assert.equal(await timerText(page), '2:55', 'wrong guess costs 5 s');
   // duplicate wrong guess: no second penalty
   await H.typeWithKeypad(page, H.wrongGuess(p1.answer, 0));
   await H.pressCheck(page);
-  await page.waitForFunction((s) => /already tried/.test(document.querySelector(s).textContent), sel.msg);
+  await page.waitForFunction((s) => /Already tried/.test(document.querySelector(s).textContent), sel.msg);
   assert.equal(await timerText(page), '2:55', 'duplicate guess is free');
   // skip: -10 s, new puzzle, still puzzle #1
   await page.click(`${T} [data-action="skip"]`);
   await page.waitForFunction((s) => /Skipped/.test(document.querySelector(s).textContent), sel.msg);
   assert.equal(await timerText(page), '2:45', 'skip costs 10 s');
-  assert.equal(await page.textContent(sel.puzzleNo), '#1', 'skipping does not count as a solve');
+  assert.equal((await page.textContent(sel.puzzleNo)).trim(), '0', 'skipping does not count as a solve');
   const afterSkip = await H.currentPuzzle(page);
   assert.notEqual(afterSkip.id, p1.id, 'skip serves a new puzzle');
 
@@ -105,7 +105,7 @@ test('blood: countdown shape, wrong -5 s, skip -10 s, per-solve points x2, diffi
     assert.equal((await H.dialValues(page)).length, dials[i], `puzzle #${i + 1} dial count`);
     if (expectDiff[i] === 'Agent') assert.match(norm(await page.textContent(sel.diff)), /digits may repeat/, 'Agent says digits may repeat');
     else assert.match(norm(await page.textContent(sel.diff)), /all different/);
-    assert.equal(await page.textContent(sel.puzzleNo), `#${i + 1}`);
+    assert.equal((await page.textContent(sel.puzzleNo)).trim(), String(i), 'solved count');
     await solveOneBlood(page);
   }
   assert.ok((await page.textContent(sel.diff)).startsWith('Master'));
@@ -129,7 +129,7 @@ test('blood: SR announcements only at 2:00/1:00/0:30/0:10/0:00; phases; expiry f
   await H.startClassic(page, 'rookie');
   await H.solveClassic(page, { fakeClock: true });
   const classicPts = (await save(page)).history.at(-1).pts;
-  await page.click('[data-screen="result"] [data-action="go-home"]');
+  await page.click('main > [data-screen="result"] [data-action="go-home"]');
   await d.waitScreen('home');
 
   await H.startBlood(page);
@@ -137,13 +137,13 @@ test('blood: SR announcements only at 2:00/1:00/0:30/0:10/0:00; phases; expiry f
     window.__sr = [];
     new MutationObserver(() => window.__sr.push(document.querySelector(s).textContent)).observe(document.querySelector(s), { childList: true, characterData: true, subtree: true });
     window.__phases = [];
-    const bar = document.querySelector('[data-screen="play"] [data-timer-bar]');
+    const bar = document.querySelector('main > [data-screen="play"] [data-timer-bar]');
     new MutationObserver(() => window.__phases.push(bar.dataset.phase)).observe(bar, { attributes: true, attributeFilter: ['data-phase'] });
   }, sel.sr);
   await solveOneBlood(page);
   await solveOneBlood(page);
   const inPlay = await H.currentPuzzle(page); // solved count is 2: this one is forfeited
-  assert.equal(await page.textContent(sel.puzzleNo), '#3');
+  assert.equal((await page.textContent(sel.puzzleNo)).trim(), '2');
 
   // play through the clock second by second
   const phaseAt = {};
@@ -178,8 +178,8 @@ test('blood: SR announcements only at 2:00/1:00/0:30/0:10/0:00; phases; expiry f
   assert.equal(s.runs[0].solved, 2);
   assert.equal(s.runs[0].pts, bloodPts);
   assert.equal(await page.getAttribute('body', 'data-mode'), 'blood');
-  assert.equal(await page.textContent('[data-screen="result"] [data-mode-badge]'), 'Blood');
-  const R = '[data-screen="result"]';
+  assert.equal(await page.textContent('main > [data-screen="result"] [data-mode-badge]'), 'Blood');
+  const R = 'main > [data-screen="result"]';
   const lines = await page.$$eval(`${R} [data-slot="result-lines"] li`, (l) => l.map((x) => x.textContent.trim()));
   assert.equal(lines[0], `Blood points (from Blood mode): +${bloodPts.toLocaleString('en-US')}`, lines[0]);
   assert.ok(lines.includes('Puzzles solved in this run: 2'));
@@ -188,13 +188,13 @@ test('blood: SR announcements only at 2:00/1:00/0:30/0:10/0:00; phases; expiry f
   assert.ok(lines.includes(`Total Classic points: ${f(classicPts)}`), lines.join(' | '));
   assert.ok(lines.includes(`Total Blood points (from Blood mode): ${f(bloodPts)}`));
   assert.ok(lines.includes(`Total points: ${f(classicPts + bloodPts)}`));
-  assert.equal(await page.isVisible(`${R} dt[data-mode="blood"]`), true);
-  assert.match(await page.textContent(`${R} dt[data-mode="blood"]`), /Blood points \(from Blood mode\)/);
+  assert.equal(await page.isVisible(`${R} p[data-mode="blood"]`), true);
+  assert.match(await page.textContent(`${R} p[data-mode="blood"]`), /Blood points \(from Blood mode\)/);
   assert.equal(H.num(await page.textContent(`${R} [data-out="bloodpoints"]`)), bloodPts);
   assert.equal(await page.isVisible(`${R} [data-action="retry"]`), true);
   assert.equal(await page.isVisible(`${R} [data-action="next"]`), false);
   await page.clock.runFor(400); // outcome line is deferred 250 ms so it is announced
-  await page.waitForFunction((s2) => /Time is up\./.test(document.querySelector(s2).textContent), `${R} [data-out="msg"]`);
+  await page.waitForFunction((s2) => /Time’s up/.test(document.querySelector(s2).textContent), `${R} [data-out="msg"]`);
   // home: Classic / Blood / Total shown separately
   await page.click(`${R} [data-action="go-home"]`);
   await d.waitScreen('home');
@@ -202,10 +202,9 @@ test('blood: SR announcements only at 2:00/1:00/0:30/0:10/0:00; phases; expiry f
   assert.equal(H.num(totals.classic), classicPts);
   assert.equal(H.num(totals.blood), bloodPts);
   assert.equal(H.num(totals.total), classicPts + bloodPts);
-  assert.match(await page.textContent('[data-screen="home"] dt[data-mode="blood"]'), /Blood points \(from Blood mode\)/);
-  const hist = await page.$$eval('[data-screen="home"] [data-slot="history"] li', (l) => l.map((x) => ({ t: x.textContent.trim(), m: x.dataset.mode })));
-  assert.ok(hist.some((h) => h.m === 'blood' && /^Blood points \(from Blood mode\)/.test(h.t)), 'recent rounds name Blood as its source');
-  assert.ok(hist.some((h) => h.m === 'classic' && /^Classic,/.test(h.t)));
+  assert.equal((await page.textContent('main > [data-screen="home"] [data-stat="blood"] dt > span[aria-hidden="true"]')).trim(), 'Blood', 'Home chip says just Blood (ADR 0005 section 4)');
+  assert.match(await page.textContent('main > [data-screen="home"] [data-stat="blood"] dt .visually-hidden'), /Blood points, from Blood mode/, 'the explicit wording stays for assistive tech');
+  assert.equal(await page.locator('main > [data-screen="home"] [data-slot="history"]').count(), 0, 'no Recent rounds on Home (ADR 0005)');
   d.assertClean();
   await d.close();
 });
@@ -236,9 +235,9 @@ test('blood: reload mid-run restores the same run; reload after expiry finalises
   await solveOneBlood(page);
   await solveOneBlood(page);
   await advance(page, 20000);
-  const before = { timer: await timerText(page), no: await page.textContent(sel.puzzleNo), id: (await H.currentPuzzle(page)).id };
+  const before = { timer: await timerText(page), no: (await page.textContent(sel.puzzleNo)).trim(), id: (await H.currentPuzzle(page)).id };
   assert.equal(before.timer, '2:40');
-  assert.equal(before.no, '#3');
+  assert.equal(before.no, '2');
 
   // reload mid-run: the ownership state machine hands the run back on pagehide, so the reload resumes it at once
   await page.reload();
@@ -247,7 +246,7 @@ test('blood: reload mid-run restores the same run; reload after expiry finalises
   await d.waitScreen('play');
   assert.equal(await page.getAttribute('body', 'data-mode'), 'blood');
   assert.equal(await timerText(page), before.timer, 'remaining time restored from the wall-clock deadline');
-  assert.equal(await page.textContent(sel.puzzleNo), before.no, 'solved count restored');
+  assert.equal((await page.textContent(sel.puzzleNo)).trim(), before.no, 'solved count restored');
   assert.equal((await H.currentPuzzle(page)).id, before.id, 'same puzzle in play');
   assert.equal((await save(page)).runs.length, 0, 'run not finalised by a mid-run reload');
   const bloodSoFar = (await save(page)).history.filter((e) => e.m === 'b');
@@ -274,7 +273,7 @@ test('blood: reload mid-run restores the same run; reload after expiry finalises
   assert.equal(s.runs[0].pts, bloodPts, 'run points equal the per-solve points (not doubled)');
   assert.equal(s.runs[0].solved, 2);
   assert.equal(s.history.filter((e) => e.m === 'b').length, 2);
-  assert.match(await page.textContent('[data-screen="result"] [data-out="msg"]'), /Time is up|​|^$/);
+  assert.match(await page.textContent('main > [data-screen="result"] [data-out="msg"]'), /Time’s up/);
   // reload again: lands on home, nothing re-finalised
   await page.reload();
   await d.booted();
@@ -289,7 +288,7 @@ test('blood: reload mid-run restores the same run; reload after expiry finalises
   s = await save(page);
   assert.equal(s.runs.length, 1, 'restoring the same expired run twice does not duplicate it');
   assert.equal(s.runs[0].pts, bloodPts);
-  await page.click('[data-screen="result"] [data-action="go-home"]');
+  await page.click('main > [data-screen="result"] [data-action="go-home"]');
   await d.waitScreen('home');
   const totalsA = await H.homeTotals(page);
   assert.equal(H.num(totalsA.blood), bloodPts, 'Blood total counted once');
@@ -305,7 +304,7 @@ test('blood: reload mid-run restores the same run; reload after expiry finalises
   assert.deepEqual(totalsB, totalsA, 'second device shows Blood points after sync');
   assert.ok(H.num(totalsB.blood) > 0);
   // and the board shows the best run on the Blood tab
-  await b.page.click('[data-screen="home"] [data-action="show-board"]');
+  await b.page.click('body > header [data-action="show-board"]');
   await b.waitScreen('board');
   await b.page.click('[data-tab="blood"]');
   await b.page.waitForSelector('[data-slot="board-rows"] tr[data-self="true"]');
@@ -328,12 +327,12 @@ test('blood: quitting a run keeps solved points; zero-solve quit goes home; a ne
   await H.quitRound(page);
   await d.waitScreen('result');
   await page.clock.runFor(400); // the outcome line is written 250 ms after the screen shows (so it is announced)
-  assert.match(await page.textContent('[data-screen="result"] [data-out="msg"]'), /Run ended/);
+  assert.match(await page.textContent('main > [data-screen="result"] [data-out="msg"]'), /Run ended/);
   assert.equal((await save(page)).runs.length, 1);
-  await page.click('[data-screen="result"] [data-action="retry"]');
+  await page.click('main > [data-screen="result"] [data-action="retry"]');
   await d.waitScreen('play');
   assert.equal(await timerText(page), '3:00', 'a new run starts a fresh countdown');
-  assert.equal(await page.textContent(sel.puzzleNo), '#1');
+  assert.equal((await page.textContent(sel.puzzleNo)).trim(), '0');
   d.assertClean();
   await d.close();
 });

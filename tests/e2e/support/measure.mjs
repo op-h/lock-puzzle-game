@@ -21,7 +21,7 @@ export function layoutAudit() {
   const isHiddenClip = (el, cs) => {
     // visually-hidden pattern and the parked skip link are intentionally out of flow
     const r = el.getBoundingClientRect();
-    return (cs.position === 'absolute' && r.width <= 2 && r.height <= 2) || el.classList.contains('skip-link');
+    return (cs.position === 'absolute' && (r.width <= 2 || r.height <= 2)) || el.classList.contains('skip-link') || !!el.closest('.visually-hidden');
   };
   const visible = (el) => {
     if (el.closest('[hidden]') || el.closest('dialog:not([open])') || el.closest('noscript')) return false;
@@ -108,12 +108,12 @@ export function layoutAudit() {
     sizes: [...new Set(sprites.map((s) => `${Math.round(s.getBoundingClientRect().width)}x${Math.round(s.getBoundingClientRect().height)}`))],
     nonInteger: sprites.filter((s) => { const r = s.getBoundingClientRect(); return r.width % 1 > 0.01 || r.height % 1 > 0.01; }).length,
   };
-  const fonts = { pixelify: document.fonts.check('16px "Pixelify Sans"'), loaded: [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family) };
+  const fonts = { jersey: document.fonts.check('16px "Jersey 10"') && [...document.fonts].some((f) => f.family.includes('Jersey 10') && f.status === 'loaded'), loaded: [...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family) }; // (key name 'pixelify' kept: it means the pixel face is loaded)
   const bodyFont = getComputedStyle(document.body).fontFamily;
 
   // header / dock / primary controls
   const header = q('header').getBoundingClientRect();
-  const dockEl = q('[data-screen="play"]:not([hidden]) > section[aria-labelledby="play-guess-title"]');
+  const dockEl = q('main > [data-screen="play"]:not([hidden]) > section[aria-labelledby="play-guess-title"]');
   let dock = null;
   if (dockEl) {
     const dr = dockEl.getBoundingClientRect();
@@ -126,10 +126,32 @@ export function layoutAudit() {
   // one row = every header item's vertical centre within 6 px of the header's centre (items differ in height)
   const hkids = [...q('header').children].filter((c) => !c.hidden && c.getBoundingClientRect().height > 0 && getComputedStyle(c).display !== 'none' && getComputedStyle(c).position !== 'absolute');
   const header2 = { h: Math.round(header.height), rows: hkids.some((c) => { const r = c.getBoundingClientRect(); return Math.abs(r.top + r.height / 2 - (header.top + header.height / 2)) > 6; }) ? 2 : 1 };
+  // ADR 0005 gates: page scroll ratio, and on Play the dials/keypad/clues geometry
+  const ratio = Math.round((document.documentElement.scrollHeight / vh) * 1000) / 1000;
+  let play = null;
+  const pl = q('main > [data-screen="play"]:not([hidden])');
+  if (pl) {
+    const rr = (e) => e.getBoundingClientRect();
+    const dials = [...pl.querySelectorAll('[data-slot="dials"] > button')].map(rr);
+    const keys = [...pl.querySelectorAll('[data-slot="keypad"] > button')].map(rr);
+    const clues = [...pl.querySelectorAll('[data-slot="clues"] > li')].map(rr);
+    const bar = rr(pl.querySelector('.lp-topbar'));
+    const dockTop = dials.length ? Math.min(...dials.map((d) => d.top)) : vh;
+    play = {
+      dialsIn: dials.every((d) => d.bottom <= vh + 0.5 && d.top >= 0),
+      keyRows: new Set(keys.map((k) => Math.round(k.top))).size,
+      keysIn: keys.every((k) => k.bottom <= vh + 0.5),
+      clueCount: clues.length,
+      cluesVisible: clues.filter((c) => c.top >= bar.bottom - 2 && c.bottom <= dockTop + 2).length,
+      toastCovers: (() => { const t = q('[data-toast]'); if (!t || !t.textContent.trim()) return 0; const tr = rr(t); return [...document.querySelectorAll('button, [data-slot] > button')].filter((b) => { const r = rr(b); return r.width > 0 && r.left < tr.right && r.right > tr.left && r.top < tr.bottom && r.bottom > tr.top; }).length; })(),
+    };
+  }
   const screen = (q('main > [data-screen]:not([hidden])') || {}).dataset?.screen || null;
   const de = document.documentElement;
   return {
     screen,
+    ratio,
+    play,
     vw,
     vh,
     scrollW: de.scrollWidth,

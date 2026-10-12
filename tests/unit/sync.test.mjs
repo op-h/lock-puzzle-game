@@ -7,6 +7,7 @@ import { derive, parseSave, emptySave } from '../../js/sync/merge.js';
 import { playerId, boardId } from '../../js/sync/identity.js';
 import { createFakeFirestore, PROJECT, API_KEY } from './helpers/fake-firestore.mjs';
 import { createDevice, guardGlobalFetch, solve, throwingFetch } from './helpers/harness.mjs';
+import './helpers/merge-ready.mjs';
 
 let guard;
 before(() => {

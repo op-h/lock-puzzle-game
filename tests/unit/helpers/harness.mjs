@@ -4,6 +4,7 @@ import { createRemote } from '../../../js/sync/remote.js';
 import { createLocal, createMemoryStorage } from '../../../js/sync/local.js';
 import { createSync } from '../../../js/sync/sync.js';
 import { PROJECT, API_KEY } from './fake-firestore.mjs';
+import './merge-ready.mjs';
 
 /**
  * Deterministic timers: nothing fires until advance() is called, and nothing real is left pending

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createLocal, createMemoryStorage, MAX_SAVE_CHARS, KEY_SESSION } from '../../js/sync/local.js';
 import { emptySave } from '../../js/sync/merge.js';
+import './helpers/merge-ready.mjs';
 
 const ID_A = 'a'.repeat(64);
 const ID_B = 'b'.repeat(64);

@@ -8,9 +8,10 @@ import { createClassic } from '../game/classic.js';
 import { createBlood, toRunEntry } from '../game/blood.js';
 import { createOwnership } from '../game/ownership.js';
 import { createProgress, isForeignActive, reconcileRunSummary, restoreBlood, restoreClassic, sanitizeProgress } from '../game/progress.js';
-import { clueText, feedbackText, formatDuration, formatNumber, getLang, t } from '../i18n/index.js';
+import { formatDuration, formatNumber, getLang, t } from '../i18n/index.js';
 import { derive } from '../sync/index.js';
-import { $, $$, asciiDigit, closeDialog, el, isDisabled, isRtl, ltr, onAction, openDialog, say, setDigits, setDisabled, setOut } from './dom.js';
+import { syncClues } from './clues.js';
+import { $, $$, asciiDigit, closeDialog, el, isDisabled, isRtl, onAction, openDialog, restoreFocus, say, setDigits, setDisabled, setOut } from './dom.js';
 
 const SR_MARKS = [120, 60, 30, 10, 0];
 // Blood writes a heartbeat this often so another tab can tell a live run from an abandoned one (stale after 6 s).
@@ -40,7 +41,9 @@ export function createPlay(app) {
   const hintBtn = $(root, '[data-action="hint"]');
   const skipBtn = $(root, '[data-action="skip"]');
   const quitDlg = $(doc, '[data-dialog="confirm-quit"]');
-  const attemptsDt = $(root, '[data-i18n="play.attempts"]');
+  // Top bar groups (design-v2 3.3): the wrong count exists only in Classic, the solved count only in Blood.
+  const wrongGrp = $(root, '[data-topbar="wrong"]');
+  const solvedGrp = $(root, '[data-topbar="solved"]');
 
   // Wrong guesses are listed under the dials. The markup has no slot for it yet, so make one next to the keypad.
   let attemptsEl = $(root, '[data-slot="attempts"]');
@@ -136,24 +139,6 @@ export function createPlay(app) {
     setDisabled(checkBtn, !round || round.finishing || digits.some((d) => d === null));
   }
 
-  function clueItem(c, i) {
-    const li = el('li', { 'data-kind': c.kind });
-    li.dataset.n = String(i + 1);
-    if (c.kind === 'compare') li.dataset.rel = c.rel;
-    if (c.kind === 'feedback') {
-      for (const d of c.guess) li.append(el('span', { class: 'digit', 'aria-hidden': 'true' }, String(d)));
-      // One pip per matching digit and nothing for misses: shape (filled/hollow) carries the meaning.
-      for (let k = 0; k < c.bulls; k++) li.append(el('span', { 'data-pip': 'right', 'aria-hidden': 'true' }));
-      for (let k = 0; k < c.cows; k++) li.append(el('span', { 'data-pip': 'wrong', 'aria-hidden': 'true' }));
-      // Screen readers get the full clueText(): the guess prefix is visually hidden because the digit boxes already show it.
-      const prefix = t('clue.fb.full', { guess: ltr(lang(), c.guess.join(' ')), result: '' }).trim();
-      li.append(el('span', { class: 'clue-text' }, el('span', { class: 'visually-hidden' }, prefix + ' '), feedbackText(c.bulls, c.cows)));
-    } else {
-      li.append(el('span', { class: 'clue-text' }, clueText(c)));
-    }
-    return li;
-  }
-
   function renderAttempts() {
     if (!round) return;
     const guesses = round.s.wrongGuesses();
@@ -187,14 +172,12 @@ export function createPlay(app) {
     if (keypadEl.children.length === 0) {
       keypadEl.replaceChildren(...KEYPAD.map((d) => el('button', { type: 'button', 'data-digit': String(d) }, String(d))));
     }
-    cluesEl.replaceChildren(...p.clues.map(clueItem));
-    setOut(root, 'puzzle-no', round.mode === 'classic' ? p.id : `#${formatNumber(p.n)}`);
-    // The no-repeat rule is stated where the player looks while guessing: "Rookie · 3 digits, all different".
-    setOut(
-      root,
-      'difficulty',
-      t(p.repeats ? 'play.diffline.repeat' : 'play.diffline.distinct', { name: t('diff.' + p.difficulty), digits: t('diff.digits', { count: p.length }) }),
-    );
+    // Diff-append, never a rebuild per guess: a rebuild would replay the entrance stagger. A new puzzle (new id) rebuilds.
+    syncClues(cluesEl, p.clues, p.id, lang());
+    // The top bar shows the difficulty NAME only; the long form (digit count, the no-repeat rule) is hidden text.
+    setOut(root, 'difficulty', t('diff.' + p.difficulty));
+    setOut(root, 'diffline', t(p.repeats ? 'play.diffline.repeat' : 'play.diffline.distinct', { name: t('diff.' + p.difficulty), digits: t('diff.digits', { count: p.length }) }));
+    paintSolved();
     renderAttempts();
     paintDials();
     if (hadFocus && dialEls[sel]) dialEls[sel].focus();
@@ -206,13 +189,18 @@ export function createPlay(app) {
     setOut(root, 'timer', ''); // reset cache below
     delete timerEl.dataset.v;
     for (const b of $$(root, '[data-mode-badge]')) b.textContent = t('mode.' + round.mode);
-    // Blood has no per-puzzle wrong-guess row (the clock is the penalty), no hints; Classic has no skip.
-    attemptsDt.hidden = blood;
-    attemptsDt.nextElementSibling.hidden = blood;
+    // Blood has no wrong-guess count (the clock is the penalty), no hints and shows its solved count; Classic has no skip.
+    if (wrongGrp) wrongGrp.hidden = blood;
+    if (solvedGrp) solvedGrp.hidden = !blood;
     skipBtn.closest('li').hidden = !blood;
     hintBtn.closest('li').hidden = blood;
     barEl.hidden = !blood;
     paintHint();
+  }
+
+  /** Blood only: the run's solved count in the top bar. */
+  function paintSolved() {
+    if (round && round.mode === 'blood') setOut(root, 'solved-count', formatNumber(round.s.solvedInRun()));
   }
 
   function paintHint() {
@@ -579,6 +567,7 @@ export function createPlay(app) {
       skip,
       hint,
       quit: () => openDialog(quitDlg),
+      mute: () => app.chrome.toggleSound(), // the Play top bar's own sound button (the header is hidden on phones here)
     },
     (target) => {
       const dial = target.closest('[data-dial]');
@@ -596,6 +585,11 @@ export function createPlay(app) {
       closeDialog(quitDlg);
       quitRound();
     },
+  });
+  // Esc / Keep playing / backdrop: the Quit button normally gets focus back from the browser; make sure of it. Not once
+  // the round has ended (the router is moving focus to the next screen then).
+  quitDlg.addEventListener('close', () => {
+    if (round && !round.completed) restoreFocus(doc, $(root, '[data-action="quit"]'));
   });
 
   // ---- lifecycle ----
@@ -685,7 +679,7 @@ export function createPlay(app) {
       setLock('idle');
       say(root, '', 'info');
       if (round.mode === 'blood') {
-        say(root, t('play.msg.bloodStart', { wrongPen: BLOOD.wrongPenaltyMs / 1000, skipPen: BLOOD.skipPenaltyMs / 1000 }), 'info', { ms: 6000 });
+        say(root, t('play.msg.bloodStart', { wrongPen: BLOOD.wrongPenaltyMs / 1000, skipPen: BLOOD.skipPenaltyMs / 1000 }), 'info');
         srEl.textContent = '';
         announce(true);
       }
@@ -698,7 +692,12 @@ export function createPlay(app) {
       win.addEventListener('pagehide', onPageHide);
       win.addEventListener('pageshow', onPageShow);
     },
+    /** After the screen transition has finished: start the clue entrance stagger (PRISM keys it on [data-enter]). */
+    afterShow() {
+      if (round) root.dataset.enter = '';
+    },
     leave() {
+      delete root.dataset.enter;
       stopLoop();
       doc.removeEventListener('keydown', onKeyDown);
       doc.removeEventListener('keyup', onKeyUp);

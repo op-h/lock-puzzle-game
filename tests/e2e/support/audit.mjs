@@ -27,7 +27,7 @@ export async function tabWalk(page, { max = 90, reverse = false } = {}) {
       const box = label && el.matches('input[type="radio"]') ? label.getBoundingClientRect() : r;
       const header = document.querySelector('header');
       const hr = header.getBoundingClientRect();
-      const dockEl = document.querySelector('[data-screen="play"]:not([hidden]) > section[aria-labelledby="play-guess-title"]');
+      const dockEl = document.querySelector('main > [data-screen="play"]:not([hidden]) > section[aria-labelledby="play-guess-title"]');
       const dr = dockEl ? dockEl.getBoundingClientRect() : null;
       const dockSticky = dockEl && getComputedStyle(dockEl).position === 'sticky';
       const toast = document.querySelector('[data-toast]');
@@ -92,7 +92,7 @@ export async function readingOrderViolations(page, stops) {
   const sigs = real.map((s) => s.sig);
   return page.evaluate((sigsIn) => {
     const restore = [];
-    for (const el of [document.querySelector('header'), document.querySelector('[data-screen="play"]:not([hidden]) > section[aria-labelledby="play-guess-title"]')]) {
+    for (const el of [document.querySelector('header'), document.querySelector('main > [data-screen="play"]:not([hidden]) > section[aria-labelledby="play-guess-title"]')]) {
       if (!el) continue;
       restore.push([el, el.style.position]);
       el.style.position = 'static';

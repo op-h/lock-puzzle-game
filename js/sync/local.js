@@ -4,7 +4,7 @@
 // that routinely throws (private mode, disabled cookies, full disk) and a throw here would lose a solve.
 // On any failure we fall back to memory for the page's lifetime and say so via `persistent`.
 
-import { mergeSaves, parseSave } from './merge.js';
+import { M } from './lazy-merge.js';
 
 export const PREFIX = 'lp1.';
 export const KEY_SESSION = PREFIX + 'session';
@@ -159,7 +159,7 @@ export function createLocal(opts = {}) {
       if (!ID_RE.test(id)) return null;
       const raw = readRaw(SAVE_PREFIX + id);
       if (raw === null || raw.length > MAX_SAVE_CHARS) return null;
-      const r = parseSave(raw);
+      const r = M.parseSave(raw);
       return r.ok ? r.save : null;
     },
     /**
@@ -172,8 +172,8 @@ export function createLocal(opts = {}) {
       let merged = save;
       const stored = readRaw(SAVE_PREFIX + id);
       if (stored !== null && stored.length <= MAX_SAVE_CHARS) {
-        const p = parseSave(stored);
-        if (p.ok) merged = mergeSaves(p.save, save).save;
+        const p = M.parseSave(stored);
+        if (p.ok) merged = M.mergeSaves(p.save, save).save;
       }
       let text;
       try {

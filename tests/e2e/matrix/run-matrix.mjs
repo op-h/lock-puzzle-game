@@ -59,14 +59,18 @@ async function ensureLang(d, lang) {
 
 async function sweep(d, ctx, state, { full = true, textZoom = false } = {}) {
   const { page } = d;
-  const langs = full ? ['en', 'ar'] : ['en'];
+  const langs = [ctx.lang || 'en']; // ADR 0005: the header (and its language toggle) is hidden on Play/Result, so each language is its own pass
+  await page.waitForTimeout(650); // let the clue entrance stagger and the score count-up finish: half-transparent text is not a contrast failure
+  let lastScheme = null;
   const schemes = full ? ['dark', 'light'] : ['dark'];
   const motions = full ? ['no-preference', 'reduce'] : ['no-preference'];
   for (const lang of langs) {
-    await ensureLang(d, lang);
     for (const scheme of schemes) {
       for (const motion of motions) {
+        const changed = lastScheme !== scheme;
         await d.pin({ motion, scheme });
+        lastScheme = scheme;
+        if (changed) await page.waitForTimeout(320); // colours now ease for <= 160 ms: measuring mid-transition mixes the two palettes
         if (textZoom) await page.evaluate(() => (document.documentElement.style.fontSize = '200%'));
         await settle(page);
         const m = await page.evaluate(layoutAudit);
@@ -79,12 +83,25 @@ async function sweep(d, ctx, state, { full = true, textZoom = false } = {}) {
         for (const x of m.under44) note('target<44', x, where);
         for (const x of m.radius) note('RADIUS', x, where);
         if (m.transitionAll) note('TRANSITION-ALL', `${m.transitionAll} elements`, where);
-        if (!m.fonts.pixelify) note('FONT', 'Pixelify Sans not loaded', where);
+        if (!m.fonts.jersey) note('FONT', 'Jersey 10 not loaded', where);
         if (m.header.rows > 1 && ctx.w <= 480 && !textZoom) note('HEADER-ROWS', `${m.header.rows} rows, ${m.header.h}px`, where);
         if (m.dock && (m.dock.primaryNotInView || m.dock.primaryOutsideDock)) note('DOCK', `primary controls out of view: ${m.dock.primaryNotInView}/${m.dock.primaryOutsideDock}`, where);
         if (m.dock && m.dock.dialsFitRow && m.dock.dialsFitRow.wrapped) note('DIALS-WRAP', JSON.stringify(m.dock.dialsFitRow), where);
-        const need = ctx.w === 320 && ctx.h === 568 ? 170 : ctx.w === 390 && ctx.h === 844 ? 330 : 120; // ATLAS targets for the two reference phones
-        if (m.dock && m.dock.sticky && m.dock.freeViewportH < need) note('DOCK-BUDGET', `only ${m.dock.freeViewportH}px of ${m.vh}px left for content, need ${need} (header ${m.dock.headerH}, dock ${m.dock.h})`, where);
+        // ADR 0005 section 5 (mobile reference phones; the dock is a grid row now, so "free viewport beside a sticky dock" no longer applies)
+        const small = ctx.w === 320 && ctx.h === 568;
+        const tall = ctx.w === 390 && ctx.h === 844;
+        const lim = { auth: 1, 'auth-signin': 1, home: small ? 1.25 : 1, 'result-classic': small ? 1.25 : 1, 'result-blood': small ? 1.25 : 1, board: 2, help: 2 }[state];
+        if ((small || tall) && !textZoom && lim !== undefined && m.ratio > lim * 1.004) note('SCROLL-RATIO', `${state} ${m.ratio} > ${lim}`, where);
+        if ((small || tall) && !textZoom && m.play) {
+          const heavy = /master|classic-5|classic-4/.test(state);
+          const limP = tall ? (heavy ? 1.2 : m.play.clueCount <= 5 ? 1 : 1.2) : 9;
+          if (m.ratio > limP * 1.004) note('SCROLL-RATIO', `${state} ${m.ratio} > ${limP} (${m.play.clueCount} clues)`, where);
+          if (small && (m.play.cluesVisible < 2 || !m.play.dialsIn || !m.play.keysIn || m.play.keyRows < 2)) note('PLAY-FIT', `clues visible ${m.play.cluesVisible}/${m.play.clueCount}, dials in ${m.play.dialsIn}, key rows ${m.play.keyRows}`, where);
+        }
+        if (m.play && m.play.toastCovers) note('TOAST-COVERS', `${m.play.toastCovers} controls under the toast`, where);
+        if (m.dock && (m.dock.primaryNotInView || m.dock.primaryOutsideDock) && m.dock.sticky) note('DOCK', `primary controls out of view: ${m.dock.primaryNotInView}/${m.dock.primaryOutsideDock}`, where);
+        if (m.dock && m.dock.dialsFitRow && m.dock.dialsFitRow.wrapped) note('DIALS-WRAP', JSON.stringify(m.dock.dialsFitRow), where);
+        if (m.header.rows > 1 && ctx.w <= 480 && !textZoom) note('HEADER-ROWS', `${m.header.rows} rows, ${m.header.h}px`, where);
         if (motion === 'no-preference') {
           rec.contrast = await page.evaluate(contrastAudit);
           for (const f of rec.contrast.fails) note('CONTRAST', f, where);
@@ -100,7 +117,6 @@ async function sweep(d, ctx, state, { full = true, textZoom = false } = {}) {
       }
     }
   }
-  await ensureLang(d, 'en');
   await d.pin({ motion: 'no-preference', scheme: 'dark' });
   if (textZoom) await page.evaluate(() => (document.documentElement.style.fontSize = ''));
 }
@@ -130,7 +146,7 @@ async function focusRings(d, ctx, state) {
 async function runContext(ctx) {
   const backend = H.createBackend();
   seed(backend);
-  const d = await H.openDevice(ctx.browser, { baseUrl: ctx.url, backend, viewport: { width: ctx.w, height: ctx.h }, mobile: ctx.mobile, dpr: ctx.dpr, allow: [/./] });
+  const d = await H.openDevice(ctx.browser, { baseUrl: ctx.url, backend, viewport: { width: ctx.w, height: ctx.h }, mobile: ctx.mobile, dpr: ctx.dpr, locale: ctx.lang === 'ar' ? 'ar-SA' : 'en-US', allow: [/./] });
   const { page } = d;
   const full = ctx.full;
   const S = (state, opts) => sweep(d, ctx, state, { full, ...opts });
@@ -141,18 +157,19 @@ async function runContext(ctx) {
   await S('auth-signin');
   await page.click('[data-action="show-signup"]');
   await H.signUp(d, 'Matrix Max');
+  await H.settleToast(page);
   await S('home');
   if (ctx.rings) await focusRings(d, ctx, 'home');
-  await page.click('[data-screen="home"] [data-action="show-help"]');
+  await page.click('body > header [data-action="show-help"]');
   await d.waitScreen('help');
   await S('help');
-  await page.click('[data-screen="help"] [data-action="back"]');
+  await page.click('main > [data-screen="help"] [data-action="back"]');
   await d.waitScreen('home');
-  await page.click('[data-screen="home"] [data-action="show-board"]');
+  await page.click('body > header [data-action="show-board"]');
   await d.waitScreen('board');
   await page.waitForSelector('[data-slot="board-rows"] tr');
   await S('board');
-  await page.click('[data-screen="board"] [data-action="back"]');
+  await page.click('main > [data-screen="board"] [data-action="back"]');
   await d.waitScreen('home');
   for (const [diff, n] of [['rookie', 3], ['hacker', 4], ['master', 5]]) {
     await H.startClassic(page, diff);
@@ -163,7 +180,7 @@ async function runContext(ctx) {
       const p = await H.currentPuzzle(page);
       await H.typeWithKeypad(page, H.wrongGuess(p.answer, 0));
       await H.pressCheck(page);
-      await page.click('[data-screen="play"] [data-action="hint"]');
+      await page.click('main > [data-screen="play"] [data-action="hint"]');
       await page.waitForTimeout(150);
       await S('play-classic-5-wrong+hint');
     }
@@ -183,7 +200,7 @@ async function runContext(ctx) {
   await page.waitForTimeout(400);
   await S('result-blood');
   if (ctx.rings) await focusRings(d, ctx, 'result-blood');
-  await page.click('[data-screen="result"] [data-action="go-home"]');
+  await page.click('main > [data-screen="result"] [data-action="go-home"]');
   await d.waitScreen('home');
   await H.startClassic(page, 'rookie');
   await H.solveClassic(page);
@@ -191,7 +208,7 @@ async function runContext(ctx) {
   await S('result-classic');
   if (ctx.textZoomToo) {
     await S('result-classic', { textZoom: true, full: false });
-    await page.click('[data-screen="result"] [data-action="go-home"]');
+    await page.click('main > [data-screen="result"] [data-action="go-home"]');
     await d.waitScreen('home');
     await S('home', { textZoom: true, full: false });
     await H.startClassic(page, 'master');
@@ -220,7 +237,7 @@ async function spritesResolve(browser, url) {
       const text = await cache.get(abs);
       if (!text || !text.includes(`id="${id}"`)) bad.push(href);
     }
-    const sample = [...document.querySelectorAll('[data-screen="auth"] .lp-vault-door svg, header .lp-brand svg')].map((s) => { const r = s.getBoundingClientRect(); return `${Math.round(r.width)}x${Math.round(r.height)}`; });
+    const sample = [...document.querySelectorAll('main > [data-screen="auth"] .lp-vault-door svg, header .lp-brand svg')].map((s) => { const r = s.getBoundingClientRect(); return `${Math.round(r.width)}x${Math.round(r.height)}`; });
     return { uses: uses.length, bad, sample };
   });
   await d.close();
@@ -233,7 +250,8 @@ const t0 = Date.now();
 try {
   console.log('sprites:', JSON.stringify(await spritesResolve(browser, srv.url)));
   for (const w of WIDTHS) {
-    await runContext({ browser, url: srv.url, label: `w${w}`, w, h: HEIGHTS[w] || 800, mobile: w <= 768, full: true, rings: w === 390 || w === 1280 || w === 320, textZoomToo: w === 390 || w === 1280 });
+    await runContext({ browser, url: srv.url, label: `w${w}`, w, h: HEIGHTS[w] || 800, mobile: w <= 768, full: true, rings: w === 390 || w === 1280 || w === 320, textZoomToo: w === 390 || w === 1280, lang: 'en' });
+    await runContext({ browser, url: srv.url, label: `w${w}ar`, w, h: HEIGHTS[w] || 800, mobile: w <= 768, full: true, rings: false, textZoomToo: false, lang: 'ar' });
   }
   if (ZOOM) {
     await runContext({ browser, url: srv.url, label: 'zoom200', w: 640, h: 400, dpr: 2, mobile: false, full: false, rings: false });

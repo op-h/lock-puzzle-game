@@ -21,7 +21,14 @@ const files = [];
   }
 })(root);
 for (const f of files) if (FORBIDDEN.some((re) => re.test(f)) && f !== '.nojekyll') fail(`forbidden file staged: ${f}`);
-for (const must of ['index.html', 'sw.js', 'manifest.webmanifest', '.nojekyll', 'css/main.css', 'js/main.js', 'assets/sprites.svg', 'assets/fonts/pixelify-sans-latin.woff2']) if (!exists(must)) fail(`missing ${must}`);
+for (const must of ['index.html', 'sw.js', 'manifest.webmanifest', '.nojekyll', 'css/main.css', 'js/main.js', 'assets/sprites.svg', 'assets/fonts/jersey10-latin.woff2']) if (!exists(must)) fail(`missing ${must}`);
+
+// 1b. the face is Jersey 10: nothing may still reference Pixelify, and a font file nobody references is dead weight (warning, not failure)
+for (const f of ['index.html', 'css/main.css', 'sw.js']) if (/pixelify/i.test(read(f))) fail(`${f} still references Pixelify Sans`);
+for (const f of files.filter((x) => x.startsWith('assets/fonts/') && x.endsWith('.woff2'))) {
+  const referenced = [read('css/main.css'), read('sw.js'), read('index.html')].some((t) => t.includes(path.basename(f)));
+  if (!referenced) console.warn(`verify-site WARNING: ${f} ships but nothing references it (dead weight)`);
+}
 
 // 2a. release token: the literal must be gone from the VERSION line (comments may still mention it) (otherwise the worker is a no-op passthrough) and the passthrough guard intact
 const vline = /^const VERSION = '([^']*)';/m.exec(read('sw.js'));

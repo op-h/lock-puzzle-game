@@ -54,24 +54,25 @@ for (const vp of VIEWPORTS) {
       await audit('auth-signin');
       await page.click('[data-action="show-signup"]');
       await H.signUp(d, 'Key Kim');
+      await H.settleToast(page);
       await audit('home');
       await H.startClassic(page, 'master');
       await audit('play-classic-5');
       await H.solveClassic(page);
       await H.waitSynced(page);
       await audit('result-classic');
-      await page.click('[data-screen="result"] [data-action="go-home"]');
+      await page.click('main > [data-screen="result"] [data-action="go-home"]');
       await d.waitScreen('home');
-      await page.click('[data-screen="home"] [data-action="show-board"]');
+      await page.click('body > header [data-action="show-board"]');
       await d.waitScreen('board');
       await page.waitForSelector('[data-slot="board-rows"] tr');
       await audit('board');
-      await page.click('[data-screen="board"] [data-action="back"]');
+      await page.click('main > [data-screen="board"] [data-action="back"]');
       await d.waitScreen('home');
-      await page.click('[data-screen="home"] [data-action="show-help"]');
+      await page.click('body > header [data-action="show-help"]');
       await d.waitScreen('help');
       await audit('help');
-      await page.click('[data-screen="help"] [data-action="back"]');
+      await page.click('main > [data-screen="help"] [data-action="back"]');
       await d.waitScreen('home');
       await H.startBlood(page);
       await audit('play-blood');
@@ -103,7 +104,18 @@ test('skip link: first Tab, visible, jumps to main without navigating away', asy
   await d.close();
 });
 
-test('dialogs: Esc rules, focus returns to the trigger, no trap (logout + quit + code)', async () => {
+// The dialog's [open] attribute goes away first; CIRCUIT's restoreFocus runs on the `close` event, a task later. The contract
+// is "focus is back on the opener once the dialog has closed", so wait for that state instead of sampling the same instant.
+async function focusReturns(page, predicate, message) {
+  try {
+    await page.waitForFunction(predicate, null, { timeout: 2000 });
+  } catch {
+    const where = await page.evaluate(() => { const a = document.activeElement; return a ? a.tagName + (a.dataset && a.dataset.action ? '[' + a.dataset.action + ']' : '') : 'null'; });
+    assert.fail(`${message} (not within 2 s; focus is on ${where})`);
+  }
+}
+
+test('dialogs: Esc rules, focus returns to the trigger, no trap (logout + quit)', async () => {
   const d = await H.openDevice(br, { baseUrl: srv.url, backend: H.createBackend(), viewport: { width: 390, height: 844 }, mobile: true });
   const { page } = d;
   await H.signUp(d, 'Dialog Dan');
@@ -118,17 +130,22 @@ test('dialogs: Esc rules, focus returns to the trigger, no trap (logout + quit +
   assert.equal(await page.evaluate(() => !!document.activeElement.closest('dialog[data-dialog="confirm-logout"]')), true, 'focus moved into the dialog');
   await page.keyboard.press('Escape');
   await page.waitForSelector('dialog[data-dialog="confirm-logout"]:not([open])', { state: 'attached' });
-  assert.equal(await page.evaluate(() => document.activeElement.dataset.action), 'logout', 'focus returns to the control that opened it');
+  await focusReturns(page, () => !!document.activeElement.closest('details[data-account]'), 'focus returns to the account control that opened it (Esc)');
   assert.equal(await d.screen(), 'home', 'Esc cancels logout');
-  // "Stay Signed In" closes and returns focus too
+  // "Stay" closes and returns focus too: reopen through the same keyboard path
+  if (await page.evaluate(() => document.activeElement.tagName === 'SUMMARY')) {
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Tab');
+  }
   await page.keyboard.press('Enter');
   await page.waitForSelector('dialog[data-dialog="confirm-logout"][open]');
   await page.click('dialog[data-dialog="confirm-logout"] button[value="cancel"]');
   await page.waitForSelector('dialog[data-dialog="confirm-logout"]:not([open])', { state: 'attached' });
+  await focusReturns(page, () => !!document.activeElement.closest('details[data-account]'), 'focus returns to the account control that opened it (Stay)');
   assert.equal(await d.screen(), 'home');
   // keyboard path through the quit dialog
   await H.startClassic(page, 'rookie');
-  await page.focus('[data-screen="play"] [data-action="quit"]');
+  await page.focus('main > [data-screen="play"] [data-action="quit"]');
   await page.keyboard.press('Enter');
   await page.waitForSelector('dialog[data-dialog="confirm-quit"][open]');
   const cycle = [];
@@ -137,11 +154,35 @@ test('dialogs: Esc rules, focus returns to the trigger, no trap (logout + quit +
     cycle.push(await page.evaluate(() => (document.activeElement.closest('dialog') ? document.activeElement.textContent.trim() : 'OUTSIDE:' + document.activeElement.tagName)));
   }
   assert.ok(cycle.every((c) => !c.startsWith('OUTSIDE:') || c === 'OUTSIDE:BODY'), `focus never lands on the inert page: ${cycle}`);
-  assert.ok(cycle.includes('Keep Playing') && cycle.includes('Quit Round'));
+  assert.ok(cycle.includes('Keep playing') && cycle.includes('Quit'), `both dialog buttons are tab stops: ${cycle}`);
   await page.keyboard.press('Escape');
   await page.waitForSelector('dialog[data-dialog="confirm-quit"]:not([open])', { state: 'attached' });
-  assert.equal(await page.evaluate(() => document.activeElement.dataset.action), 'quit');
+  await focusReturns(page, () => document.activeElement.dataset.action === 'quit', 'focus returns to Quit after Esc');
   assert.equal(await d.screen(), 'play', 'Esc keeps the round');
+  d.assertClean();
+  await d.close();
+});
+
+test('code dialog: Esc never discards the one-time code; focus is inside; acknowledging moves on', async () => {
+  const d = await H.openDevice(br, { baseUrl: srv.url, backend: H.createBackend(), viewport: { width: 390, height: 844 }, mobile: true });
+  const { page } = d;
+  await d.goto('');
+  await page.fill(H.q.signupName, 'Code Keeper');
+  await page.click(H.q.signupSubmit);
+  await page.waitForSelector(`${H.q.codeDialog}[open]`);
+  const shown = (await page.textContent(`${H.q.codeDialog} [data-out="code"]`)).trim();
+  assert.match(shown.replace(/\D/g, ''), /^\d{6}$/);
+  assert.equal(await page.evaluate(() => !!document.activeElement.closest('dialog[data-dialog="code"]')), true, 'focus moved into the code dialog');
+  for (let i = 0; i < 2; i++) {
+    await page.keyboard.press('Escape'); // Chromium lets a second Esc through `cancel`; auth.js reopens on `close`
+    await page.waitForFunction(() => document.querySelector('dialog[data-dialog="code"]').open, null, { timeout: 2000 });
+  }
+  assert.equal((await page.textContent(`${H.q.codeDialog} [data-out="code"]`)).trim(), shown, 'the code is still shown after Esc');
+  assert.equal(await page.evaluate(() => !!document.activeElement.closest('dialog[data-dialog="code"]')), true, 'focus is still inside the dialog');
+  await page.check('#code-ack');
+  await page.click(`${H.q.codeDialog} [data-action="ack-code"]`);
+  await d.waitScreen('home');
+  await H.settleToast(page);
   d.assertClean();
   await d.close();
 });
@@ -151,7 +192,7 @@ test('play: hardware keyboard digits, Backspace, Delete, arrows, Enter; Escape n
   const { page } = d;
   await H.signUp(d, 'Typist');
   await H.startClassic(page, 'hacker'); // 4 dials
-  const sel = () => page.$$eval('[data-screen="play"] [data-slot="dials"] > button', (bs) => bs.findIndex((b) => b.dataset.state === 'selected'));
+  const sel = () => page.$$eval('main > [data-screen="play"] [data-slot="dials"] > button', (bs) => bs.findIndex((b) => b.dataset.state === 'selected'));
   const vals = () => H.dialValues(page);
   const p = await H.currentPuzzle(page);
   assert.equal(await sel(), 0, 'first dial selected initially');
@@ -171,38 +212,38 @@ test('play: hardware keyboard digits, Backspace, Delete, arrows, Enter; Escape n
   await page.keyboard.press('Delete');
   assert.deepEqual(await vals(), ['', '', '', '']);
   // focus a dial then arrow: focus follows (roving tabindex)
-  await page.focus('[data-screen="play"] [data-slot="dials"] > button[tabindex="0"]');
+  await page.focus('main > [data-screen="play"] [data-slot="dials"] > button[tabindex="0"]');
   await page.keyboard.press('ArrowRight');
   assert.equal(await page.evaluate(() => document.activeElement.dataset.dial), '1', 'on a dial, arrows move focus with the selection');
-  assert.equal(await page.evaluate(() => [...document.querySelectorAll('[data-screen="play"] [data-slot="dials"] > button')].map((b) => b.tabIndex).join()), '-1,0,-1,-1', 'roving tabindex: one tab stop in the row');
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('main > [data-screen="play"] [data-slot="dials"] > button')].map((b) => b.tabIndex).join()), '-1,0,-1,-1', 'roving tabindex: one tab stop in the row');
   // keypad key shows pressed state while the hardware key is down
   await page.keyboard.down('5');
   assert.equal(await page.evaluate(() => document.querySelector('[data-digit="5"]').hasAttribute('data-pressed')), true);
   await page.keyboard.up('5');
   assert.equal(await page.evaluate(() => document.querySelector('[data-digit="5"]').hasAttribute('data-pressed')), false);
-  await page.click('[data-screen="play"] [data-action="clear"]');
+  await page.click('main > [data-screen="play"] [data-action="clear"]');
   // incomplete + Enter (from a dial): told to fill every dial
-  await page.focus('[data-screen="play"] [data-slot="dials"] > button[tabindex="0"]');
+  await page.focus('main > [data-screen="play"] [data-slot="dials"] > button[tabindex="0"]');
   await page.keyboard.press('1');
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => /Fill every dial/.test(document.querySelector('[data-screen="play"] [data-out="msg"]').textContent));
+  await page.waitForFunction(() => /Fill every dial/.test(document.querySelector('main > [data-screen="play"] [data-out="msg"]').textContent));
   // a wrong full guess + Enter checks it
-  await page.click('[data-screen="play"] [data-action="clear"]');
-  await page.focus('[data-screen="play"] [data-slot="dials"] > button[tabindex="0"]');
+  await page.click('main > [data-screen="play"] [data-action="clear"]');
+  await page.focus('main > [data-screen="play"] [data-slot="dials"] > button[tabindex="0"]');
   for (const g of H.wrongGuess(p.answer, 0)) await page.keyboard.press(String(g));
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => /Wrong guesses: 1/.test(document.querySelector('[data-screen="play"] [data-out="msg"]').textContent));
+  await page.waitForFunction(() => /Wrong guess: 1/.test(document.querySelector('main > [data-screen="play"] [data-out="msg"]').textContent));
   // Escape on the play screen does nothing destructive
   await page.keyboard.press('Escape');
   assert.equal(await d.screen(), 'play');
   assert.equal((await H.currentPuzzle(page)).id, p.id);
   // Enter on a focused button activates THAT button (Clear), it does not also submit
-  await page.focus('[data-screen="play"] [data-action="clear"]');
+  await page.focus('main > [data-screen="play"] [data-action="clear"]');
   await page.keyboard.press('Enter');
   assert.deepEqual(await vals(), ['', '', '', ''], 'Enter on Clear clears');
-  assert.equal(await page.locator('[data-screen="play"] [data-slot="attempts"] li').count(), 1, 'and did not submit a guess');
+  assert.equal(await page.locator('main > [data-screen="play"] [data-slot="attempts"] li').count(), 1, 'and did not submit a guess');
   // solve entirely by keyboard
-  await page.focus('[data-screen="play"] [data-slot="dials"] > button[tabindex="0"]');
+  await page.focus('main > [data-screen="play"] [data-slot="dials"] > button[tabindex="0"]');
   for (const g of p.answer) await page.keyboard.press(String(g));
   await page.keyboard.press('Enter');
   await d.waitScreen('result');
@@ -218,8 +259,8 @@ test('play in Arabic: dial row is LTR so ArrowRight still moves to the visually 
   await H.signUp(d, 'مفاتيح');
   await H.startClassic(page, 'master');
   assert.equal(await page.evaluate(() => document.documentElement.dir), 'rtl');
-  const sel = () => page.$$eval('[data-screen="play"] [data-slot="dials"] > button', (bs) => bs.findIndex((b) => b.dataset.state === 'selected'));
-  const lefts = await page.$$eval('[data-screen="play"] [data-slot="dials"] > button', (bs) => bs.map((b) => b.getBoundingClientRect().left));
+  const sel = () => page.$$eval('main > [data-screen="play"] [data-slot="dials"] > button', (bs) => bs.findIndex((b) => b.dataset.state === 'selected'));
+  const lefts = await page.$$eval('main > [data-screen="play"] [data-slot="dials"] > button', (bs) => bs.map((b) => b.getBoundingClientRect().left));
   assert.deepEqual(lefts, [...lefts].sort((a, b) => a - b));
   await page.keyboard.press('ArrowRight');
   assert.equal(await sel(), 1, 'ArrowRight -> next dial to the right');

@@ -1,7 +1,6 @@
 // Numbers quoted in help/home copy come from config.js, so rebalancing the game cannot leave stale text.
 
 import { BLOOD, DIFFICULTIES, DIFFICULTY_ORDER, SCORING } from '../config.js';
-import { accuracyFactor, puzzleScore, speedFactor } from '../engine/scoring.js';
 import { formatDuration, tFor } from '../i18n/index.js';
 import { NAME_MAX } from '../sync/identity.js';
 
@@ -19,8 +18,12 @@ function list(lang, items) {
 export function copyParams(lang) {
   const lengths = [...new Set(DIFFICULTY_ORDER.map((d) => DIFFICULTIES[d].length))].sort((a, b) => a - b);
   const repeater = DIFFICULTY_ORDER.find((d) => DIFFICULTIES[d].repeats) || 'agent';
-  // The worked scoring example uses the easiest tier at its par time with one wrong guess.
+  // The worked scoring example: easiest tier, at its par time, one wrong guess, no hint. Computed from the config
+  // constants instead of importing engine/scoring.js (that file is not needed on first load); a test pins these
+  // numbers to the real puzzleScore/speedFactor/accuracyFactor so the two can never drift.
   const ex = DIFFICULTIES.rookie;
+  const exSpeed = SCORING.speedFloor + (SCORING.speedMax - SCORING.speedFloor) / 2; // 2^(-par/par) = 1/2
+  const exAcc = Math.max(SCORING.accuracyFloor, 1 - SCORING.accuracyStep);
   return {
     lengths: list(lang, lengths.map(String)),
     repeatName: tFor(lang, 'diff.' + repeater),
@@ -30,9 +33,9 @@ export function copyParams(lang) {
     accFloor: pct(SCORING.accuracyFloor),
     hintPct: pct(SCORING.hintFactor),
     exBase: String(ex.base),
-    exSpeed: dec(speedFactor(ex.par, ex.par)),
-    exAcc: dec(accuracyFactor(1)),
-    exPts: String(puzzleScore({ difficulty: 'rookie', secs: ex.par, wrong: 1, usedHint: false, blood: false })),
+    exSpeed: dec(exSpeed),
+    exAcc: dec(exAcc),
+    exPts: String(Math.round(ex.base * exSpeed * exAcc)),
     duration: formatDuration(BLOOD.durationMs / 1000),
     mult: String(BLOOD.mult),
     wrongPen: String(BLOOD.wrongPenaltyMs / 1000),

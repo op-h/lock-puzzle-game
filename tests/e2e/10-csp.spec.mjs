@@ -110,16 +110,16 @@ test('the app runs every screen under the policy with zero violations; modulepre
     await H.signUp(d, 'Policy Pam');
     await H.startClassic(page, 'rookie');
     await H.solveClassic(page);
-    await page.click('[data-screen="result"] [data-action="go-home"]');
+    await page.click('main > [data-screen="result"] [data-action="go-home"]');
     await H.startBlood(page);
     await H.quitRound(page);
-    await page.click('[data-screen="home"] [data-action="show-board"]');
+    await page.click('body > header [data-action="show-board"]');
     await d.waitScreen('board');
-    await page.click('[data-screen="board"] [data-action="back"]');
-    await page.click('[data-screen="home"] [data-action="show-help"]');
+    await page.click('main > [data-screen="board"] [data-action="back"]');
+    await page.click('body > header [data-action="show-help"]');
     await d.waitScreen('help');
     await page.click('header [data-action="mute"]'); // sound module + AudioContext path
-    await page.click('[data-screen="help"] [data-action="back"]');
+    await page.click('main > [data-screen="help"] [data-action="back"]');
     await page.waitForTimeout(3500);
     assert.deepEqual(d.problems.filter((p) => p.kind === 'csp'), [], `${lang}: zero CSP violations across all screens`);
     assert.deepEqual(d.problems.filter((p) => /preload/i.test(p.text)), [], `${lang}: no unused-preload warning`);

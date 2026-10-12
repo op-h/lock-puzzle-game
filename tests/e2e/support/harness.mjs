@@ -296,7 +296,7 @@ export async function logout(d) {
 
 export async function homeTotals(page) {
   return page.evaluate(() => {
-    const t = (n) => document.querySelector(`[data-screen="home"] [data-out="${n}"]`)?.textContent.trim();
+    const t = (n) => document.querySelector(`main > [data-screen="home"] [data-out="${n}"]`)?.textContent.trim();
     return { classic: t('classic'), blood: t('blood'), total: t('total') };
   });
 }
@@ -329,7 +329,7 @@ export async function currentPuzzle(page) {
     }
     const p = generatePuzzle({ difficulty, seed });
     const sols = solutions({ length: p.length, repeats: p.repeats }, p.clues, 2);
-    const items = [...document.querySelectorAll('[data-screen="play"] [data-slot="clues"] > li')];
+    const items = [...document.querySelectorAll('main > [data-screen="play"] [data-slot="clues"] > li')];
     const domFeedback = items
       .filter((li) => li.dataset.kind === 'feedback')
       .map((li) => ({
@@ -379,28 +379,28 @@ export function wrongGuess(answer, n = 0) {
 
 /** Type digits with the on-screen keypad into the (cleared) dial row. */
 export async function typeWithKeypad(page, digits) {
-  await page.click('[data-screen="play"] [data-action="clear"]');
-  for (const dgt of digits) await page.click(`[data-screen="play"] [data-slot="keypad"] [data-digit="${dgt}"]`);
+  await page.click('main > [data-screen="play"] [data-action="clear"]');
+  for (const dgt of digits) await page.click(`main > [data-screen="play"] [data-slot="keypad"] [data-digit="${dgt}"]`);
 }
 
 export async function dialValues(page) {
-  return page.$$eval('[data-screen="play"] [data-slot="dials"] > button', (bs) => bs.map((b) => b.textContent.trim()));
+  return page.$$eval('main > [data-screen="play"] [data-slot="dials"] > button', (bs) => bs.map((b) => b.textContent.trim()));
 }
 
 export async function pressCheck(page) {
-  await page.click('[data-screen="play"] [data-action="check"]');
+  await page.click('main > [data-screen="play"] [data-action="check"]');
 }
 
 /** Start a Classic round from Home (picks the difficulty first) and wait for the play screen. */
 export async function startClassic(page, difficulty = 'rookie') {
   // The radio is an invisible overlay on its label (design choice), so the input itself is the click target.
   await page.check(`#diff-${difficulty}`);
-  await page.click('[data-screen="home"] [data-action="play-classic"]');
+  await page.click('main > [data-screen="home"] [data-action="play-classic"]');
   await page.waitForSelector('main > [data-screen="play"]:not([hidden]) [data-slot="dials"] > button');
 }
 
 export async function startBlood(page) {
-  await page.click('[data-screen="home"] [data-action="play-blood"]');
+  await page.click('main > [data-screen="home"] [data-action="play-blood"]');
   await page.waitForSelector('main > [data-screen="play"]:not([hidden]) [data-slot="dials"] > button');
 }
 
@@ -439,7 +439,15 @@ export async function waitSynced(page, timeout = 15000) {
 
 /** Quit the current round with real pointer clicks (the Quit button must be reachable at every viewport: F-03 is fixed). */
 export async function quitRound(page) {
-  await page.click('[data-screen="play"] [data-action="quit"]');
+  await page.click('main > [data-screen="play"] [data-action="quit"]');
   await page.waitForSelector('dialog[data-dialog="confirm-quit"][open]');
   await page.click('dialog[data-dialog="confirm-quit"] [data-action="quit"]');
+}
+
+/** Wait for the transient [data-toast] to clear (6 s). A fresh sign-up currently shows "Back online. Saved." (F-17); tests that are not about it wait it out. */
+export async function settleToast(page, timeout = 9000) {
+  await page.waitForFunction(() => {
+    const t = document.querySelector('[data-toast]');
+    return !t || t.textContent.trim() === '';
+  }, null, { timeout });
 }

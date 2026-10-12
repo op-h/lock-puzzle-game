@@ -14,7 +14,7 @@ after(async () => {
   await srv.close();
 });
 
-const html = (page) => page.evaluate(() => ({ lang: document.documentElement.lang, dir: document.documentElement.dir, title: document.title, btn: document.querySelector('header [data-action="lang"]').textContent.trim(), btnLang: document.querySelector('header [data-action="lang"]').lang }));
+const html = (page) => page.evaluate(() => ({ lang: document.documentElement.lang, dir: document.documentElement.dir, title: document.title, btn: document.querySelector('header [data-action="lang"] .visually-hidden').textContent.trim(), btnLang: document.querySelector('header [data-action="lang"]').lang }));
 const noOverflow = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 const arabicIndic = (page) => page.evaluate(() => /[٠-٩۰-۹]/.test(document.body.innerText));
 
@@ -26,13 +26,13 @@ test('toggle flips lang/dir/title/label, keeps Latin digits, persists across rel
   let h = await html(page);
   assert.deepEqual([h.lang, h.dir, h.btn, h.btnLang], ['en', 'ltr', 'العربية', 'ar']);
   assert.match(h.title, /^Welcome \| Lock Puzzle$/);
-  const enH1 = await page.textContent('[data-screen="auth"] h1');
+  const enH1 = await page.textContent('main > [data-screen="auth"] label[for="signup-name"]');
 
   await page.click('header [data-action="lang"]');
   await page.waitForFunction(() => document.documentElement.lang === 'ar');
   h = await html(page);
   assert.deepEqual([h.lang, h.dir, h.btn, h.btnLang], ['ar', 'rtl', 'English', 'en'], 'toggle names the language you will GET and carries that lang');
-  assert.notEqual(await page.textContent('[data-screen="auth"] h1'), enH1, 'visible text really changed');
+  assert.notEqual(await page.textContent('main > [data-screen="auth"] label[for="signup-name"]'), enH1, 'visible text really changed');
   assert.match(h.title, /[؀-ۿ]/, 'document title is translated');
   assert.equal(await noOverflow(page), true, 'no horizontal scroll in Arabic at 390');
   assert.equal(await page.evaluate(() => localStorage.getItem('lp1.lang')), 'ar');
@@ -61,24 +61,15 @@ test('toggle flips lang/dir/title/label, keeps Latin digits, persists across rel
   assert.equal(ltr.timer, 'ltr', 'timer stays LTR');
   assert.deepEqual(ltr.dialX, [...ltr.dialX].sort((a, b) => a - b), 'dial 1 is leftmost');
   assert.deepEqual(ltr.keyX, [...ltr.keyX].sort((a, b) => a - b), 'keypad 1,2,3 run left to right');
-  assert.equal(await page.evaluate(() => document.querySelector('[data-slot="clues"]').closest('section') !== null && getComputedStyle(document.querySelector('[data-screen="play"] h1')).direction), 'rtl', 'prose is RTL');
+  assert.equal(await page.evaluate(() => document.querySelector('[data-slot="clues"]').closest('section') !== null && getComputedStyle(document.querySelector('main > [data-screen="play"] h1')).direction), 'rtl', 'prose is RTL');
   assert.equal(await noOverflow(page), true, 'no horizontal scroll on play in Arabic');
 
-  // toggling mid-round keeps the typed digits and the round
-  const p = await H.currentPuzzle(page);
-  await page.click('[data-screen="play"] [data-action="clear"]');
-  await page.click('[data-screen="play"] [data-digit="7"]');
-  await page.click('[data-screen="play"] [data-digit="2"]');
-  await page.click('header [data-action="lang"]');
-  await page.waitForFunction(() => document.documentElement.lang === 'en');
-  assert.deepEqual((await H.dialValues(page)).slice(0, 2), ['7', '2'], 'typed digits survive a language switch');
-  assert.equal((await H.currentPuzzle(page)).id, p.id, 'same puzzle after switching language');
-  assert.equal(await page.evaluate(() => document.activeElement.closest('[data-slot="dials"]') !== null || document.activeElement.dataset.action === 'lang'), true);
-  await page.click('header [data-action="lang"]'); // back to ar
-  await page.waitForFunction(() => document.documentElement.lang === 'ar');
+  // ADR 0005: Play has its own top bar; the header (language toggle included) is not shown during a round. The language
+  // therefore cannot change mid-round; the round must survive a switch made on the previous screen and keep its puzzle.
+  assert.equal(await page.isVisible('body > header [data-action="lang"]'), false, 'no language toggle on Play');
   await H.solveClassic(page);
   assert.equal(await arabicIndic(page), false, 'Latin digits on result');
-  await page.click('[data-screen="result"] [data-action="go-home"]');
+  await page.click('main > [data-screen="result"] [data-action="go-home"]');
   await d.waitScreen('home');
   await H.waitSynced(page);
 
@@ -90,7 +81,7 @@ test('toggle flips lang/dir/title/label, keeps Latin digits, persists across rel
   // persists across logout (auth screen stays Arabic) and login
   await H.logout(d);
   assert.deepEqual([(await html(page)).lang, (await html(page)).dir], ['ar', 'rtl'], 'language is a device preference, not account data: it survives logout');
-  assert.ok((await page.textContent('[data-screen="auth"] h1')) !== enH1);
+  assert.ok((await page.textContent('main > [data-screen="auth"] label[for="signup-name"]')) !== enH1);
   await H.signIn(d, 'Lang Lena', code);
   assert.equal((await html(page)).lang, 'ar', 'still Arabic after logout/login');
   // second device with an English browser picks the account's saved language up on sign-in
@@ -140,15 +131,15 @@ test('every screen in Arabic at 320px has no horizontal overflow and no Arabic-I
   assert.equal(await noOverflow(page), true, 'auth');
   await H.signUp(d, 'عمر');
   assert.equal(await noOverflow(page), true, 'home');
-  await page.click('[data-screen="home"] [data-action="show-help"]');
+  await page.click('body > header [data-action="show-help"]');
   await d.waitScreen('help');
   assert.equal(await noOverflow(page), true, 'help');
-  await page.click('[data-screen="help"] [data-action="back"]');
+  await page.click('main > [data-screen="help"] [data-action="back"]');
   await d.waitScreen('home');
-  await page.click('[data-screen="home"] [data-action="show-board"]');
+  await page.click('body > header [data-action="show-board"]');
   await d.waitScreen('board');
   assert.equal(await noOverflow(page), true, 'board');
-  await page.click('[data-screen="board"] [data-action="back"]');
+  await page.click('main > [data-screen="board"] [data-action="back"]');
   await H.startClassic(page, 'master');
   assert.equal(await noOverflow(page), true, 'play 5 dials');
   assert.equal(await arabicIndic(page), false);
