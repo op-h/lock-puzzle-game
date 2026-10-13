@@ -60,16 +60,17 @@ test('diff plan: same puzzle appends only what is missing; a different puzzle (o
 const FB = { kind: 'feedback', guess: [4, 2, 1], bulls: 1, cows: 2 };
 const SUM = { kind: 'sum', value: 13 };
 
-test('feedback row: flat children = digits, pips (right first), hidden sentence; every visual piece aria-hidden', () => {
+test('feedback row: flat children = digits, pips (right first), the result on screen, the full sentence hidden; every visual piece aria-hidden', () => {
   const doc = createFakeDocument();
   const li = buildRow(doc, FB, 0, 'en');
   assert.equal(li.getAttribute('data-kind'), 'feedback');
   const names = li.children.map((c) => c.getAttribute('data-pip') || c.className);
-  assert.deepEqual(names, ['digit', 'digit', 'digit', 'right', 'wrong', 'wrong', 'clue-text visually-hidden']);
+  assert.deepEqual(names, ['digit', 'digit', 'digit', 'right', 'wrong', 'wrong', 'clue-text', 'clue-text visually-hidden']);
   assert.deepEqual(li.children.slice(0, 3).map((c) => c.textContent), ['4', '2', '1']);
-  for (const c of li.children.slice(0, 6)) assert.equal(c.getAttribute('aria-hidden'), 'true');
-  assert.equal(li.children[6].getAttribute('aria-hidden'), null, 'the sentence is what assistive tech reads');
-  assert.match(li.children[6].textContent, /Guess 4 2 1/);
+  for (const c of li.children.slice(0, 7)) assert.equal(c.getAttribute('aria-hidden'), 'true');
+  assert.equal(li.children[6].textContent, '1 digit is correct and in the right place; 2 digits are correct but in the wrong place.', 'on screen: the result only');
+  assert.equal(li.children[7].getAttribute('aria-hidden'), null, 'the full sentence is what assistive tech reads, once');
+  assert.match(li.children[7].textContent, /Guess 4 2 1/);
   assert.equal(li.style.props.get('--i'), '0');
 });
 
@@ -82,7 +83,7 @@ test('feedback row with no match draws the none glyph, never an empty row', () =
   assert.equal(li.children.filter((c) => c.getAttribute('data-pip')).length, 0);
 });
 
-test('symbol rows: kind icon + .sym + hidden sentence; compare carries data-rel; row index drives --i', () => {
+test('symbol rows: kind icon + .sym + the sentence (on screen and read); compare carries data-rel; row index drives --i', () => {
   const doc = createFakeDocument();
   const sum = buildRow(doc, SUM, 2, 'en');
   assert.equal(sum.children[0].children[0].getAttribute('href'), './assets/sprites.svg#lp-sum');

@@ -872,8 +872,11 @@
   /* symbol text (= 12, 2nd: even, 1st > 2nd) is LTR in both languages so ">" never mirrors */
   .sym { font-size: var(--lp-fs-body); line-height: 1; direction: ltr; unicode-bidi: isolate; white-space: nowrap; }
   :is([data-slot="clues"], .lp-legend, .lp-example) .sym { margin-inline-start: var(--lp-space-3); }
-  /* the full sentence stays for assistive tech (visually hidden in utilities) */
-  @container (min-width: 28rem) { [data-slot="clues"] { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  /* the sentence is on screen again: it wraps beside the symbols; the short symbol text is redundant next to it */
+  .clue-text:not(.visually-hidden) { flex: 1 1 0; min-inline-size: 0; margin-inline-start: var(--lp-space-3); font-size: var(--lp-fs-label); line-height: 1.15; unicode-bidi: isolate; }
+  [dir="rtl"] .clue-text { direction: rtl; }
+  [data-slot="clues"] .sym { display: none; }
+  :is([data-slot="clues"], .lp-example) > li { padding-block: var(--lp-space-1); }
 
   /* ---- tabs (Board) ---- */
   [role="tablist"] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--lp-space-1); }
@@ -1266,7 +1269,7 @@
 /* ================================================================ utilities */
 @layer utilities {
   /* Visually hidden but still read aloud. Never display:none for these (icon-only buttons keep their names). */
-  .visually-hidden, .clue-text, [data-slot="attempts"], main > [data-screen="result"] [data-slot="result-lines"],
+  .visually-hidden, [data-slot="attempts"], main > [data-screen="result"] [data-slot="result-lines"],
   .lp-chip > span, .lp-chip output, [data-action="mute"] > span, #play-guess-title, #play-guess-help, #play-clues-title {
     position: absolute;
     inline-size: 1px;

@@ -121,7 +121,7 @@ for (const lang of ['en', 'ar']) {
 }
 
 // ----------------------------------------------------------------------------------------------- copy budget
-test('copy budget: no visible paragraph and no sentence over 8 words on Auth, Home, Play and Result (390x844, EN)', async () => {
+test('copy budget: no visible paragraph and no sentence over 8 words on Auth, Home, Play and Result (390x844, EN; clue sentences excepted)', async () => {
   const d = await dev({ viewport: { width: 390, height: 844 }, mobile: true });
   const { page } = d;
   const scan = () =>
@@ -134,7 +134,8 @@ test('copy budget: no visible paragraph and no sentence over 8 words on Auth, Ho
         for (let n = walker.nextNode(); n; n = walker.nextNode()) {
           const el = n.parentElement;
           const text = n.textContent.replace(/\s+/g, ' ').trim();
-          if (!text || el.closest('[hidden], .visually-hidden, [aria-hidden="true"], [data-out="name"], [data-out="code"], output, button, label, legend, h1, h2')) continue;
+          // clue sentences are puzzle content (the owner asked for them back), not interface copy
+          if (!text || el.closest('[hidden], .visually-hidden, [aria-hidden="true"], [data-out="name"], [data-out="code"], output, button, label, legend, h1, h2, [data-slot="clues"]')) continue;
           const cs = getComputedStyle(el);
           const r = el.getBoundingClientRect();
           if (cs.display === 'none' || cs.visibility === 'hidden' || r.width <= 2 || (cs.position === 'absolute' && r.width <= 2)) continue;

@@ -67,8 +67,10 @@ for (const [w, h] of [[320, 568], [390, 844]]) {
     assert.deepEqual(ar.digitRank, ar.dialRank.slice(0, ar.digitRank.length).map((_, i) => i), `digit i is left of digit i+1, same as dial order (lefts ${ar.digitLefts})`);
     assert.deepEqual(ar.dialRank, [...ar.dialRank].sort((a, b) => a - b));
     assert.equal(ar.pipsAfterDigits, true, 'pips come after the digits');
-    assert.equal(ar.sentenceHidden, true, 'ADR 0005: the sentence is visually hidden (symbol only) but present');
-    assert.ok(ar.sentenceChars > 10, 'and it still carries the full text');
+    assert.equal(ar.sentenceHidden, false, 'the clue sentence is back on screen (owner request after ADR 0006)');
+    assert.equal(ar.txtDir, 'rtl', 'Arabic sentence reads right to left');
+    assert.ok(ar.sentenceChars > 10, 'and it carries real text');
+    assert.ok(ar.textLeftGap >= 0 && ar.textRightGap >= 0, 'inside the card');
     assert.ok(ar.scrollW <= ar.vw, 'no horizontal overflow');
     // board points column in Arabic
     await H.quitRound(page);
@@ -98,7 +100,7 @@ for (const [w, h] of [[320, 568], [390, 844]]) {
     assert.equal(en.txtDir, 'ltr');
     assert.deepEqual(en.digitRank, en.digitRank.slice().sort((a, b) => a - b), 'English digits in order');
     assert.equal(en.pipsAfterDigits, true);
-    assert.equal(en.sentenceHidden, true);
+    assert.equal(en.sentenceHidden, false);
     d.assertClean();
     await d.close();
   });

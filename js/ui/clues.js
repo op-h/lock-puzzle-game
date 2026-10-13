@@ -1,10 +1,11 @@
-// Clue rows (design-v2 section 5): a clue is a SYMBOL, not a sentence. Feedback = the guess digits plus pips (filled =
-// right place, hollow = wrong place, the `none` glyph for zero); the other kinds = a 16 px kind icon plus a short symbol
-// text. The full sentence stays in the row as visually hidden text, so a screen reader hears one sentence per clue.
+// Clue rows (design-v2 section 5, amended: the sentence is back on screen). Feedback = the guess digits plus pips (filled =
+// right place, hollow = wrong place, the `none` glyph for zero); the other kinds = a 16 px kind icon. Every row then
+// reads its sentence (feedback: just the result, the guess digits are beside it); symbols are aria-hidden, so a screen
+// reader hears exactly one full sentence per clue.
 // The pure parts (symbol text, pip model, diff plan) are tested in Node; only buildRow touches the DOM.
 
 import { tFor } from '../i18n/index.js';
-import { clueText } from '../i18n/clue-text.js';
+import { clueText, feedbackText } from '../i18n/clue-text.js';
 
 const SPRITES = './assets/sprites.svg#lp-';
 const KIND_ICON = { sum: 'sum', parity: 'parity', compare: 'compare', evenCount: 'even-count' };
@@ -105,7 +106,13 @@ export function buildRow(doc, clue, index, lang) {
     li.append(icon(doc, KIND_ICON[clue.kind], 16));
     li.append(span(doc, 'sym', symbolText(clue, lang) || '', true));
   }
-  li.append(span(doc, 'clue-text visually-hidden', clueText(clue, lang)));
+  if (clue.kind === 'feedback') {
+    // On screen: just the result (the digits are right there). For assistive tech: the full sentence, once.
+    li.append(span(doc, 'clue-text', feedbackText(clue.bulls, clue.cows, lang), true));
+    li.append(span(doc, 'clue-text visually-hidden', clueText(clue, lang)));
+  } else {
+    li.append(span(doc, 'clue-text', clueText(clue, lang)));
+  }
   return li;
 }
 
@@ -113,8 +120,11 @@ export function buildRow(doc, clue, index, lang) {
 export function refreshRow(li, clue, lang) {
   const sym = li.querySelector('.sym');
   if (sym) sym.textContent = symbolText(clue, lang) || '';
-  const sentence = li.querySelector('.clue-text');
-  if (sentence) sentence.textContent = clueText(clue, lang);
+  const shown = li.querySelector('.clue-text');
+  if (clue.kind === 'feedback') {
+    shown.textContent = feedbackText(clue.bulls, clue.cows, lang);
+    li.querySelector('.visually-hidden').textContent = clueText(clue, lang);
+  } else shown.textContent = clueText(clue, lang);
 }
 
 /**
