@@ -1,0 +1,9 @@
+name = "lock-game-api"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lock-game"
+database_id = "601e2ba0-f6b2-4c16-aef5-9f971108e085"

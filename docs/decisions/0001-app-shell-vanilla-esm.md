@@ -27,7 +27,7 @@ Supporting decisions:
 - **Bilingual EN/AR with a toggle** (not both languages stacked as in the original). `lang`/`dir` are
   set on `<html>`; CSS uses logical properties only. Default from `navigator.language`, persisted.
 - **Offline-capable via a tiny service worker** (`sw.js`, cache-first for same-origin static assets,
-  versioned cache name, never intercepts `firestore.googleapis.com`). Installable via web manifest.
+  versioned cache name, never intercepts the cross-origin game API). Installable via web manifest.
   Added last; it must not block release if it is not green (see Risks in qa.md).
 - Pure game logic lives in DOM-free modules so it can be tested in Node with `node --test`.
 

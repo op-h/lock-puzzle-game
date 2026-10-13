@@ -67,11 +67,10 @@ export function bloodDifficultyFor(solvedInRun) {
   return /** @type {DifficultyId} */ (pick);
 }
 
-// ADR 0002: this is the Firebase *Web* API key, an identifier rather than a secret (authorization is
-// enforced by firestore.rules). It is already public in the repository history. Restrict it to the
-// site's HTTP referrer in Google Cloud Console. Never add any other key or token to client code.
+// ADR 0007: the game's own small API (a Cloudflare Worker + D1 database, worker/). The URL is public by nature and
+// carries no key: authorization is the save id (a hash of name + code) and the server validates every write.
+// Never add a key or token to client code.
 export const CLOUD = Object.freeze({
-  projectId: 'lock-puzzle-game',
-  apiKey: 'AIzaSyAHXQMCBK6NdEdBO4-msM7M0Mm6x-cDxNY',
+  url: 'https://lock-game-api.oph-games.workers.dev',
   enabled: true,
 });

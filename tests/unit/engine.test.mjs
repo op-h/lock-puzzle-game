@@ -433,16 +433,11 @@ describe('config', () => {
     for (let n = 0; n < 200; n++) assert.ok(Object.hasOwn(DIFFICULTIES, bloodDifficultyFor(n)));
   });
 
-  test('the only API key in js/ is the documented Firebase Web key', () => {
-    assert.deepEqual({ ...CLOUD }, {
-      projectId: 'lock-puzzle-game',
-      apiKey: 'AIzaSyAHXQMCBK6NdEdBO4-msM7M0Mm6x-cDxNY',
-      enabled: true,
-    });
+  test('client code carries no key or token: CLOUD is just the public API URL', () => {
+    assert.deepEqual({ ...CLOUD }, { url: 'https://lock-game-api.oph-games.workers.dev', enabled: true });
     for (const f of walkJs(join(ROOT, 'js'))) {
       const src = readFileSync(f, 'utf8');
-      const hits = src.match(/AIza[0-9A-Za-z_-]{30,}/g) || [];
-      assert.equal(hits.length, f.endsWith('config.js') ? 1 : 0, f);
+      assert.deepEqual(src.match(/AIza[0-9A-Za-z_-]{30,}|(?:api[_-]?key|secret|token)\s*[:=]\s*['"][^'"]{12,}/gi) || [], [], f);
     }
   });
 });

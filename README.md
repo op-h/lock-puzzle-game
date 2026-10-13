@@ -45,8 +45,8 @@ All URLs in the app are relative, so it works under the `/lock-puzzle-game/` pro
 
 ## Cloud saves (one-time owner setup)
 
-Saves work offline on the device out of the box. For cross-device sign-in, publish `firestore.rules` and enable
-Firestore in the Firebase project, then restrict the web API key to this site. Step by step: [docs/backend.md](docs/backend.md).
+Saves work offline on the device and sync across devices through a small free Cloudflare Worker + D1 database
+(`worker/`). Deploying or changing it is a few `wrangler` commands: [docs/backend.md](docs/backend.md).
 Why it is designed this way, and what it does not protect against: [ADR 0002](docs/decisions/0002-cloud-saves-capability-code.md).
 
 ## Project map
@@ -56,7 +56,7 @@ Why it is designed this way, and what it does not protect against: [ADR 0002](do
 | `index.html`, `css/main.css`, `js/`, `sw.js` | The app: vanilla ES modules, one stylesheet, no framework |
 | `js/engine/` | Puzzle generator, solver, scoring (DOM-free, unit tested) |
 | `js/game/` | Classic and Blood state machines with an injectable clock |
-| `js/sync/` | Name + code identity, offline-first storage, merge, Firestore REST client |
+| `js/sync/` | Name + code identity, offline-first storage, merge, API client |
 | `docs/architecture.md`, `docs/decisions/` | Architecture contract and decision records |
 | `docs/design.md`, `docs/perf.md`, `docs/seo.md`, `docs/qa.md` | Design system, budgets, metadata, release checks |
 

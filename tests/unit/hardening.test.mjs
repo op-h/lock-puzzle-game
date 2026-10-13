@@ -10,7 +10,7 @@ import { playerId, boardId, generateBoardKey, normalizeName } from '../../js/syn
 import { watchTabs } from '../../js/sync/tabs.js';
 import { sanitizeProgress, isForeignActive, HEARTBEAT_STALE_MS } from '../../js/game/progress.js';
 import { asciiDigit } from '../../js/ui/dom.js';
-import { createFakeFirestore } from './helpers/fake-firestore.mjs';
+import { createFakeBackend } from './helpers/fake-backend.mjs';
 import { createDevice, guardGlobalFetch, solve } from './helpers/harness.mjs';
 import './helpers/merge-ready.mjs';
 
@@ -69,7 +69,7 @@ test('bk: invalid candidates are ignored (never win, never crash); a save withou
 });
 
 test('bk: sign-up creates one; the board row id is H("lp1-board:"+bk), not derivable from name+code', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const { code, id } = await signUp(A, 'Ali');
   const bk = A.sync.getSave().bk;
@@ -89,21 +89,21 @@ test('bk: sign-up creates one; the board row id is H("lp1-board:"+bk), not deriv
     [...backend.docs.keys()].filter((k) => k.startsWith('board/')),
     ['board/' + bid],
   );
-  assert.ok(!JSON.stringify(row.fields).includes(code));
-  assert.ok(!JSON.stringify(row.fields).includes(id));
-  assert.ok(!JSON.stringify(row.fields).includes(bk), 'the key itself is never published, only its hash');
+  assert.ok(!JSON.stringify(row).includes(code));
+  assert.ok(!JSON.stringify(row).includes(id));
+  assert.ok(!JSON.stringify(row).includes(bk), 'the key itself is never published, only its hash');
   void key;
 });
 
 test('bk: a save that predates the field gets one lazily at its first push; two devices converge on the smaller', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const B = createDevice(backend);
   const { code, id } = await signUp(A, 'Ali');
   // simulate an old account: strip bk from the cloud copy and from A's disk
   const old = { ...A.sync.getSave() };
   delete old.bk;
-  backend.put('players/' + id, { v: { integerValue: '1' }, save: { stringValue: JSON.stringify(old) } });
+  backend.put('players/' + id, { v: 1, save: JSON.stringify(old) });
   A.local.storeSave(id, old); // read-merge-write keeps the existing bk, so wipe through the raw key
   A.storage.setItem('lp1.save.' + id, JSON.stringify(old));
   assert.equal(parseSave(A.storage.getItem('lp1.save.' + id)).save.bk, undefined);
@@ -117,7 +117,7 @@ test('bk: a save that predates the field gets one lazily at its first push; two 
   await A2.sync.flush();
   const k2 = A2.sync.getSave().bk;
   assert.match(k2, /^[0-9a-f]{32}$/, 'created before the first push');
-  const stored = parseSave(backend.get('players/' + id).fields.save.stringValue).save;
+  const stored = parseSave(backend.get('players/' + id).save).save;
   assert.equal(stored.bk, k2, 'and pushed with it');
   // B pulls and adopts the same key (the smaller of what it has and what is in the cloud)
   B.sync.recordSolve(solve('x2', 10, { t: 7 }));
@@ -146,7 +146,7 @@ test('merge caps: one solve is at most 5000 points; a run at most 5000 per solve
 // ================= Finding 6: no session until the code is acknowledged =================
 
 test('sign-up writes NOTHING to storage until the code is acknowledged; then session + save appear', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const r = await signUp(A, 'Ali', false);
   assert.equal(A.sync.isPending(), true);
@@ -164,7 +164,7 @@ test('sign-up writes NOTHING to storage until the code is acknowledged; then ses
 });
 
 test('reload with the code dialog still open (never acknowledged) resumes to NO session', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   await signUp(A, 'Ali', false);
   // "reload": a brand new sync on the same storage
@@ -202,7 +202,7 @@ function tabsOn(storage, backend, start = 3_000_000) {
 }
 
 async function twoTabs() {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const storage = createMemoryStorage();
   const t1 = tabsOn(storage, backend);
   await t1.sync.signUp('Ali');
@@ -285,7 +285,7 @@ test('storage event: session replaced by ANOTHER account signs this tab out; the
 });
 
 test('storage event: a tab with an UNACKNOWLEDGED sign-up ignores other tabs\' session changes (its code dialog must survive)', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const storage = createMemoryStorage();
   const t = tabsOn(storage, backend);
   await t.sync.signUp('Ali');
@@ -317,14 +317,14 @@ test('Blood run ownership: fresh heartbeat of ANOTHER tab blocks restore; stale,
 // ================= Finding 8d/8e: newer saves, storage failure =================
 
 test('a cloud save written by a NEWER app (save.v != 1) is never overwritten: sign-in refuses, sync stays local with an issue', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const B = createDevice(backend);
   const { code, id } = await signUp(A, 'Ali');
   await A.sync.flush();
   const future = JSON.stringify({ v: 2, name: 'Ali', createdAt: 1, updatedAt: 9, history: [], runs: [], settings: { lang: 'en', sound: true, at: 0 }, brandNewField: [1, 2, 3] });
-  backend.put('players/' + id, { v: { integerValue: '1' }, save: { stringValue: future } });
-  const writesBefore = backend.log.filter((r) => r.method === 'PATCH' && r.path.includes('/players/')).length;
+  backend.put('players/' + id, { v: 1, save: future });
+  const writesBefore = backend.log.filter((r) => /^\/player\/(create|update)$/.test(r.path)).length;
 
   assert.deepEqual(await B.sync.signIn('Ali', code), { ok: false, reason: 'newer' });
   assert.equal(B.sync.getSession(), null, 'no half-signed-in state');
@@ -340,13 +340,13 @@ test('a cloud save written by a NEWER app (save.v != 1) is never overwritten: si
   assert.deepEqual(issues, ['newer']);
   await A.sync.pull();
   A.dev?.tick?.();
-  assert.equal(backend.log.filter((r2) => r2.method === 'PATCH' && r2.path.includes('/players/')).length, writesBefore, 'the cloud copy was never touched');
-  assert.equal(backend.get('players/' + id).fields.save.stringValue, future);
+  assert.equal(backend.log.filter((r2) => /^\/player\/(create|update)$/.test(r2.path)).length, writesBefore, 'the cloud copy was never touched');
+  assert.equal(backend.get('players/' + id).save, future);
   assert.equal(A.sync.getSave().history.length, 1, 'play continues locally');
 });
 
 test('storeSave failing (quota) or falling back to memory is never silent: issue "storage" and status "local"', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const dev = createDevice(backend);
   const inner = createMemoryStorage();
   const f = { fail: false };
@@ -385,7 +385,7 @@ test('hardware digits: ASCII, Arabic-Indic and Eastern Arabic digits map to 0-9;
 // ================= F-01: no 404 on any legitimate flow =================
 
 test('sign-up (id-collision probe), wrong-code sign-in, unknown-name sign-in and pull never cause an HTTP 404', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const B = createDevice(backend);
   const { code } = await signUp(A, 'Ali');
@@ -400,7 +400,7 @@ test('sign-up (id-collision probe), wrong-code sign-in, unknown-name sign-in and
 });
 
 test('offline sign-up that later creates the remote doc still never sees a 404', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   A.net.offline = true;
   await signUp(A, 'Ali');

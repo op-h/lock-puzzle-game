@@ -1,24 +1,24 @@
 // Shared e2e harness (dev-only). One import gives a spec: browser launch, a "device" (= browser context)
 // with problem collection (console, pageerror, CSP violations, failed/4xx requests, third-party hosts),
-// CDP media pinning, an in-process Firestore for multi-device tests, and the common user flows.
+// CDP media pinning, an in-process fake API for multi-device tests, and the common user flows.
 //
 // Rules this file enforces for every spec:
-//   * Firestore is NEVER contacted. Requests to firestore.googleapis.com are answered by the fake (Node
-//     side, via context.route); on Chromium a host-resolver rule additionally makes every non-local host
-//     unresolvable, so a leaked request fails loudly instead of reaching Google.
+//   * The live API is NEVER contacted. Requests to the host in CLOUD.url are answered by the fake (Node
+//     side, via context.route; it runs the real worker/src/handler.js); on Chromium a host-resolver rule
+//     additionally makes every non-local host unresolvable, so a leaked request fails loudly.
 //   * prefers-reduced-motion / prefers-color-scheme are pinned with CDP Emulation.setEmulatedMedia on
 //     Chromium (headless Chromium silently defaults to `reduce`, CLAUDE.md) and read back with matchMedia.
 //   * Every device collects problems; a spec ends with `d.assertClean()`.
 
 import assert from 'node:assert/strict';
 import { chromium, firefox, webkit } from 'playwright-core';
-import { createFakeFirestore } from '../../unit/helpers/fake-firestore.mjs';
+import { createFakeBackend } from '../../unit/helpers/fake-backend.mjs';
 import { CLOUD } from '../../../js/config.js';
 import { startServer, REPO } from './static-server.mjs';
 
 export { startServer, REPO };
 export const BROWSER = process.env.E2E_BROWSER || 'chromium';
-export const FIRESTORE_HOST = 'firestore.googleapis.com';
+export const API_HOST = new URL(CLOUD.url).hostname;
 const CHROMIUM_PATH = process.env.CHROMIUM_PATH || '/usr/bin/chromium';
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -31,7 +31,7 @@ export async function launchBrowser(extra = {}) {
     headless: true,
     args: [
       '--no-sandbox',
-      // Safety net: nothing but the local server may resolve. Routed Firestore calls never need DNS.
+      // Safety net: nothing but the local server may resolve. Routed API calls never need DNS.
       '--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE localhost , EXCLUDE 127.0.0.1',
       ...(extra.args || []),
     ],
@@ -41,7 +41,7 @@ export async function launchBrowser(extra = {}) {
 
 /** The fake backend shared by every device of a test, wired with the project id and key from js/config.js. */
 export function createBackend() {
-  return createFakeFirestore({ projectId: CLOUD.projectId, apiKey: CLOUD.apiKey });
+  return createFakeBackend({ url: CLOUD.url });
 }
 
 const CORS = {
@@ -52,7 +52,7 @@ const CORS = {
 };
 
 /**
- * Route firestore.googleapis.com to the in-process fake for one context. `net.offline = true` makes the
+ * Route the API host to the in-process fake for one context. `net.offline = true` makes the
  * "device" unreachable (abort), like airplane mode; `net.block = true` is the same but meant as the
  * "backend blocked" scenario. Returns the net switch.
  */
@@ -60,13 +60,13 @@ export async function attachBackend(context, backend) {
   const net = backend ? backend.device() : { offline: false, fetch: null };
   net.block = false;
   net.requests = [];
-  await context.route(`https://${FIRESTORE_HOST}/**`, async (route) => {
+  await context.route(`https://${API_HOST}/**`, async (route) => {
     const req = route.request();
     net.requests.push(`${req.method()} ${new URL(req.url()).pathname}`);
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
     if (net.offline || net.block || !backend) return route.abort('internetdisconnected');
     try {
-      const r = await net.fetch(req.url(), { method: req.method(), body: req.postData() || undefined });
+      const r = await net.fetch(req.url(), { method: req.method(), body: req.postData() || undefined, headers: req.headers() });
       const body = await r.text();
       await route.fulfill({ status: r.status, headers: { ...CORS, 'content-type': 'application/json' }, body });
     } catch {
@@ -135,7 +135,7 @@ export async function pinMedia(page, m = {}) {
 /**
  * @typedef {Object} DeviceOpts
  * @property {string} baseUrl  site URL ending in "/"
- * @property {ReturnType<typeof createBackend>|null} [backend] shared fake; null = Firestore unreachable
+ * @property {ReturnType<typeof createBackend>|null} [backend] shared fake; null = API unreachable
  * @property {{width:number,height:number}} [viewport]
  * @property {boolean} [mobile] isMobile + hasTouch + DPR 2
  * @property {number} [dpr]
@@ -188,7 +188,7 @@ export async function openDevice(browser, o) {
   page.on('request', (r) => {
     const u = new URL(r.url());
     if (u.protocol === 'data:' || u.protocol === 'blob:' || u.protocol === 'about:') return;
-    if (u.origin !== origin && u.hostname !== FIRESTORE_HOST) note('third-party', r.url());
+    if (u.origin !== origin && u.hostname !== API_HOST) note('third-party', r.url());
   });
   // CSP violations and unhandled rejections: reported through a binding so they survive navigations.
   await context.exposeBinding('__lpReport', (_src, kind, text) => note(kind, String(text)));
@@ -243,6 +243,20 @@ export async function openDevice(browser, o) {
       assert.deepEqual(problems.map((p) => `${p.kind}: ${p.text}`), [], `console/network/CSP problems ${label}`);
     },
     clean: () => problems.length === 0,
+    /**
+     * Remove problems a test PROVOKED on purpose (e.g. a forced 403: browsers always print a failed load as a console
+     * error). Returns how many were removed so the test can prove the provoked path really ran.
+     */
+    forgive(re) {
+      let n = 0;
+      for (let i = problems.length - 1; i >= 0; i--) {
+        if (re.test(`${problems[i].kind}: ${problems[i].text}`)) {
+          problems.splice(i, 1);
+          n++;
+        }
+      }
+      return n;
+    },
   };
   return d;
 }

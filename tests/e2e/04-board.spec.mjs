@@ -15,7 +15,6 @@ after(async () => {
 });
 
 const hex = (n) => n.toString(16).padStart(64, '0');
-const int = (n) => ({ integerValue: String(n) });
 function seedBoard(backend) {
   const rows = [
     ['Zed', 9000, 4000, 30, 1800],
@@ -25,7 +24,7 @@ function seedBoard(backend) {
     ['Nobody', 0, 0, 0, 0],
   ];
   rows.forEach(([name, total, blood, solved, bestRun], i) =>
-    backend.put(`board/${hex(i + 1)}`, { name: { stringValue: name }, total: int(total), blood: int(blood), solved: int(solved), bestRun: int(bestRun), updatedAt: int(1760000000000 + i) }));
+    backend.put(`board/${hex(i + 1)}`, { name, total, blood, solved, bestRun, updatedAt: 1760000000000 + i }));
 }
 // A screen change ends with the router focusing the new h1 AFTER the view transition (js/router.js: `await t.done`, then h1.focus()).
 // A test that moves focus earlier (rows may already be painted from cache) has its focus stolen back to the h1 and its keys land on the
@@ -81,7 +80,7 @@ test('board: All-time and Blood tabs, ranked rows, own row marked by text + aria
   assert.match(self[0].text, /Me Myself\s+You$/, 'non-colour cue: the word "You"');
 
   // an impostor with the same NAME is not highlighted
-  backend.put(`board/${hex(99)}`, { name: { stringValue: 'Me Myself' }, total: int(100), blood: int(0), solved: int(1), bestRun: int(0), updatedAt: int(1760000009999) });
+  backend.put(`board/${hex(99)}`, { name: 'Me Myself', total: 100, blood: 0, solved: 1, bestRun: 0, updatedAt: 1760000009999 });
   await page.click('[data-action="back"]');
   await d.waitScreen('home');
   await page.click('body > header [data-action="show-board"]');
@@ -172,13 +171,14 @@ test('board: backend blocked shows the offline message; stale list is kept when 
   assert.match(await page.textContent('main > [data-screen="board"] [data-out="msg"]'), /^Offline\. Try again later/);
   assert.equal(await page.locator('[data-slot="board-rows"] tr').count(), 0);
   assert.equal(await page.getAttribute('main > [data-screen="board"] [data-out="msg"]', 'aria-live'), 'polite');
-  // 4. permission denied (rules not published / key restricted) is distinct from offline
+  // 4. permission denied (server refuses the request) is distinct from offline
   d.net.block = false;
   backend.faults.deny = true;
   await page.click('#board-tab-all');
   await page.click('#board-tab-blood');
   await page.waitForFunction(() => /unavailable|Showing last list|offline/i.test(document.querySelector('main > [data-screen="board"] [data-out="msg"]').textContent));
   backend.faults.deny = false;
+  assert.ok(d.forgive(/403/) >= 2, 'the forced 403 really reached the browser (HTTP error + console line)');
   d.assertClean();
   await d.close();
 });

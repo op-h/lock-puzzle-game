@@ -13,7 +13,7 @@ Decisions: ADR 0001 (stack), 0002 (cloud saves), 0003 (puzzles/scoring/Blood). R
 | `index.html` `<body>` + `<noscript>` | GRANITE |
 | `index.html` `<head>` metadata, `manifest.webmanifest`, `robots.txt`, `sitemap.xml`, `docs/seo.md` | BEACON (after GRANITE) |
 | `css/*.css` | PRISM |
-| `js/**`, `sw.js`, `firestore.rules`, `docs/backend.md`, `tests/unit/**` | CIRCUIT |
+| `js/**`, `sw.js`, `worker/**`, `docs/backend.md`, `tests/unit/**` | CIRCUIT |
 | `assets/**` (font subset, sprites, icons, OG image), `docs/perf.md`, `.nojekyll` | QUARTZ |
 | `tests/e2e/**`, `.github/workflows/**`, `docs/qa.md`, `package.json` (dev only) | SENTRY |
 | `docs/decisions/**`, `docs/architecture.md`, `README.md` | ATLAS |
@@ -25,7 +25,7 @@ viewport-fit=cover`), `<title>`, one `<link rel="stylesheet" href="./css/main.cs
 ## Layout
 
 ```
-index.html  sw.js  manifest.webmanifest  firestore.rules  .nojekyll
+index.html  sw.js  manifest.webmanifest  .nojekyll
 css/   main.css  (ONE file, all six @layers in order: reset, tokens, base, components, screens,
        utilities. No @import: each import is a serial round trip on the render-blocking path.)
 js/    main.js  config.js  store.js  router.js  i18n/{index,en,ar}.js
@@ -58,10 +58,10 @@ speedFactor(secs, par) ; accuracyFactor(wrong)
 // config.js
 DIFFICULTIES = { rookie:{length,repeats,kinds,par,base,clues:[min,max]}, agent, hacker, master }
 BLOOD = { durationMs:180000, wrongPenaltyMs:5000, skipPenaltyMs:10000, mult:2, ramp:[...] }
-CLOUD = { projectId, apiKey, enabled }       // identifiers, see ADR 0002
+CLOUD = { url, enabled }                     // public API URL, no key, see ADR 0007
 ```
 
-## Save model (`v:1`, JSON string in `players/{id}.save`; also the localStorage working copy)
+## Save model (`v:1`, JSON string in `players.save`; also the localStorage working copy)
 
 ```js
 { v:1, name:string, createdAt:ms, updatedAt:ms,
@@ -80,8 +80,8 @@ Run unit tests with `node --test 'tests/unit/*.test.mjs'` (the bare directory fo
   `playerId(name, code)` (async, SHA-256 via `crypto.subtle`, hex), `boardId(id)`.
   `crypto.subtle` needs a secure context: GitHub Pages is HTTPS, localhost is fine.
 - `remote.js`: `getPlayer(id)`, `createPlayer(id, save)`, `updatePlayer(id, save, updateTime)`,
-  `putBoard(bid, row)`, `listBoard({orderBy:'total'|'bestRun', limit})`. Plain `fetch` to
-  `https://firestore.googleapis.com/v1/projects/{projectId}/databases/(default)/documents/...?key=...`;
+  `putBoard(bid, row)`, `listBoard({orderBy:'total'|'bestRun', limit})`. Plain `fetch` (POST, JSON) to the Worker in
+  `worker/` (`/player/get|create|update`, `/board/put|list`, ADR 0007);
   typed `Result` objects (`{ok, data}` / `{ok:false, reason:'offline'|'denied'|'notfound'|'conflict'|'quota'}`),
   never throws into UI.
 - `sync.js`: `signUp(name)` → creates account, returns `{code}`; `signIn(name, code)`; `signOut()`
@@ -127,6 +127,6 @@ GRANITE lists keys it used in its HANDOFF `DONE:`; CIRCUIT reconciles).
 - DoD 1 waived by ADR 0001 (app shell) with the `<noscript>` compensation.
 - Timer/animation must respect `prefers-reduced-motion` (no flashing; countdown still updates text).
 - Pixel look must not cost contrast: 4.5:1 text, 3:1 for pixel borders that carry meaning.
-- Zero requests to third-party origins except `firestore.googleapis.com` (fetch, after user action
+- Zero requests to third-party origins except the game API at `*.workers.dev` (fetch, after user action
   or on resume of an existing session — never before consent-free first paint).
-- Firestore is never contacted by tests; use the in-process fake.
+- The live API is never contacted by tests; use the in-process fake (it runs the real `worker/src/handler.js`).

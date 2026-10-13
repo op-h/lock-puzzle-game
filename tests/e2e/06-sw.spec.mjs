@@ -139,7 +139,7 @@ test('service worker: offline reload serves the app from cache; offline sign-up 
   await H.waitSynced(page, 25000);
   const players = [...backend.docs.keys()].filter((k) => k.startsWith('players/'));
   assert.equal(players.length, 1, 'offline-created account was uploaded');
-  const save = JSON.parse(backend.docs.get(players[0]).fields.save.stringValue);
+  const save = JSON.parse(backend.docs.get(players[0]).save);
   assert.equal(save.history.length, 1, 'offline solve was uploaded');
   // and it is usable from another device with the code shown offline
   const b = await H.openDevice(br, { baseUrl: srv.url, backend });
@@ -167,7 +167,7 @@ test('service worker: cross-origin requests are never intercepted or cached', as
   assert.equal((await swState(page)).controlled, true);
   await H.signUp(d, 'Cross Origin');
   await H.waitSynced(page);
-  assert.ok(d.net.requests.length > 0, 'Firestore traffic really happened under a controlling worker');
+  assert.ok(d.net.requests.length > 0, 'API traffic really happened under a controlling worker');
   assert.deepEqual(viaWorker.filter((u) => !u.startsWith(srv.origin)), [], 'the worker issued no cross-origin request');
   const cachedKeys = await page.evaluate(async () => {
     const out = [];
@@ -175,7 +175,7 @@ test('service worker: cross-origin requests are never intercepted or cached', as
     return out;
   });
   assert.deepEqual(cachedKeys.filter((u) => !u.startsWith(srv.origin)), [], 'only same-origin URLs are cached');
-  assert.ok(!cachedKeys.some((u) => u.includes('firestore')), 'no Firestore response is ever cached');
+  assert.ok(!cachedKeys.some((u) => u.includes('workers.dev')), 'no API response is ever cached');
   const src = fs.readFileSync(path.join(H.REPO, 'sw.js'), 'utf8');
   assert.match(src, /url\.origin !== self\.location\.origin\) return/, 'fetch handler bails on foreign origins before respondWith');
   d.assertClean();

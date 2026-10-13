@@ -5,7 +5,7 @@ import { createRemote } from '../../js/sync/remote.js';
 import { createLocal } from '../../js/sync/local.js';
 import { derive, parseSave, emptySave } from '../../js/sync/merge.js';
 import { playerId, boardId } from '../../js/sync/identity.js';
-import { createFakeFirestore, PROJECT, API_KEY } from './helpers/fake-firestore.mjs';
+import { createFakeBackend, API_URL } from './helpers/fake-backend.mjs';
 import { createDevice, guardGlobalFetch, solve, throwingFetch } from './helpers/harness.mjs';
 import './helpers/merge-ready.mjs';
 
@@ -19,8 +19,8 @@ after(() => {
 });
 
 const online = (dev) => dev.events.dispatchEvent(new Event('online'));
-const remoteSaveOf = (backend, id) => parseSave(backend.get('players/' + id).fields.save.stringValue).save;
-const writes = (backend) => backend.log.filter((r) => r.method === 'PATCH' && r.path.includes('/players/'));
+const remoteSaveOf = (backend, id) => parseSave(backend.get('players/' + id).save).save;
+const writes = (backend) => backend.log.filter((r) => /^\/player\/(create|update)$/.test(r.path));
 const keysOf = (storage) => Array.from({ length: storage.length }, (_, i) => storage.key(i)).sort();
 
 /** Sign up on a device and return {code, id}. */
@@ -32,7 +32,7 @@ async function signUp(dev, name = 'Ali') {
 }
 
 test('(1) device A signs up, device B signs in with name+code and sees A\'s progress', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const B = createDevice(backend);
 
@@ -61,7 +61,7 @@ test('(1) device A signs up, device B signs in with name+code and sees A\'s prog
 });
 
 test('the code never reaches storage or the cloud document', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend, { rngValues: [482915] });
   const { code } = await signUp(A);
   assert.equal(code, '482915');
@@ -73,7 +73,7 @@ test('the code never reaches storage or the cloud document', async () => {
 });
 
 test('(2) both devices play offline, reconnect: union, no double count, no lost points, identical totals', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const B = createDevice(backend);
   const { code } = await signUp(A);
@@ -131,7 +131,7 @@ test('(2b) randomised two-device schedules always converge to the union', async 
   }
   for (let seed = 1; seed <= 25; seed++) {
     const r = prng(seed);
-    const backend = createFakeFirestore();
+    const backend = createFakeBackend();
     const A = createDevice(backend, { rngValues: [100000 + seed] });
     const B = createDevice(backend);
     const { code } = await signUp(A);
@@ -168,7 +168,7 @@ test('(2b) randomised two-device schedules always converge to the union', async 
 });
 
 test('(3) wrong code -> generic `invalid`, indistinguishable from an unknown name', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const B = createDevice(backend);
   const { code } = await signUp(A, 'Ali');
@@ -187,7 +187,7 @@ test('(3) wrong code -> generic `invalid`, indistinguishable from an unknown nam
 });
 
 test('signIn: offline, denied, quota surface their own reasons', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const B = createDevice(backend);
   const { code } = await signUp(A);
@@ -204,7 +204,7 @@ test('signIn: offline, denied, quota surface their own reasons', async () => {
 });
 
 test('(4) logout wipes local data; the account survives in the cloud', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const { code, id } = await signUp(A);
   A.local.setLang('ar');
@@ -224,7 +224,7 @@ test('(4) logout wipes local data; the account survives in the cloud', async () 
 });
 
 test('(4b) logout offline with unsynced data returns pending:true and keeps everything; force wipes', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const { id } = await signUp(A);
   A.net.offline = true;
@@ -245,7 +245,7 @@ test('(4b) logout offline with unsynced data returns pending:true and keeps ever
 });
 
 test('(4c) logout offline with nothing unsynced does not need the network', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   await signUp(A);
   A.net.offline = true;
@@ -253,7 +253,7 @@ test('(4c) logout offline with nothing unsynced does not need the network', asyn
 });
 
 test('(5) duplicate recordSolve/recordRun ids are idempotent', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   await signUp(A);
   const first = A.sync.recordSolve(solve('same', 100));
@@ -273,7 +273,7 @@ test('(5) duplicate recordSolve/recordRun ids are idempotent', async () => {
 });
 
 test('recordSolve/recordRun reject malformed entries and fill in a missing timestamp', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   await signUp(A);
   for (const bad of [null, undefined, 5, {}, solve('a', -1), solve('a', 1.5), solve('a', 1, { m: 'x' }), solve('a', 1, { d: 'zzz' })]) {
@@ -289,7 +289,7 @@ test('recordSolve/recordRun reject malformed entries and fill in a missing times
 });
 
 test('(6) a conflicting write is re-read, re-merged and retried', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const { id } = await signUp(A);
   A.sync.recordSolve(solve('mine', 100, { t: 5 }));
@@ -298,21 +298,18 @@ test('(6) a conflicting write is re-read, re-merged and retried', async () => {
   backend.beforeWrite = () => {
     const theirs = emptySave('Ali', A.now);
     theirs.history = [solve('theirs', 55, { t: 6 })];
-    backend.put('players/' + id, {
-      v: { integerValue: '1' },
-      save: { stringValue: JSON.stringify(theirs) },
-    });
+    backend.put('players/' + id, { v: 1, save: JSON.stringify(theirs) });
   };
   const r = await A.sync.flush();
   assert.equal(r.ok, true);
   assert.equal(A.sync.getDerived().total, 155, 'their solve was merged in, ours was not lost');
   assert.equal(derive(remoteSaveOf(backend, id)).total, 155);
   assert.equal(A.sync.hasPending(), false);
-  assert.equal(writes(backend).filter((w) => w.query['currentDocument.updateTime']).length, 2, 'first write lost the race, second won');
+  assert.equal(writes(backend).filter((w) => w.path === '/player/update').length, 2, 'first write lost the race, second won');
 });
 
 test('(6b) injected 409 on the first write retries and succeeds; four in a row give up and back off', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const { id } = await signUp(A);
   A.sync.recordSolve(solve('s1', 10));
@@ -337,7 +334,7 @@ test('(6b) injected 409 on the first write retries and succeeds; four in a row g
 });
 
 test('(7) sign-up while offline works locally, then the first online sync creates the remote doc', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   A.net.offline = true;
   const up = await A.sync.signUp('Ali');
@@ -355,8 +352,8 @@ test('(7) sign-up while offline works locally, then the first online sync create
   assert.equal(A.sync.getStatus(), 'synced');
   assert.equal(A.sync.hasPending(), false);
   assert.equal(derive(remoteSaveOf(backend, up.id)).total, 90);
-  assert.equal(backend.get('players/' + up.id).fields.v.integerValue, '1');
-  assert.ok(writes(backend).some((w) => w.query['currentDocument.exists'] === 'false'), 'created with exists=false');
+  assert.equal(backend.get('players/' + up.id).v, 1);
+  assert.ok(writes(backend).some((w) => w.path === '/player/create'), 'first upload is a create-only call');
 
   const B = createDevice(backend);
   assert.equal((await B.sync.signIn('ali', up.code)).ok, true);
@@ -364,7 +361,7 @@ test('(7) sign-up while offline works locally, then the first online sync create
 });
 
 test('sign-up offline also recovers through the debounce/backoff timer, without any event', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   A.net.offline = true;
   const up = await A.sync.signUp('Ali');
@@ -377,7 +374,7 @@ test('sign-up offline also recovers through the debounce/backoff timer, without 
 });
 
 test('sign-up when the cloud refuses (rules not published) degrades to device-only without retry storms', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   backend.faults.deny = true;
   const A = createDevice(backend);
   const up = await A.sync.signUp('Ali');
@@ -398,9 +395,9 @@ test('sign-up when the cloud refuses (rules not published) degrades to device-on
 });
 
 test('sign-up re-rolls the code when the id already exists', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const taken = await playerId('Ali', '123456');
-  backend.put('players/' + taken, { v: { integerValue: '1' }, save: { stringValue: JSON.stringify(emptySave('Ali', 1)) } });
+  backend.put('players/' + taken, { v: 1, save: JSON.stringify(emptySave('Ali', 1)) });
   const A = createDevice(backend, { rngValues: [123456, 654321] });
   const up = await A.sync.signUp('Ali');
   A.sync.acknowledge();
@@ -410,7 +407,7 @@ test('sign-up re-rolls the code when the id already exists', async () => {
 });
 
 test('sign-up validates the name and refuses while signed in', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   assert.deepEqual(await A.sync.signUp(''), { ok: false, reason: 'invalid_name', detail: 'empty' });
   assert.equal((await A.sync.signUp('a\u0000')).detail, 'control_chars');
@@ -421,7 +418,7 @@ test('sign-up validates the name and refuses while signed in', async () => {
 });
 
 test('Arabic names work end to end', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const B = createDevice(backend);
   const { code } = await signUp(A, 'حسين');
@@ -435,7 +432,7 @@ test('Arabic names work end to end', async () => {
 });
 
 test('debounce: a burst of solves produces one write after 1500 ms, not before', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const { id } = await signUp(A);
   const base = writes(backend).length;
@@ -454,7 +451,7 @@ test('debounce: a burst of solves produces one write after 1500 ms, not before',
 });
 
 test('writes go to local storage before any network call', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const { id } = await signUp(A);
   A.sync.recordSolve(solve('s1', 10));
@@ -464,7 +461,7 @@ test('writes go to local storage before any network call', async () => {
 });
 
 test('offline pushes back off exponentially (2s, 4s, 8s ... capped at 60s) and recover on the next try', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const { id } = await signUp(A);
   A.net.offline = true;
@@ -488,7 +485,7 @@ test('offline pushes back off exponentially (2s, 4s, 8s ... capped at 60s) and r
 });
 
 test('the online event resets backoff and pushes immediately; visibility hidden flushes dirty data', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const { id } = await signUp(A);
   A.net.offline = true;
@@ -506,7 +503,7 @@ test('the online event resets backoff and pushes immediately; visibility hidden 
 });
 
 test('visibility pulls are throttled; online pulls are not', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const B = createDevice(backend);
   const { code } = await signUp(A);
@@ -525,7 +522,7 @@ test('visibility pulls are throttled; online pulls are not', async () => {
 });
 
 test('pull merges the cloud copy into a clean device and notifies save subscribers', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const B = createDevice(backend);
   const { code } = await signUp(A);
@@ -540,7 +537,7 @@ test('pull merges the cloud copy into a clean device and notifies save subscribe
 });
 
 test('resume: cached save is available immediately, background pull reconciles', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const B = createDevice(backend);
   const { code } = await signUp(A);
@@ -572,7 +569,7 @@ test('resume: cached save is available immediately, background pull reconciles',
 });
 
 test('resume with unsynced cached data pushes it; with no session it makes no request', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const { id } = await signUp(A);
   A.net.offline = true;
@@ -587,7 +584,7 @@ test('resume with unsynced cached data pushes it; with no session it makes no re
   reloaded.dispose();
 
   const idle = createSync({
-    remote: createRemote({ projectId: PROJECT, apiKey: API_KEY, fetch: throwingFetch }),
+    remote: createRemote({ url: API_URL, fetch: throwingFetch }),
     local: createLocal({ storage: null }),
     clock: () => 1,
     timers: A.timers,
@@ -598,7 +595,7 @@ test('resume with unsynced cached data pushes it; with no session it makes no re
 });
 
 test('resume offline: shows the cache and reports offline', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   await signUp(A);
   A.sync.recordSolve(solve('a1', 10));
@@ -613,7 +610,7 @@ test('resume offline: shows the cache and reports offline', async () => {
 });
 
 test('resume with a corrupted cache does not crash and recovers from the cloud', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const { id } = await signUp(A);
   A.sync.recordSolve(solve('a1', 10));
@@ -628,7 +625,7 @@ test('resume with a corrupted cache does not crash and recovers from the cloud',
 });
 
 test('status stream: saving -> synced, offline on failure, immediate first callback, unsubscribe', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const seen = [];
   const off = A.sync.subscribe((s) => seen.push(s));
@@ -650,7 +647,7 @@ test('status stream: saving -> synced, offline on failure, immediate first callb
 });
 
 test('the public board row is published after a push, best-effort, and never for a score-less account', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const { id } = await signUp(A, 'Ali');
   await A.sync.flush();
@@ -666,12 +663,12 @@ test('the public board row is published after a push, best-effort, and never for
   const row = backend.get('board/' + bid);
   assert.ok(row, 'row id is the hash of the save id, not the save id');
   assert.ok(!backend.docs.has('board/' + id));
-  assert.deepEqual(Object.keys(row.fields).sort(), ['bestRun', 'blood', 'name', 'solved', 'total', 'updatedAt']);
-  assert.equal(row.fields.total.integerValue, '140');
-  assert.equal(row.fields.blood.integerValue, '40');
-  assert.equal(row.fields.solved.integerValue, '2');
-  assert.equal(row.fields.bestRun.integerValue, '40');
-  assert.equal(row.fields.name.stringValue, 'Ali');
+  assert.deepEqual(Object.keys(row).sort(), ['bestRun', 'blood', 'name', 'solved', 'total', 'updatedAt']);
+  assert.equal(row.total, 140);
+  assert.equal(row.blood, 40);
+  assert.equal(row.solved, 2);
+  assert.equal(row.bestRun, 40);
+  assert.equal(row.name, 'Ali');
 
   const board = await A.remote.listBoard({ orderBy: 'total', limit: 10 });
   assert.equal(board.data[0].bid, bid);
@@ -689,19 +686,19 @@ test('the public board row is published after a push, best-effort, and never for
 });
 
 test('long names are truncated for the board by code points without breaking the rules', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   await signUp(A, '😀'.repeat(20)); // 20 code points = 40 UTF-16 units = 80 UTF-8 bytes
   A.sync.recordSolve(solve('s1', 5));
   await A.sync.flush();
   const row = backend.get('board/' + (await boardId(A.sync.getSave().bk)));
   assert.ok(row, 'row was accepted by the rules-mirroring fake');
-  assert.equal(Array.from(row.fields.name.stringValue).length, 20, 'cut by code points, never mid-emoji');
-  assert.ok(Buffer.byteLength(row.fields.name.stringValue) <= 96);
+  assert.equal(Array.from(row.name).length, 20, 'cut by code points, never mid-emoji');
+  assert.ok(Buffer.byteLength(row.name) <= 96);
 });
 
 test('settings: last writer wins across devices; language is mirrored locally', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const B = createDevice(backend);
   const { code } = await signUp(A);
@@ -722,7 +719,7 @@ test('settings: last writer wins across devices; language is mirrored locally', 
 });
 
 test('settings edits always beat the device\'s own previous edit, even if the clock goes backwards', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   await signUp(A);
   A.now = 5000;
@@ -733,7 +730,7 @@ test('settings edits always beat the device\'s own previous edit, even if the cl
 });
 
 test('getSave returns a copy: mutating it cannot corrupt sync state', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   await signUp(A);
   A.sync.recordSolve(solve('s1', 10));
@@ -745,11 +742,11 @@ test('getSave returns a copy: mutating it cannot corrupt sync state', async () =
 });
 
 test('a corrupt cloud document is repaired by the next write rather than crashing sign-in', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const B = createDevice(backend);
   const { code, id } = await signUp(A);
-  backend.put('players/' + id, { v: { integerValue: '1' }, save: { stringValue: '{definitely not json' } });
+  backend.put('players/' + id, { v: 1, save: '{definitely not json' });
   const r = await B.sync.signIn('Ali', code);
   assert.equal(r.ok, true);
   assert.equal(B.sync.getSave().name, 'Ali', 'name falls back to what the player typed');
@@ -759,7 +756,7 @@ test('a corrupt cloud document is repaired by the next write rather than crashin
 });
 
 test('sign-in with data cached for the same account merges it (no loss on re-login)', async () => {
-  const backend = createFakeFirestore();
+  const backend = createFakeBackend();
   const A = createDevice(backend);
   const { code, id } = await signUp(A);
   A.sync.recordSolve(solve('s1', 10));

@@ -11,7 +11,7 @@ const exists = (rel) => fs.existsSync(path.join(root, rel));
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 
 // 1. nothing that must not ship
-const FORBIDDEN = [/^tests\//, /^docs\//, /^node_modules\//, /^\.git/, /^package(-lock)?\.json$/, /^firestore\.rules$/, /^firebase\.json$/, /^README\.md$/, /^_site\//, /^\.github\//, /\.test\.mjs$/, /\.spec\.mjs$/, /\.map$/];
+const FORBIDDEN = [/^tests\//, /^docs\//, /^node_modules\//, /^\.git/, /^package(-lock)?\.json$/, /^worker\//, /^README\.md$/, /^_site\//, /^\.github\//, /\.test\.mjs$/, /\.spec\.mjs$/, /\.map$/];
 const files = [];
 (function walk(dir) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {

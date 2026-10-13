@@ -20,7 +20,7 @@ function createLazyRemote(fetchImpl) {
   let loading = null;
   const load = () => {
     loading ??= import('./remote.js')
-      .then((m) => m.createRemote({ projectId: CLOUD.projectId, apiKey: CLOUD.apiKey, enabled: CLOUD.enabled, fetch: fetchImpl }))
+      .then((m) => m.createRemote({ url: CLOUD.url, enabled: CLOUD.enabled, fetch: fetchImpl }))
       .catch(() => {
         loading = null; // try again next time rather than staying broken for the whole session
         return null;

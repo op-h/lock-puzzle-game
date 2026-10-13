@@ -9,7 +9,7 @@
 //   * A new version is found by reg.update() on every load (main.js), installs in the background and takes over
 //     on the NEXT load: no skipWaiting / clients.claim, so a running Blood round is never switched mid-flight.
 //   * ACTIVATE deletes every older lp1-* cache.
-//   * Cross-origin requests (Firestore) and non-GET requests are never touched.
+//   * Cross-origin requests (the game API) and non-GET requests are never touched.
 //
 // RELEASE TOKEN (SENTRY): the release workflow must replace the literal  __BUILD_ID__  on the VERSION line with the
 // git SHA, in the STAGED copy only, e.g.  sed -i "s/__BUILD_ID__/$GITHUB_SHA/" sw.js

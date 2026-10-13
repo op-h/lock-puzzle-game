@@ -27,11 +27,10 @@ const ZOOM = process.argv.includes('--zoom');
 fs.mkdirSync(OUT, { recursive: true });
 
 const hex = (n) => n.toString(16).padStart(64, '0');
-const int = (n) => ({ integerValue: String(n) });
 
 function seed(backend) {
   [['Zed', 9000, 4000, 30, 1800], ['سارة', 7000, 0, 20, 0], ['Longname-without-spaces', 5000, 3500, 15, 1500], ['A name with several words', 3000, 1000, 9, 900]].forEach(([name, total, blood, solved, bestRun], i) =>
-    backend.put(`board/${hex(i + 1)}`, { name: { stringValue: name }, total: int(total), blood: int(blood), solved: int(solved), bestRun: int(bestRun), updatedAt: int(1760000000000 + i) }));
+    backend.put(`board/${hex(i + 1)}`, { name, total, blood, solved, bestRun, updatedAt: 1760000000000 + i }));
 }
 
 const results = [];

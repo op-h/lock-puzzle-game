@@ -31,13 +31,13 @@ test('policy text: exact reviewed directives, hash equals the inline script, not
   assert.deepEqual(dirs['style-src'], ["'self'"]);
   assert.deepEqual(dirs['img-src'], ["'self'", 'data:']);
   assert.deepEqual(dirs['font-src'], ["'self'"]);
-  assert.deepEqual(dirs['connect-src'], ["'self'", 'https://firestore.googleapis.com']);
+  assert.deepEqual(dirs['connect-src'], ["'self'", 'https://lock-game-api.oph-games.workers.dev']);
   assert.deepEqual(dirs['manifest-src'], ["'self'"]);
   assert.deepEqual(dirs['worker-src'], ["'self'"]);
   assert.deepEqual(dirs['base-uri'], ["'none'"]);
   assert.deepEqual(dirs['form-action'], ["'self'"]);
   assert.deepEqual(dirs['object-src'], ["'none'"]);
-  assert.ok(!/unsafe-inline|unsafe-eval|\*|http:/.test(policy.replace(/https:\/\/firestore\.googleapis\.com/, '')), 'no unsafe sources or wildcards');
+  assert.ok(!/unsafe-inline|unsafe-eval|\*|http:/.test(policy.replace(/https:\/\/lock-game-api\.oph-games\.workers\.dev/, '')), 'no unsafe sources or wildcards');
   for (const ignored of ['frame-ancestors', 'report-uri', 'report-to', 'sandbox']) assert.ok(!(ignored in dirs), `${ignored} is ignored in a meta element and would log a console error`);
   assert.equal((html.match(/<script>/g) || []).length, 1, 'exactly one attribute-less inline script');
   assert.ok(html.indexOf('Content-Security-Policy') < html.indexOf('<script>'), 'CSP precedes the first script it governs');
@@ -146,9 +146,7 @@ test('no secret in client code: only the public Firebase Web API key, no tokens,
     for (const re of SECRET) assert.ok(!re.test(t), `${path.relative(H.REPO, f)} matches ${re}`);
     for (const m of t.matchAll(/AIza[0-9A-Za-z_-]{35}/g)) keys.add(m[0]);
   }
-  assert.equal(keys.size, 1, 'exactly one Google API key literal (the public Web key, ADR 0002)');
-  const { CLOUD } = await import('../../js/config.js');
-  assert.deepEqual([...keys], [CLOUD.apiKey]);
+  assert.equal(keys.size, 0, 'no API key literal anywhere in the shipped files (ADR 0007: the API needs none)');
   // and nothing sensitive reaches storage: only lp1.* keys, no code
   const d = await H.openDevice(br, { baseUrl: srv.url, backend: H.createBackend() });
   const code = await H.signUp(d, 'Secret Sam');

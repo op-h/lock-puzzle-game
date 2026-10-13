@@ -1,8 +1,8 @@
 # QA: browser matrix, release checklist, findings (SENTRY)
 
 Owner: SENTRY. **Re-gate 2026-10-12 on the current tree** (ADR 0005 calm UI, Jersey 10, after PRISM's selector-leak / zoom / JS-off / footer / toast fixes and CIRCUIT's focus and toast fixes).
-Everything below was measured on this machine unless it says NOT MEASURED. Nothing contacted the live Firestore project: all Firestore traffic is
-answered in-process (section 8) and Chromium ran with `--host-resolver-rules="MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1"`.
+Everything below was measured on this machine unless it says NOT MEASURED. Automated tests never contact the live API: all its traffic is
+answered in-process (section 8, running the real `worker/src/handler.js`) and Chromium ran with `--host-resolver-rules="MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1"`.
 
 ## 0. RELEASE VERDICT
 
@@ -73,7 +73,7 @@ Harness facts (all in `tests/e2e/support/`):
 | 5 | reduced-motion and colour scheme respected | **PASS** | every measurement for `reduce` and `no-preference`, `dark` and `light`, pinned and read back; no `startViewTransition` under reduce; stubbed rejecting/never-running view transitions still land with zero console errors |
 | 6 | LCP < 2.5 s, INP < 200 ms, CLS < 0.1, throttled mid-tier Android over 4G | **PASS on the throttled desktop proxy; NOT MEASURED on a device** | section 5: LCP 1,052-1,060 ms, CLS 0 (0.004 returning), browser event timing max 48-56 ms |
 | 7 | Zero console errors/rejections, explicit image/embed dimensions | **PASS** | 102 / 102 twice with a clean collector in every test; zero 4xx, zero CSP violations, zero "preloaded but not used"; sprites carry `width`/`height`; no `<img>`, no iframe. Firefox logs `NS_ERROR_OFFLINE` / CORS errors for the deliberately aborted fake-Firestore route (engine behaviour, section 3) |
-| 8 | No secret, token or key in client code | **PASS** | scan of `js/`, `css/`, `assets/`, `index.html`, `sw.js`, manifest: only the public Firebase Web key (ADR 0002); `lp1.*` storage only; the sign-up code is in neither storage nor the backend document; `10-csp` and `verify-site.mjs` repeat the scan on the staged artifact |
+| 8 | No secret, token or key in client code | **PASS** | scan of `js/`, `css/`, `assets/`, `index.html`, `sw.js`, manifest: no key of any kind (ADR 0007: the API needs none); `lp1.*` storage only; the sign-up code is in neither storage nor the backend row; `10-csp` and `verify-site.mjs` repeat the scan on the staged artifact |
 
 ## 3. Browser matrix (what was actually run)
 
@@ -147,7 +147,7 @@ The JS figure is the `docs/perf.md` node closure snippet (static import closure 
 
 ```
 Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-VJ6ocaVW/BWlbOUIOwLiQN8XvxOywRW1dEmTKoxMvsQ=';
-  style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://firestore.googleapis.com;
+  style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://lock-game-api.oph-games.workers.dev;
   manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'
 <meta name="referrer" content="strict-origin-when-cross-origin">
 ```
@@ -173,8 +173,8 @@ What a `<meta>` CSP **cannot** do, and GitHub Pages cannot add (no custom header
 - The meta policy applies from the point it is parsed; the six bytes before it (`charset`, `viewport`) carry no resource.
 - The service worker has its own (empty) policy; it only does same-origin `fetch`/`Cache`, never a cross-origin request
   (asserted: no request from the worker to another origin, nothing foreign cached).
-- Firestore: the Web API key is public by design (ADR 0002); the rules in `firestore.rules` are the only access control and have
-  **not** been run against the emulator here. Brute force of a 6-digit code per name is an accepted, documented risk.
+- Backend: the server (`worker/src/handler.js`) is the only access control and is covered by `tests/unit/worker.test.mjs`
+  (validation, CORS, concurrency, real SQL). Brute force of a 6-digit code per name is an accepted, documented risk (no rate limit yet, ADR 0007).
 
 
 ## 7. Manual device test script (real phone, ~15 minutes)
@@ -196,10 +196,10 @@ Run on **iOS Safari** (latest and one major back) and **Android Chrome**, on htt
 
 ## 8. Test infrastructure notes
 
-- Fake backend: `tests/unit/helpers/fake-firestore.mjs` (get, create with `exists=false`, patch with `updateTime` precondition,
-  `runQuery`, rule-shape checks) is mounted with `context.route('https://firestore.googleapis.com/**')`, including the CORS
+- Fake backend: `tests/unit/helpers/fake-backend.mjs` runs the REAL server handler (`worker/src/handler.js`) over an in-memory store
+  (create-only, `updateTime` revision check, board validation, limits) and is mounted with `context.route(<CLOUD.url host>/**)`, including the CORS
   preflight. One backend object is shared by several browser contexts to model several devices. `net.offline`/`net.block`
-  turn a "device" off; `backend.faults.deny/quota/server5xx` model rules and quota failures.
+  turn a "device" off; `backend.faults.deny/quota/server5xx` model refusals and quota failures; `tests/unit/worker.test.mjs` also runs the real SQL via `node:sqlite`.
 - Served from a sub-path: `static-server.mjs` mounts the files at `/lock-puzzle-game/` and answers 404 for anything outside it
   (a root-absolute URL would fail here, as on Pages), redirects `/lock-puzzle-game` to the slash form, gzips, and can rewrite one
   file (used to serve a "v2" service worker). The same specs also run from `/` (`09-hosting.spec.mjs`).
@@ -211,7 +211,7 @@ Run on **iOS Safari** (latest and one major back) and **Android Chrome**, on htt
   (on `file:` the app cannot start anyway: ES modules need http(s); the README's old "open index.html" advice is wrong).
 - `H.settleToast()` is kept as a harmless guard (the "Back online" toast after sign-up no longer appears, F-17 fixed).
 - Router focus: a screen change ends with `h1.focus()` after the view transition (`js/router.js:47-55`). Specs that move focus right after navigating must first wait for the h1 to hold focus (`boardSettled` in `04-board`, `focusReturns` in `08-keyboard`); see F-23.
-- Not part of the gate: `docs/`, `tests/`, `package*.json`, `firestore.rules`, `README.md` are never staged (`verify-site.mjs` fails if they are).
+- Not part of the gate: `docs/`, `tests/`, `package*.json`, `worker/`, `README.md` are never staged (`verify-site.mjs` fails if they are).
 
 
 ## 9. Known limitations and residual risks
@@ -222,15 +222,15 @@ Run on **iOS Safari** (latest and one major back) and **Android Chrome**, on htt
 - A failed boot with JS enabled (module blocked or 404) reveals the Auth form after 3 s with no message. Documented degrade.
 - F-23 (focus pulled to the h1 up to ~180 ms after navigation) is a real, small keyboard-timing defect; F-20 (Help 3.1 screens at 320) and F-22/F-24 are polish.
 - Pages: the workflow never ran on GitHub (cannot here). Actions pinned to full SHAs (checkout v7.0.1, setup-node v7.0.0, configure-pages v6.0.0, upload-pages-artifact v5.0.0, deploy-pages v5.0.1); the e2e job relies on `/usr/bin/google-chrome` on `ubuntu-latest`. Stage + verify + hosting + CSP smoke on `_site` pass locally (58 files, every precached path exists, Jersey 10 in, Pixelify files gone).
-- `firestore.rules` untested against the emulator; brute-force and honour-system leaderboard risks are in ADR 0002.
+- The deployed Worker was smoke-tested once by hand (every route, CORS, limits) and its test rows deleted; there is no rate limit on sign-in guesses (ADR 0007).
 - Meta CSP cannot send `frame-ancestors`; clickjacking stays possible (low risk, no sensitive action).
 
 ## 10. Human steps (nobody else can do these)
 
 1. Fix or accept F-23, then re-run `npm run test:e2e` (expect 102 / 102). Only then enable Pages.
 2. GitHub: Settings > Pages > Source: **GitHub Actions**; tick **Enforce HTTPS**. Push to `main` runs `.github/workflows/pages.yml`. `github-pages` environment may need a first approval.
-3. Firebase console: enable Firestore (Native), then **publish `firestore.rules`** (`docs/backend.md` 2) and run its smoke list with a throwaway name.
-4. Google Cloud console: restrict the Web API key to HTTP referrer `https://op-h.github.io/*` and to the Cloud Firestore API (`docs/backend.md` 3).
+3. Done 2026-10-13: Cloudflare Worker + D1 deployed (`docs/backend.md`); run its smoke list once with a throwaway name from the real site.
+4. Nothing to restrict: the API URL is public and carries no key.
 5. Decide on clickjacking: accept (low) or add a header-capable proxy for `frame-ancestors`.
 6. Search Console / social card checks after the first deploy (`docs/seo.md` 4 and 6).
 7. Install WebKit's system libraries and run the suite once; run the device script in section 7 on a real iPhone and Android before announcing.

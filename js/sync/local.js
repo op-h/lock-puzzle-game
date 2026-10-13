@@ -17,7 +17,7 @@ export const KEY_PREF = PREFIX + 'pref';
 /** In-progress round records are tiny; anything bigger is corruption, not progress. */
 const MAX_RUN_CHARS = 20000;
 
-/** Refuse to parse or write blobs beyond this; the Firestore rule caps the document at 900 000. */
+/** Refuse to parse or write blobs beyond this; the server caps a save at 850 000 characters. */
 export const MAX_SAVE_CHARS = 1000000;
 
 const ID_RE = /^[0-9a-f]{64}$/;

@@ -1,4 +1,6 @@
 # 0002 — Cloud saves: name + 6-digit code as a capability, Firestore REST, offline-first
+> The storage and access-control parts are superseded by ADR 0007 (Cloudflare Worker + D1). Identity, the capability
+> code, offline-first sync and merging below still hold.
 Date: 2026-10-07 | Status: accepted | Owner: ATLAS
 
 ## Context

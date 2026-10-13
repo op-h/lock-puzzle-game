@@ -174,7 +174,7 @@ test('sw: never handles cross-origin, non-GET, or non-shell subresources; unknow
   const env = fakeEnv({ server });
   const sw = loadSW(env, 'v1sha');
   await sw.install();
-  assert.equal(await sw.fetch('https://firestore.googleapis.com/v1/projects/p/databases/(default)/documents/players/x'), undefined);
+  assert.equal(await sw.fetch('https://lock-game-api.oph-games.workers.dev/player/get'), undefined);
   assert.equal(await sw.fetch('./js/main.js', { method: 'POST' }), undefined);
   assert.equal(await sw.fetch('./assets/og.png'), undefined, 'not part of the shell: straight to the network');
   env.net.offline = true;

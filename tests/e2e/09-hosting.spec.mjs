@@ -88,7 +88,7 @@ test('every path in index.html, manifest, sw.js precache list and CSS url() is s
     // the deploy artifact must not contain anything but the site: when serving the repo itself these exist and are fine,
     // when serving _site they must not
     if (process.env.E2E_ROOT) {
-      for (const rel of ['tests/unit/engine.test.mjs', 'docs/qa.md', 'package.json', 'firestore.rules', '.git/config', 'node_modules/playwright-core/package.json']) {
+      for (const rel of ['tests/unit/engine.test.mjs', 'docs/qa.md', 'package.json', 'worker/schema.sql', '.git/config', 'node_modules/playwright-core/package.json']) {
         assert.equal((await fetch(new URL(rel, srv.url))).status, 404, `${rel} must not be deployed`);
       }
     }

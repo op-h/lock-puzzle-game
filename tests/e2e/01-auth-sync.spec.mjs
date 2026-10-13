@@ -74,7 +74,7 @@ test('sign-up: code dialog is modal, not dismissable until acknowledged, code is
   await H.waitStatus(page, 'Synced');
   const players = [...backend.docs.keys()].filter((k) => k.startsWith('players/'));
   assert.equal(players.length, 1);
-  assert.deepEqual(Object.keys(backend.docs.get(players[0]).fields).sort(), ['save', 'v'], 'document has exactly {v, save}');
+  assert.deepEqual(Object.keys(backend.docs.get(players[0])).sort(), ['rev', 'save', 'v'], 'row has exactly {v, save} plus the server revision');
   assert.match(players[0], /^players\/[0-9a-f]{64}$/);
   d.assertClean();
   await d.close();

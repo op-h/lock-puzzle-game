@@ -5,3 +5,7 @@ tests/e2e/shots/
 tests/e2e/.scratch/
 *.log
 .DS_Store
+
+# wrangler local state
+worker/.wrangler/
+worker/.dev.vars

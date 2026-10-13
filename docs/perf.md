@@ -25,7 +25,7 @@ measured on a real device.
 | Font | <= 20,000 B | `jersey10-latin.woff2` **2,488 B** body (woff2 is not re-gzipped). Pixelify is gone | PASS, final |
 | Sprites (`sprites.svg`) | <= 8,000 B | **1,259 B bodies (6,183 B raw), 24 symbols** | PASS, final |
 | First-load total (excl. OG/icons) | <= 120,000 B | **English: 76,562 B bodies** = 10,078 + 17,623 + 45,114 + 2,488 + 1,259. Arabic start: 77,652 B (JS +1,090). 2026-10-12, arithmetic over the bodies measured above, not a network trace | PASS |
-| Third-party origins at first paint | 0 | 0 (SENTRY, 2026-10-07; not re-run) | PASS (Firestore only on user action or session resume, architecture.md) |
+| Third-party origins at first paint | 0 | 0 (SENTRY, 2026-10-07; not re-run) | PASS (the game API only on user action or session resume, architecture.md) |
 | Dependencies (gzipped cost) | 0 KB | 0 KB (ADR 0001) | PASS |
 
 Reported by others and **not reproduced** by this method: CIRCUIT 44,304 B (EN) / 45,394 B (AR). Their EN/AR gap (1,090 B) equals mine, but the base differs by 810 B, so
@@ -307,7 +307,7 @@ but it means LCP is at best "time until the boot modules have loaded and run" (m
 | `sprites.svg` | 1,259 B | first-party, generated |
 | Everything else | 0 | no framework, no bundler, no CDN (ADR 0001) |
 
-Cross-origin at runtime: only `firestore.googleapis.com` via `fetch`, after user action or on session resume (not part of first paint).
+Cross-origin at runtime: only the game API (`*.workers.dev`) via `fetch`, after user action or on session resume (not part of first paint).
 Tooling used by QUARTZ, **all dev-only, none shipped or added to the project**: Python 3 with fontTools 4.62.1 + brotli (font subset and metrics),
 Pillow 12.3 (PNG palette quantize), `xmllint`, system Chromium (contact sheets, OG render, font fallback test), `playwright-cli` with
 `--config` pointing at `/usr/bin/chromium` (harness smoke test). `pngquant` and `optipng` are not installed; PIL palette quantization was used instead.

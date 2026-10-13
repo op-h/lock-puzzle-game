@@ -3,7 +3,7 @@
 import { createRemote } from '../../../js/sync/remote.js';
 import { createLocal, createMemoryStorage } from '../../../js/sync/local.js';
 import { createSync } from '../../../js/sync/sync.js';
-import { PROJECT, API_KEY } from './fake-firestore.mjs';
+import { API_URL } from './fake-backend.mjs';
 import './merge-ready.mjs';
 
 /**
@@ -72,7 +72,7 @@ export const throwingFetch = () => {
 
 /**
  * One simulated device: its own Storage, timers, clock and network switch, sharing the backend.
- * @param {ReturnType<import('./fake-firestore.mjs').createFakeFirestore>} backend
+ * @param {ReturnType<import('./fake-backend.mjs').createFakeBackend>} backend
  * @param {{start?: number, rngValues?: number[], events?: EventTarget}} [o]
  */
 export function createDevice(backend, o = {}) {
@@ -83,7 +83,7 @@ export function createDevice(backend, o = {}) {
   let now = o.start ?? 1_000_000;
   const clock = () => now;
   const local = createLocal({ storage });
-  const remote = createRemote({ projectId: PROJECT, apiKey: API_KEY, fetch: net.fetch, timeoutMs: 50 });
+  const remote = createRemote({ url: API_URL, fetch: net.fetch, timeoutMs: 50 });
   const rng = o.rngValues
     ? (() => {
         let i = 0;

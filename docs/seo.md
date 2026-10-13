@@ -62,11 +62,11 @@ Language. Crawlers do not run the language toggle, so the title, description and
 because the app does ship an Arabic UI, but there is one URL, so no `hreflang` is used (hreflang needs one URL per language). Arabic
 metadata would need a second URL; not worth it for an app shell. TODO(content): decide whether an Arabic landing page is wanted.
 
-### Preconnect to Firestore: not added
+### Preconnect to the game API: not added
 
-Verdict: no `<link rel="preconnect" href="https://firestore.googleapis.com">` (and no `dns-prefetch`).
+Verdict: no `<link rel="preconnect" href="https://lock-game-api.oph-games.workers.dev">` (and no `dns-prefetch`).
 - Privacy: any preconnect makes every visitor's browser contact a Google host at page load, before the player has done anything.
-  architecture.md allows Firestore only after a user action or on resume of an existing session, and says "never before consent-free
+  architecture.md allows the game API only after a user action or on resume of an existing session, and says "never before consent-free
   first paint". A hint breaks that promise for visitors who never sign in, and it would be the only third-party origin on first paint
   (perf.md budget: 0).
 - Perf: the connection costs DNS + TLS on a throttled phone (about 2-3 RTT at 150 ms) in parallel with the LCP-critical CSS, for a
@@ -190,7 +190,7 @@ If the owner does want metrics, the only acceptable shape is:
 - Either self-hosted (a counter endpoint the owner runs) or a vendor whose product is cookieless and aggregate-only (for example
   GoatCounter, Plausible or Umami in their cookieless configurations; BEACON names them as examples, not as a decision, and has not
   verified current terms).
-- It is a **new third-party origin**, which today violates architecture.md ("zero requests to third-party origins except Firestore")
+- It is a **new third-party origin**, which today violates architecture.md ("zero requests to third-party origins except the game API")
   and the perf budget. So it needs: an ATLAS ADR (what, which vendor, gzipped cost, why), a CSP `script-src`/`connect-src` change from
   SENTRY, and CIRCUIT to implement behind one function. No analytics script has been added by this change.
 - Whether "no consent needed" holds depends on jurisdiction and the vendor's data handling; that is a legal call for the owner, not BEACON.
