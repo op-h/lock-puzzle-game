@@ -18,3 +18,10 @@ CREATE TABLE IF NOT EXISTS board (
 
 CREATE INDEX IF NOT EXISTS board_total   ON board (total DESC, bid);
 CREATE INDEX IF NOT EXISTS board_bestrun ON board (bestRun DESC, bid);
+
+-- Per-client probe budget (ADR 0008): one row per hashed client address, refilled lazily on read. Old rows are swept.
+CREATE TABLE IF NOT EXISTS limits (
+  k      TEXT PRIMARY KEY,
+  tokens REAL NOT NULL,
+  ts     INTEGER NOT NULL
+) WITHOUT ROWID;

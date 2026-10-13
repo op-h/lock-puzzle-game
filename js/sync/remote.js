@@ -6,7 +6,7 @@
 // Failure reasons are small enums, never error text.
 
 /**
- * @typedef {'offline'|'denied'|'notfound'|'conflict'|'quota'|'toolarge'|'error'} Reason
+ * @typedef {'offline'|'denied'|'notfound'|'conflict'|'quota'|'limited'|'toolarge'|'error'} Reason
  * @typedef {{ok: true, data: any} | {ok: false, reason: Reason, status?: number}} Result
  *
  * @typedef {Object} RemoteOptions
@@ -89,6 +89,8 @@ export function createRemote(opts) {
         json = null;
       }
       if (status >= 200 && status < 300) return { ok: true, data: json };
+      // 429 from the guess limiter (ADR 0008) is the player's own doing ("too many tries"), not a busy server.
+      if (status === 429 && json && json.error === 'rate') return fail('limited', status);
       return fail(reasonFor(status), status);
     } catch {
       return fail('offline');

@@ -5,12 +5,23 @@
 // docs: Map<'players/<id>' | 'board/<id>', row>. A player row is {v, save, rev} (the D1 columns); a board row is
 // {name, total, blood, solved, bestRun, updatedAt}.
 
-import { handle } from '../../../worker/src/handler.js';
+import { handle, GUESS_CAP, GUESS_REFILL_MS } from '../../../worker/src/handler.js';
 
 export const API_URL = 'https://api.test.invalid';
 
-function memoryStore(docs, tick) {
+function memoryStore(docs, tick, buckets) {
   return {
+    async guessWait(key, now) {
+      const b = buckets.get(key);
+      if (!b) return 0;
+      const tokens = Math.min(GUESS_CAP, b.tokens + (now - b.ts) / GUESS_REFILL_MS);
+      return tokens >= 1 ? 0 : Math.ceil(((1 - tokens) * GUESS_REFILL_MS) / 1000);
+    },
+    async guessSpend(key, now) {
+      const b = buckets.get(key);
+      const tokens = b ? Math.min(GUESS_CAP, b.tokens + (now - b.ts) / GUESS_REFILL_MS) : GUESS_CAP;
+      buckets.set(key, { tokens: Math.max(tokens - 1, 0), ts: now });
+    },
     async getPlayer(id) {
       const d = docs.get('players/' + id);
       return d ? { v: d.v, save: d.save, rev: d.rev } : null;
@@ -39,7 +50,7 @@ function memoryStore(docs, tick) {
   };
 }
 
-/** @param {{url?: string}} [opts] */
+/** @param {{url?: string, now?: () => number}} [opts] now: the limiter's clock (defaults to real time) */
 export function createFakeBackend(opts = {}) {
   const url = opts.url || API_URL;
   const origin = new URL(url).origin;
@@ -47,10 +58,13 @@ export function createFakeBackend(opts = {}) {
   const docs = new Map();
   let clock = 0;
   const tick = () => ++clock;
-  const store = memoryStore(docs, tick);
+  const buckets = new Map();
+  const store = memoryStore(docs, tick, buckets);
 
   const backend = {
     docs,
+    /** limiter state, for assertions: Map<hashed client, {tokens, ts}> */
+    buckets,
     /** How many 404 responses were sent. Existence probes must never add to it (browsers log each 404 as a console error). */
     notFound: 0,
     /** every request that reached the server: {method, path, body} */
@@ -127,7 +141,7 @@ export function createFakeBackend(opts = {}) {
       if (next) return err(next.status, next.code);
     }
     const req = new Request(u, { method, body: method === 'GET' ? undefined : init.body, headers: init.headers });
-    return handle(req, store, { origins: () => true });
+    return handle(req, store, { origins: () => true, now: opts.now });
   }
 
   return backend;

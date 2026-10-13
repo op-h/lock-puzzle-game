@@ -300,7 +300,7 @@ const words = (s) => String(s).replace(/\{[A-Za-z]+\}/g, 'N').split(/[\s ]+/).f
 test('copy budget: visible sentences on the primary screens are at most 8 words, buttons at most 2 words (en and ar)', () => {
   const sentences = [
     'auth.privacy', 'auth.err.name.empty', 'auth.err.name.too_long', 'auth.err.name.control_chars', 'auth.err.name.invisible', 'auth.err.code.format',
-    'auth.err.invalid', 'auth.err.offline', 'auth.err.denied', 'auth.err.quota', 'auth.err.unsupported', 'auth.err.error', 'auth.err.newer',
+    'auth.err.invalid', 'auth.err.offline', 'auth.err.denied', 'auth.err.quota', 'auth.err.limited', 'auth.err.unsupported', 'auth.err.error', 'auth.err.newer',
     'dialog.code.warning', 'dialog.code.copyFail', 'dialog.code.localNotice', 'dialog.logout.desc', 'dialog.logout.pendingDesc', 'dialog.quit.desc',
     'home.classic.desc', 'home.blood.desc', 'home.blood.otherTab', 'play.msg.incomplete', 'play.msg.dup', 'play.msg.repeat', 'play.msg.wrong',
     'play.msg.wrongBlood', 'play.msg.skipBlood', 'play.msg.hint', 'play.msg.solved', 'play.msg.bloodStart', 'play.msg.timeUp',

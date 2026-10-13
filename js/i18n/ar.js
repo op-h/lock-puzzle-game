@@ -203,6 +203,7 @@ export default {
   'auth.err.offline': 'أنت غير متصل. حاول مجددًا.',
   'auth.err.denied': 'تسجيل الدخول غير متاح. حاول لاحقًا.',
   'auth.err.quota': 'الخادم مشغول. انتظر دقيقة.',
+  'auth.err.limited': 'محاولات كثيرة. انتظر بضع دقائق.',
   'auth.err.unsupported': 'استخدم متصفحًا حديثًا عبر https.',
   'auth.err.error': 'حدث خطأ. حاول مجددًا.',
   'dialog.code.copied': 'تم النسخ',

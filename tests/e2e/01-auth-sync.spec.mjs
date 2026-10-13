@@ -2,6 +2,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import * as H from './support/harness.mjs';
+import { CLOUD } from '../../js/config.js';
 
 let srv;
 let br;
@@ -257,4 +258,36 @@ test('sign-up and failed sign-in produce zero console errors and no 4xx anywhere
   assert.ok(!a.net.requests.some((r) => /^GET .*\/players\//.test(r)), 'no plain GET probe of players/<id> remains');
   await a.close();
   await b.close();
+});
+
+test('guess limiter: after too many wrong guesses the player sees "Too many tries" (en and ar), even with the right code; it lifts later', async () => {
+  const backend = H.createBackend();
+  const a = await dev(backend);
+  const code = await H.signUp(a, 'Lina');
+  await H.waitSynced(a.page);
+  await a.close();
+
+  for (const lang of ['en', 'ar']) {
+    backend.buckets.clear();
+    const b = await dev(backend, { locale: lang === 'ar' ? 'ar-SA' : 'en-US' });
+    await b.goto('');
+    // burn this address's budget the way a guesser would (straight at the API, no UI)
+    for (let i = 0; i < 40; i++) await backend.device().fetch(new URL('/player/get', CLOUD.url).href, { method: 'POST', body: JSON.stringify({ id: i.toString(16).padStart(64, '0') }) });
+    await b.page.click('[data-action="show-signin"]').catch(() => {});
+    await b.page.fill(H.q.signinName, 'Lina');
+    await b.page.fill(H.q.signinCode, code);
+    await b.page.click(H.q.signinSubmit);
+    await b.page.waitForFunction(() => document.querySelector('#signin-error').textContent.trim() !== '');
+    const msg = (await b.page.textContent('#signin-error')).trim();
+    assert.match(msg, lang === 'ar' ? /محاولات كثيرة/ : /Too many tries/);
+    assert.equal(await b.page.getAttribute('#signin-error', 'role'), 'alert');
+    assert.equal(await b.screen(), 'auth', 'not signed in');
+    assert.ok(b.forgive(/429/) >= 1, 'the 429 reached the browser');
+    // time passes: the same input now works
+    backend.buckets.clear();
+    await b.page.click(H.q.signinSubmit);
+    await b.waitScreen('home');
+    b.assertClean();
+    await b.close();
+  }
 });

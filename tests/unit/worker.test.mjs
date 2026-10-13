@@ -181,3 +181,140 @@ test('schema: ids must be 64 chars, v must be 1, and the script is idempotent', 
   assert.throws(() => db.prepare("INSERT INTO players (id, v, save, rev) VALUES ('short', 1, 's', 1)").run());
   assert.throws(() => db.prepare('INSERT INTO players (id, v, save, rev) VALUES (?, 2, ?, 1)').run(ID, 's'));
 });
+
+// ---- guess limiter (ADR 0008) ----------------------------------------------------------------------------------------
+
+import { GUESS_CAP, GUESS_REFILL_MS, clientKey } from '../../worker/src/handler.js';
+
+const hexId = (n) => n.toString(16).padStart(64, '0');
+/** A client with its own address and a controllable clock. */
+function client(store, ip, clock) {
+  return async (path, body) => {
+    const res = await handle(post(path, body, ip ? { 'CF-Connecting-IP': ip } : {}), store, { origins, now: () => clock.t });
+    return { status: res.status, json: await res.json(), res };
+  };
+}
+const fresh = () => ({ store: createD1Store(fakeD1()), clock: { t: 1_700_000_000_000 } });
+
+test('limiter: the 41st missed lookup from one address is refused with 429 + retry hint', async () => {
+  const { store, clock } = fresh();
+  const c = client(store, '203.0.113.7', clock);
+  for (let i = 0; i < GUESS_CAP; i++) assert.deepEqual((await c('/player/get', { id: hexId(i) })).json, { found: false }, `miss ${i + 1}`);
+  const blocked = await c('/player/get', { id: hexId(999) });
+  assert.equal(blocked.status, 429);
+  assert.equal(blocked.json.error, 'rate');
+  assert.equal(blocked.json.retryAfter, GUESS_REFILL_MS / 1000);
+  assert.equal(blocked.res.headers.get('Retry-After'), String(GUESS_REFILL_MS / 1000));
+});
+
+test('limiter: a blocked client learns nothing, not even from a CORRECT guess', async () => {
+  const { store, clock } = fresh();
+  await store.createPlayer(hexId(777), 'secret-save');
+  const c = client(store, '203.0.113.7', clock);
+  for (let i = 0; i < GUESS_CAP; i++) await c('/player/get', { id: hexId(i) });
+  const r = await c('/player/get', { id: hexId(777) });
+  assert.equal(r.status, 429);
+  assert.equal(JSON.stringify(r.json).includes('secret-save'), false);
+  assert.equal(r.json.found, undefined);
+  // the create route is the other existence oracle (409 when the id exists): it is gated by the same bucket
+  const cr = await c('/player/create', { id: hexId(777), save: 'x' });
+  assert.equal(cr.status, 429, 'not 409');
+  const cr2 = await c('/player/create', { id: hexId(778), save: 'x' });
+  assert.equal(cr2.status, 429);
+  assert.equal(await store.getPlayer(hexId(778)), null, 'a blocked create writes nothing');
+});
+
+test('limiter: hits are free, so a normal signed-in session is never throttled', async () => {
+  const { store, clock } = fresh();
+  await store.createPlayer(hexId(1), 's');
+  const c = client(store, '203.0.113.7', clock);
+  for (let i = 0; i < GUESS_CAP * 3; i++) assert.equal((await c('/player/get', { id: hexId(1) })).json.found, true);
+  assert.equal((await c('/player/get', { id: hexId(2) })).status, 200, 'the budget is still full');
+});
+
+test('limiter: creates cost a token each, whatever the outcome; updates and the board are free', async () => {
+  const { store, clock } = fresh();
+  const c = client(store, '203.0.113.7', clock);
+  for (let i = 0; i < GUESS_CAP; i++) {
+    const r = await c('/player/create', { id: hexId(i), save: 's' });
+    assert.equal(r.status, 200, `create ${i + 1}`);
+  }
+  assert.equal((await c('/player/create', { id: hexId(5000), save: 's' })).status, 429, 'creating accounts in bulk is limited too');
+  // free while the bucket is empty: updates (no oracle: a missing id is a plain conflict) and leaderboard calls
+  assert.equal((await c('/player/update', { id: hexId(0), save: 's2', updateTime: '1' })).status, 200);
+  assert.equal((await c('/player/update', { id: hexId(5000), save: 's2', updateTime: '1' })).status, 409);
+  assert.equal((await c('/board/put', { bid: hexId(1), row: row() })).status, 200);
+  assert.equal((await c('/board/list', { orderBy: 'total', limit: 5 })).status, 200);
+});
+
+test('limiter: one token comes back every 20 s, up to the cap', async () => {
+  const { store, clock } = fresh();
+  const c = client(store, '203.0.113.7', clock);
+  for (let i = 0; i < GUESS_CAP; i++) await c('/player/get', { id: hexId(i) });
+  assert.equal((await c('/player/get', { id: hexId(100) })).status, 429);
+  clock.t += GUESS_REFILL_MS - 1;
+  const almost = await c('/player/get', { id: hexId(101) });
+  assert.equal(almost.status, 429);
+  assert.equal(almost.json.retryAfter, 1, 'the hint counts down');
+  clock.t += 1;
+  assert.equal((await c('/player/get', { id: hexId(102) })).status, 200, 'one token is back');
+  assert.equal((await c('/player/get', { id: hexId(103) })).status, 429, 'and only one');
+  clock.t += GUESS_REFILL_MS * 1000; // a very long pause never banks more than the cap
+  for (let i = 0; i < GUESS_CAP; i++) assert.equal((await c('/player/get', { id: hexId(200 + i) })).status, 200);
+  assert.equal((await c('/player/get', { id: hexId(999) })).status, 429);
+});
+
+test('limiter: addresses are separate; an IPv6 client is bucketed by its /64; raw addresses are never stored', async () => {
+  const db = fakeD1();
+  const store = createD1Store(db);
+  const clock = { t: 1_700_000_000_000 };
+  const a = client(store, '203.0.113.7', clock);
+  const b = client(store, '203.0.113.8', clock);
+  for (let i = 0; i < GUESS_CAP; i++) await a('/player/get', { id: hexId(i) });
+  assert.equal((await a('/player/get', { id: hexId(900) })).status, 429);
+  assert.equal((await b('/player/get', { id: hexId(900) })).status, 200, 'a neighbour is unaffected');
+
+  const v6 = (suffix) => client(store, `2001:db8:1:2:${suffix}`, clock);
+  for (let i = 0; i < GUESS_CAP; i++) await v6(`${i.toString(16)}::1`)('/player/get', { id: hexId(i) });
+  assert.equal((await v6('ffff:ffff:ffff:ffff')('/player/get', { id: hexId(901) })).status, 429, 'rotating the low 64 bits does not help');
+  assert.equal((await client(store, '2001:db8:1:3::1', clock)('/player/get', { id: hexId(901) })).status, 200, 'another /64 is another client');
+  assert.equal(clientKey(post('/x', {}, { 'CF-Connecting-IP': '2001:db8:1:2:0:0:0:1' })), clientKey(post('/x', {}, { 'CF-Connecting-IP': '2001:DB8:1:2::9' })), 'compressed and expanded spellings agree');
+  assert.match(clientKey(post('/x', {})), /^[0-9a-f]{32}$/);
+
+  const keys = (await db.prepare('SELECT k FROM limits').all()).results.map((r) => r.k);
+  assert.ok(keys.length >= 3);
+  for (const k of keys) assert.match(k, /^[0-9a-f]{32}$/);
+  assert.equal(keys.join('|').includes('203'), false, 'no address text in the table');
+});
+
+test('limiter SQL: spend floors at zero, refill is capped, and old rows are swept', async () => {
+  const db = fakeD1();
+  const store = createD1Store(db);
+  const T = 1_700_000_000_000;
+  await store.guessSpend('k', T);
+  assert.equal((await db.prepare('SELECT tokens FROM limits WHERE k = ?1').bind('k').first()).tokens, GUESS_CAP - 1);
+  for (let i = 0; i < GUESS_CAP + 10; i++) await store.guessSpend('k', T);
+  assert.equal((await db.prepare('SELECT tokens FROM limits WHERE k = ?1').bind('k').first()).tokens, 0, 'never negative');
+  assert.equal(await store.guessWait('k', T), GUESS_REFILL_MS / 1000);
+  assert.equal(await store.guessWait('k', T + GUESS_REFILL_MS * 2.5), 0);
+  assert.equal(await store.guessWait('never-seen', T), 0);
+  await store.guessSpend('k', T + 10 * GUESS_REFILL_MS * GUESS_CAP);
+  assert.equal((await db.prepare('SELECT tokens FROM limits WHERE k = ?1').bind('k').first()).tokens, GUESS_CAP - 1, 'a long pause refills to the cap, no further');
+
+  const realRandom = Math.random;
+  Math.random = () => 0; // force the sweep
+  try {
+    await store.guessSpend('other', T + 3 * 86400000);
+  } finally {
+    Math.random = realRandom;
+  }
+  const left = (await db.prepare('SELECT k FROM limits').all()).results.map((r) => r.k);
+  assert.deepEqual(left, ['other'], 'rows untouched for a day are gone');
+});
+
+test('limiter: a limiter failure fails closed (503), never open', async () => {
+  const { store, clock } = fresh();
+  const broken = { ...store, guessWait: async () => { throw new Error('d1 down'); } };
+  const r = await client(broken, '203.0.113.7', clock)('/player/get', { id: hexId(1) });
+  assert.deepEqual([r.status, r.json], [503, { error: 'unavailable' }]);
+});

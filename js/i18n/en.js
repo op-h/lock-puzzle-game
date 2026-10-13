@@ -185,6 +185,7 @@ export default {
   'auth.err.offline': 'You\u2019re offline. Try again.',
   'auth.err.denied': 'Sign-in is unavailable. Try later.',
   'auth.err.quota': 'Server busy. Wait a minute.',
+  'auth.err.limited': 'Too many tries. Wait a few minutes.',
   'auth.err.unsupported': 'Use an up-to-date browser over https.',
   'auth.err.error': 'Something went wrong. Try again.',
   'dialog.code.copied': 'Copied',

@@ -203,6 +203,41 @@ test('signIn: offline, denied, quota surface their own reasons', async () => {
   assert.equal((await B.sync.signIn('Ali', code)).ok, true);
 });
 
+test('guess limiter: sign-in says "limited" (not "invalid") once an address has used its budget; a correct code is refused too', async () => {
+  const backend = createFakeBackend();
+  const A = createDevice(backend);
+  const B = createDevice(backend);
+  const { code } = await signUp(A);
+  backend.buckets.clear(); // every fake device shares one address: start B from a full budget
+  // B's address burns its budget on wrong guesses
+  for (let i = 0; i < 40; i++) assert.equal((await B.sync.signIn('Ali', String(100000 + i))).reason, 'invalid', `guess ${i + 1}`);
+  const blocked = await B.sync.signIn('Ali', code);
+  assert.deepEqual(blocked, { ok: false, reason: 'limited' }, 'even the right code is refused while blocked');
+  assert.equal(B.sync.getSession(), null);
+  assert.equal(B.local.getSession(), null, 'nothing was stored on the device');
+  // the limiter never mentions which half was wrong: a wrong guess looked the same as an unknown name until the cap
+  backend.buckets.clear(); // time passes
+  assert.equal((await B.sync.signIn('Ali', code)).ok, true);
+});
+
+test('guess limiter: sign-up while blocked still works on the device and uploads later', async () => {
+  const backend = createFakeBackend();
+  const A = createDevice(backend);
+  const B = createDevice(backend);
+  await signUp(A, 'Zed');
+  backend.buckets.clear();
+  for (let i = 0; i < 40; i++) await B.sync.signIn('Nobody', String(100000 + i));
+  const r = await B.sync.signUp('Ali');
+  assert.equal(r.ok, true);
+  assert.equal(r.local, true, 'created on the device only');
+  assert.equal(r.cause, 'limited');
+  assert.equal(backend.ids('players').length, 1, 'not uploaded yet');
+  backend.buckets.clear();
+  B.timers.advance(2000);
+  await B.sync.idle();
+  assert.equal(backend.ids('players').length, 2, 'the retry created it once the block lifted');
+});
+
 test('(4) logout wipes local data; the account survives in the cloud', async () => {
   const backend = createFakeBackend();
   const A = createDevice(backend);

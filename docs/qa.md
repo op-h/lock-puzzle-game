@@ -174,7 +174,7 @@ What a `<meta>` CSP **cannot** do, and GitHub Pages cannot add (no custom header
 - The service worker has its own (empty) policy; it only does same-origin `fetch`/`Cache`, never a cross-origin request
   (asserted: no request from the worker to another origin, nothing foreign cached).
 - Backend: the server (`worker/src/handler.js`) is the only access control and is covered by `tests/unit/worker.test.mjs`
-  (validation, CORS, concurrency, real SQL). Brute force of a 6-digit code per name is an accepted, documented risk (no rate limit yet, ADR 0007).
+  (validation, CORS, concurrency, real SQL). Brute force of a 6-digit code per name is an accepted, documented risk (rate-limited per address, ADR 0008).
 
 
 ## 7. Manual device test script (real phone, ~15 minutes)
@@ -222,7 +222,7 @@ Run on **iOS Safari** (latest and one major back) and **Android Chrome**, on htt
 - A failed boot with JS enabled (module blocked or 404) reveals the Auth form after 3 s with no message. Documented degrade.
 - F-23 (focus pulled to the h1 up to ~180 ms after navigation) is a real, small keyboard-timing defect; F-20 (Help 3.1 screens at 320) and F-22/F-24 are polish.
 - Pages: the workflow never ran on GitHub (cannot here). Actions pinned to full SHAs (checkout v7.0.1, setup-node v7.0.0, configure-pages v6.0.0, upload-pages-artifact v5.0.0, deploy-pages v5.0.1); the e2e job relies on `/usr/bin/google-chrome` on `ubuntu-latest`. Stage + verify + hosting + CSP smoke on `_site` pass locally (58 files, every precached path exists, Jersey 10 in, Pixelify files gone).
-- The deployed Worker was smoke-tested once by hand (every route, CORS, limits) and its test rows deleted; there is no rate limit on sign-in guesses (ADR 0007).
+- The deployed Worker was smoke-tested once by hand (every route, CORS, limits) and its test rows deleted; guesses are rate-limited per address (ADR 0008, `worker.test.mjs`, `01-auth-sync`).
 - Meta CSP cannot send `frame-ancestors`; clickjacking stays possible (low risk, no sensitive action).
 
 ## 10. Human steps (nobody else can do these)

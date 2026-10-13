@@ -5,7 +5,7 @@ import { getLang, t } from '../i18n/index.js';
 import { NAME_MAX, formatCode, parseCode, validateName } from '../sync/index.js';
 import { $, $$, closeDialog, onAction, openDialog, say, setDisabled } from './dom.js';
 
-const FAIL_KEYS = { offline: 'auth.err.offline', denied: 'auth.err.denied', quota: 'auth.err.quota', unsupported: 'auth.err.unsupported', newer: 'auth.err.newer' };
+const FAIL_KEYS = { offline: 'auth.err.offline', denied: 'auth.err.denied', quota: 'auth.err.quota', limited: 'auth.err.limited', unsupported: 'auth.err.unsupported', newer: 'auth.err.newer' };
 const NAME_KEYS = { too_long: 'auth.err.name.too_long', control_chars: 'auth.err.name.control_chars', invisible: 'auth.err.name.invisible' };
 
 export function createAuth(app) {

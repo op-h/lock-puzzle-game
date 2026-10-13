@@ -31,8 +31,7 @@ account login; the least-effort one is a single browser OAuth click for `wrangle
 - Free limits: 100 000 Worker requests/day, D1 5 M reads and 100 k writes/day, 5 GB. The client writes at most once per
   1.5 s of play. When the daily quota runs out the Worker answers 5xx and the game falls back to device-only saves
   (offline status), then retries.
-- Brute force of one name's 6-digit code is still an online attack with no rate limit (same as before). A Worker is now
-  the right place to add one (Rate Limiting binding or a D1 counter) if it ever matters.
+- Brute force of one name's 6-digit code is an online attack; the Worker rate-limits it per address (ADR 0008).
 - Existing Firestore data is not migrated: nothing was ever stored there (the rules were never published).
 - Redeploy after editing `worker/`: `cd worker && npx wrangler deploy`. Schema changes: edit `schema.sql` (keep it
   idempotent) and run `npx wrangler d1 execute lock-game --remote --file schema.sql`.

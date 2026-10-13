@@ -244,6 +244,15 @@ test('nothing is logged: ids, codes and saves stay out of console output', async
   assert.deepEqual(lines, []);
 });
 
+test('429 from the guess limiter is "limited"; any other 429 stays "quota"', async () => {
+  const mk = (status, body) => createRemote({ url: API_URL, fetch: async () => ({ status, text: async () => JSON.stringify(body) }) });
+  assert.deepEqual(await mk(429, { error: 'rate', retryAfter: 20 }).getPlayer(ID), { ok: false, reason: 'limited', status: 429 });
+  assert.equal((await mk(429, { error: 'other' }).getPlayer(ID)).reason, 'quota');
+  assert.equal((await mk(429, null).getPlayer(ID)).reason, 'quota');
+  assert.equal((await mk(200, { error: 'rate' }).getPlayer(ID)).reason, 'notfound', 'only a 429 counts');
+  assert.equal((await mk(429, { error: 'rate' }).createPlayer(ID, 's')).reason, 'limited');
+});
+
 test('status mapping', () => {
   assert.equal(reasonFor(403), 'denied');
   assert.equal(reasonFor(401), 'denied');

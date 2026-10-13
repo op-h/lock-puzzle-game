@@ -31,6 +31,13 @@ Cloudflare dashboard -> Storage & Databases -> D1 -> `lock-game` -> Tables. `pla
 the save JSON and a revision; the 6-digit code is never stored. `board` rows hold the public name and scores.
 Workers & Pages -> `lock-game-api` -> Metrics shows requests and errors.
 
+## Guess limit
+
+Each client address gets 40 "probes" (a lookup that finds nothing, or a create), refilled one per 20 s; an empty bucket
+gets `429` and a "Too many tries" message (ADR 0008). To see or clear it: `npx wrangler d1 execute lock-game --remote --command
+"SELECT count(*) FROM limits"` / `"DELETE FROM limits"`. Change the numbers in `worker/src/handler.js` (`GUESS_CAP`,
+`GUESS_REFILL_MS`) and redeploy.
+
 ## Free limits
 
 100 000 Worker requests/day, D1 5 M row reads and 100 k row writes/day, 5 GB storage. The client writes at most once per
@@ -46,6 +53,7 @@ Use a throwaway name such as `smoketest-<date>` and delete its rows afterwards. 
 - [ ] Second browser (or private window): sign in with the same name + code. Progress matches.
 - [ ] Wrong code: the generic "name or code not recognised" message, identical to an unknown name.
 - [ ] Offline (DevTools): solve a puzzle, status says offline, go online, it returns to synced without a reload.
+- [ ] Eleven wrong sign-in attempts in a row are fine; about 40 within minutes show "Too many tries", and it clears after a few minutes.
 - [ ] Network tab during sign-up and a wrong-code sign-in: no 4xx responses and no red console lines.
 
 Clean up: `npx wrangler d1 execute lock-game --remote --command "DELETE FROM players WHERE id = '<id>'"` (and the

@@ -12,6 +12,13 @@ export const MAX_SAVE_CHARS = 850000; // under the 1 MB D1 row comfort zone, sam
 export const MAX_BODY_BYTES = 900000;
 export const BOARD_LIMIT_MAX = 50;
 
+// Guess limiter (ADR 0008). One token bucket per client address. A "probe" is anything that can reveal whether a
+// save id exists: a lookup that misses, or a create (it answers 409 when the id exists). Hits and updates are free.
+// 40 tokens, one back every 20 s: a classroom can sign up in a burst, but one address gets ~4 300 guesses a day,
+// so covering the 1 000 000 codes of a single name takes it about 230 days.
+export const GUESS_CAP = 40;
+export const GUESS_REFILL_MS = 20000;
+
 const ID_RE = /^[0-9a-f]{64}$/;
 const ROW_MAX = { total: 1e8, blood: 1e8, solved: 1e6, bestRun: 1e8, updatedAt: 1e14 };
 const ROW_KEYS = ['name', 'total', 'blood', 'solved', 'bestRun', 'updatedAt'];
@@ -24,6 +31,8 @@ const ROW_KEYS = ['name', 'total', 'blood', 'solved', 'bestRun', 'updatedAt'];
  * @property {(id: string, save: string, rev: number) => Promise<number | null>} updatePlayer new rev, null if rev is stale
  * @property {(bid: string, row: BoardRow) => Promise<void>} putBoard
  * @property {(orderBy: 'total'|'bestRun', limit: number) => Promise<Array<BoardRow & {bid: string}>>} listBoard
+ * @property {(key: string, now: number) => Promise<number>} guessWait seconds until one more probe is allowed, 0 = allowed now
+ * @property {(key: string, now: number) => Promise<void>} guessSpend take one token (never below zero)
  */
 
 const json = (status, body, headers = {}) =>
@@ -32,8 +41,61 @@ const json = (status, body, headers = {}) =>
 /** Codes the client maps to its Reason enum (remote.js reasonFor). */
 const bad = (status, error, headers) => json(status, { error }, headers);
 
+/** 429 with a body the client maps to its own "too many tries" message (reason 'limited'). */
+const tooMany = (wait, headers) => json(429, { error: 'rate', retryAfter: wait }, { ...headers, 'Retry-After': String(wait) });
+
 const isInt = (n, max) => Number.isInteger(n) && n >= 0 && n <= max;
 const utf8Len = (s) => new TextEncoder().encode(s).length;
+
+/** Expand an IPv6 address to its 8 hextets (handles "::"). Returns null when it is not a plausible address. */
+function hextets(ip) {
+  const [head, tail, extra] = ip.split('::');
+  if (extra !== undefined) return null;
+  const h = head ? head.split(':') : [];
+  const t = tail === undefined ? [] : tail ? tail.split(':') : [];
+  const gap = tail === undefined ? 0 : 8 - h.length - t.length;
+  const all = [...h, ...Array(Math.max(gap, 0)).fill('0'), ...t];
+  return all.length === 8 && all.every((x) => /^[0-9a-f]{1,4}$/i.test(x)) ? all.map((x) => x.toLowerCase().padStart(4, '0')) : null;
+}
+
+// cyrb128: a small, well-spread 128-bit string hash. Synchronous on purpose (it runs on every lookup). It is not a
+// security primitive: it only keeps raw addresses out of the table and bucket keys apart (an IPv4 address could be
+// brute-forced out of any hash, so none of this is anonymisation, just not storing the address as such).
+function hash128(str) {
+  let h1 = 1779033703, h2 = 3144134277, h3 = 1013904242, h4 = 2773480762;
+  for (let i = 0; i < str.length; i++) {
+    const k = str.charCodeAt(i);
+    h1 = h2 ^ Math.imul(h1 ^ k, 597399067);
+    h2 = h3 ^ Math.imul(h2 ^ k, 2869860233);
+    h3 = h4 ^ Math.imul(h3 ^ k, 951274213);
+    h4 = h1 ^ Math.imul(h4 ^ k, 2716044179);
+  }
+  h1 = Math.imul(h3 ^ (h1 >>> 18), 597399067);
+  h2 = Math.imul(h4 ^ (h2 >>> 22), 2869860233);
+  h3 = Math.imul(h1 ^ (h3 >>> 17), 951274213);
+  h4 = Math.imul(h2 ^ (h4 >>> 19), 2716044179);
+  h1 ^= h2 ^ h3 ^ h4;
+  h2 ^= h1;
+  h3 ^= h1;
+  h4 ^= h1;
+  return [h1, h2, h3, h4].map((n) => (n >>> 0).toString(16).padStart(8, '0')).join('');
+}
+
+/**
+ * The limiter key for a request: a 128-bit hash of the client address, so raw addresses are never stored.
+ * IPv6 clients are bucketed by their /64 (a single subscriber gets a whole /64, so per-address buckets would be free to
+ * dodge). Cloudflare always sets CF-Connecting-IP and a client cannot forge it; a missing header (tests, local dev)
+ * shares one bucket.
+ * @param {Request} req
+ */
+export function clientKey(req) {
+  let ip = (req.headers.get('CF-Connecting-IP') || 'local').trim().toLowerCase();
+  if (ip.includes(':')) {
+    const v6 = ip.startsWith('::ffff:') && ip.includes('.') ? null : hextets(ip);
+    ip = v6 ? 'v6:' + v6.slice(0, 4).join(':') : ip.replace(/^::ffff:/, '');
+  }
+  return hash128('rl1:' + ip);
+}
 
 /** @param {unknown} row @returns {BoardRow | null} the row with exactly the known keys, or null when invalid */
 export function cleanRow(row) {
@@ -49,9 +111,11 @@ export function cleanRow(row) {
 /**
  * @param {Request} req
  * @param {Store} store
- * @param {{origins?: (origin: string) => boolean}} [opts] origins: which browser origins get CORS headers
+ * @param {{origins?: (origin: string) => boolean, now?: () => number}} [opts] origins: which browser origins get CORS
+ *   headers; now: clock for the limiter (tests)
  */
 export async function handle(req, store, opts = {}) {
+  const now = opts.now || Date.now;
   const origin = req.headers.get('Origin');
   // CORS is a browser courtesy, not access control (curl ignores it). Echoing only known origins keeps other
   // sites' scripts from reading answers in a victim's browser.
@@ -85,7 +149,12 @@ export async function handle(req, store, opts = {}) {
     switch (path) {
       case '/player/get': {
         if (!ID_RE.test(body.id)) return bad(400, 'id', cors);
+        const who = clientKey(req);
+        // Gate BEFORE looking: a blocked client must not learn even from a correct guess.
+        const wait = await store.guessWait(who, now());
+        if (wait > 0) return tooMany(wait, cors);
         const p = await store.getPlayer(body.id);
+        if (!p) await store.guessSpend(who, now());
         return json(200, p ? { found: true, v: p.v, save: p.save, updateTime: String(p.rev) } : { found: false }, cors);
       }
       case '/player/create':
@@ -94,7 +163,11 @@ export async function handle(req, store, opts = {}) {
         if (!ID_RE.test(body.id) || typeof body.save !== 'string') return bad(400, 'shape', cors);
         if (body.save.length > MAX_SAVE_CHARS) return bad(413, 'toolarge', cors);
         if (!isUpdate) {
+          const who = clientKey(req);
+          const wait = await store.guessWait(who, now());
+          if (wait > 0) return tooMany(wait, cors);
           const rev = await store.createPlayer(body.id, body.save);
+          await store.guessSpend(who, now()); // 409 would reveal an existing id; a 200 fills the table: both cost a token
           return rev === null ? bad(409, 'conflict', cors) : json(200, { updateTime: String(rev) }, cors);
         }
         if (typeof body.updateTime !== 'string' || !/^[0-9]{1,15}$/.test(body.updateTime)) return bad(400, 'shape', cors);
