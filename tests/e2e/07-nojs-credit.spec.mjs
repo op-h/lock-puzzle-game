@@ -60,7 +60,7 @@ for (const motion of ['no-preference', 'reduce']) {
       assert.equal(info.scripting, true, 'emulation really has scripting disabled');
       assert.deepEqual(info.h1, ['This game needs JavaScript to play'], 'exactly one visible h1');
       assert.equal(info.noscriptSectionVisible, true);
-      assert.deepEqual(info.h2, ['Goal', 'Clues', 'Points', 'Blood', 'Your code', 'Example'], 'calm-UI rules headings, in order');
+      assert.deepEqual(info.h2, ['Goal', 'Clues', 'Points', 'Blood', 'Name and code', 'Example'], 'calm-UI rules headings, in order');
       assert.equal(info.dl, 7, 'legend rows: right place, wrong place, none, sum, parity, compare, even-count');
       assert.deepEqual(info.kinds, ['Feedback clue', 'Sum clue', 'Parity clue', 'Compare clue', 'Even-count clue'], 'five clue kinds explained');
       assert.equal(info.example, true, 'worked example (answer 184) readable');

@@ -92,7 +92,8 @@ export async function readingOrderViolations(page, stops) {
   const sigs = real.map((s) => s.sig);
   return page.evaluate((sigsIn) => {
     const restore = [];
-    for (const el of [document.querySelector('header'), document.querySelector('main > [data-screen="play"]:not([hidden]) > section[aria-labelledby="play-guess-title"]')]) {
+    // The floating keypad (position: fixed since ADR 0006) keeps its real place: it is visually below the clue list.
+    for (const el of [document.querySelector('header')]) {
       if (!el) continue;
       restore.push([el, el.style.position]);
       el.style.position = 'static';

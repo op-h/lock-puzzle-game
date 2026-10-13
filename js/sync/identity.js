@@ -117,6 +117,41 @@ export function boardId(bk) {
   return sha256Hex('lp1-board:' + bk);
 }
 
+// cyrb53: a small, well-spread 53-bit string hash. Not a security primitive: the colour is cosmetic and reveals
+// nothing useful about the id it came from (a hue out of 3,240 values).
+function hash53(str) {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+}
+
+const COLOR_SAT = [62, 74, 86];
+const COLOR_LIGHT = [50, 58, 66];
+
+/**
+ * The player's avatar colour as a CSS colour. A pure function of the save id (SHA-256 of nickname + code, so it
+ * carries both) and the account's first-sign-in time (`createdAt`, the earliest one wins when saves merge). Every
+ * device derives the same colour, nothing is stored, and two accounts only collide when all of hue (360), saturation
+ * and lightness (3 each) match: about 1 in 3,000.
+ * @param {string} id @param {number} createdAt
+ */
+export function accountColor(id, createdAt) {
+  let n = hash53('lpc1:' + id + ':' + createdAt);
+  const hue = n % 360;
+  n = Math.floor(n / 360);
+  const sat = COLOR_SAT[n % 3];
+  n = Math.floor(n / 3);
+  const light = COLOR_LIGHT[n % 3];
+  return `hsl(${hue} ${sat}% ${light}%)`;
+}
+
 export function formatCode(code) {
   const s = String(code);
   return s.length === CODE_LENGTH ? s.slice(0, 3) + ' ' + s.slice(3) : s;

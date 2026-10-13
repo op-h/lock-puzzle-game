@@ -393,3 +393,48 @@ test('the worked scoring example in the copy equals the real scoring functions (
   assert.equal(p.exPts, String(puzzleScore({ difficulty: 'rookie', secs: ex.par, wrong: 1, usedHint: false, blood: false })));
   assert.ok(!/from '.*engine\/scoring/.test(readFileSync(join(ROOT, 'js/ui/params.js'), 'utf8')));
 });
+
+// ---- ADR 0006: eye-easy palette, floating keypad, button descriptions, avatar colour ----
+const css = readFileSync(join(ROOT, 'css/main.css'), 'utf8');
+const playJs = readFileSync(join(ROOT, 'js/ui/play.js'), 'utf8');
+const chromeJs = readFileSync(join(ROOT, 'js/ui/chrome.js'), 'utf8');
+
+test('auth screen: the heading is just the game name and nothing visible explains sign-in (Help does)', () => {
+  assert.equal(catalogs.en['auth.title'], 'Lock Game');
+  assert.equal(catalogs.en['title.auth'].toLowerCase().includes('welcome'), false);
+  assert.match(html, /<p id="auth-privacy" class="visually-hidden"/);
+  for (const k of ['help.code.name', 'help.code.keep', 'help.code.again', 'help.code.out']) {
+    assert.ok(html.includes(`data-i18n="${k}"`), k + ' is in the Help markup');
+    assert.ok(catalogs.en[k] && catalogs.ar[k], k + ' exists in both languages');
+  }
+});
+
+test('the lock is the keypad switch: a button with aria-expanded/controls, and the pad is inert while hidden', () => {
+  assert.match(html, /<button[^>]*data-action="toggle-pad"[^>]*aria-controls="play-pad"[^>]*aria-expanded="true"/);
+  assert.match(html, /<section id="play-pad"/);
+  assert.match(playJs, /padEl\.inert = !open/);
+  assert.match(playJs, /aria-expanded/);
+  assert.match(playJs, /if \(!padOpen\) setPad\(true\)/, 'typing a digit reopens it');
+  assert.match(css, /#play-pad[\s\S]*?backdrop-filter: blur/, 'see-through panel');
+  assert.match(css, /prefers-reduced-transparency[\s\S]*?--lp-glass: var\(--lp-bg-1\)/, 'opaque when the user asks for less transparency');
+});
+
+test('button descriptions stay in the accessibility tree (never display:none) and need no extra request', () => {
+  assert.match(css, /\[data-tip\] > \.lp-btn__sub \{ max-block-size: 0; overflow: hidden; opacity: 0; \}/);
+  assert.doesNotMatch(css, /\.lp-btn__sub\s*\{[^}]*display:\s*none/);
+  assert.match(chromeJs, /TIP_MS = 2000/);
+  assert.match(html, /data-action="play-classic" data-tip="hold"/);
+  assert.match(html, /data-action="play-blood" data-mode="blood" data-tip="hold"/);
+});
+
+test('avatar colour: one CSSOM custom property, painted on session start and on every pulled save, removed on logout', () => {
+  assert.match(chromeJs, /root\.style\.setProperty\('--lp-user', accountColor\(sess\.id, save\.createdAt\)\)/);
+  assert.match(chromeJs, /removeProperty\('--lp-user'\)/);
+  const sprites = readFileSync(join(ROOT, 'assets/sprites.svg'), 'utf8');
+  assert.match(sprites, /<symbol id="lp-user" viewBox="0 0 16 16"><path fill="var\(--lp-user,/);
+});
+
+test('header icon tiles share one box: 44x44, one frame, no wrapping row', () => {
+  assert.match(css, /inline-size: var\(--lp-icon-btn\);\s*block-size: var\(--lp-icon-btn\);/);
+  assert.match(css, /flex-wrap: nowrap;/);
+});

@@ -3,6 +3,7 @@
 import { getLang, setLang, loadLang, dirFor, t } from '../i18n/index.js';
 import { $, $$, applyI18n, onAction, openDialog, closeDialog, restoreFocus, setName } from './dom.js';
 import { copyParams } from './params.js';
+import { accountColor } from '../sync/identity.js';
 
 /**
  * Whole-pixel height for a CSS custom property: rounded UP (a fractional height rounded down would leave a 1px
@@ -196,12 +197,24 @@ export function createChrome(app) {
     for (const n of $$(doc, '[data-out="name"]')) setName(n, name);
   }
 
+  /**
+   * The avatar colour: derived from the save id and the first-sign-in time, so every device shows the same one. It is
+   * one custom property on :root (CSSOM, CSP-safe) that the user sprite fills itself with.
+   */
+  function paintColor() {
+    const sess = store.get().session;
+    const save = sess && sync.getSave();
+    if (save) root.style.setProperty('--lp-user', accountColor(sess.id, save.createdAt));
+    else root.style.removeProperty('--lp-user');
+  }
+
   function setSession(sess) {
     for (const n of $$(doc, '[data-needs-auth]')) n.hidden = !sess;
     setStatus(sync.getStatus()); // repaints the chip and seeds the announcer with the status the session starts in
     const acct = $(header, '[data-account]');
     acct.open = false;
     if (sess) paintNames(sess.name);
+    paintColor();
     readSound();
   }
 
@@ -210,6 +223,7 @@ export function createChrome(app) {
     const sess = sync.getSession();
     if (!sess) return;
     paintNames(sess.name);
+    paintColor();
     const s = sync.getSave();
     if (s && s.settings.at > 0 && s.settings.lang !== getLang() && (await loadLang(s.settings.lang))) {
       setLang(s.settings.lang);
@@ -271,6 +285,44 @@ export function createChrome(app) {
     if (acct.open && e.target instanceof Node && !acct.contains(e.target)) closeMenu(false);
   });
 
+  // ---- button descriptions: shown on hover/focus (CSS), and for 2 s after a tap or a press-and-hold ----
+  // A button marked data-tip has a description that stays hidden until asked for. data-tip="hold" is for buttons whose
+  // tap does something (start a round): a held press (touch) shows the description and swallows that one click, so
+  // reading never starts a game. A mouse needs neither: hover shows it. data-tip="tap" buttons call tip() themselves.
+  const TIP_MS = 2000;
+  const HOLD_MS = 380;
+  let tipTimer = 0;
+  let holdTimer = 0;
+  let peeked = null;
+  function tip(btn, ms = TIP_MS) {
+    for (const n of $$(doc, '[data-tip-on]')) if (n !== btn) delete n.dataset.tipOn;
+    btn.dataset.tipOn = '';
+    app.win.clearTimeout(tipTimer);
+    tipTimer = app.win.setTimeout(() => delete btn.dataset.tipOn, ms);
+  }
+  const holdTarget = (e) => (e.target instanceof Element ? e.target.closest('[data-tip="hold"]') : null);
+  doc.addEventListener('pointerdown', (e) => {
+    peeked = null;
+    app.win.clearTimeout(holdTimer);
+    const b = e.pointerType === 'mouse' ? null : holdTarget(e);
+    if (b) holdTimer = app.win.setTimeout(() => ((peeked = b), tip(b)), HOLD_MS);
+  });
+  for (const type of ['pointerup', 'pointercancel']) doc.addEventListener(type, () => app.win.clearTimeout(holdTimer));
+  doc.addEventListener('contextmenu', (e) => {
+    if (holdTarget(e)) e.preventDefault(); // a long press must not open the touch context menu
+  });
+  doc.addEventListener(
+    'click',
+    (e) => {
+      if (peeked && e.target instanceof Node && peeked.contains(e.target)) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+      }
+      peeked = null;
+    },
+    true,
+  );
+
   const toggleSound = () => setSound(!soundOn);
   // Header buttons. (The Play top bar's own sound button is handled by play.js through chrome.toggleSound.)
   onAction(header, {
@@ -291,5 +343,5 @@ export function createChrome(app) {
     if (!acct.hidden) restoreFocus(doc, summary);
   });
 
-  return { sound, applyAll, setStatus, setSession, onSave, updateTitle, readSound, measure, toggleSound };
+  return { sound, applyAll, setStatus, setSession, onSave, updateTitle, readSound, measure, toggleSound, tip };
 }

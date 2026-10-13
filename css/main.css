@@ -169,61 +169,63 @@
   @media (min-width: 24em) { html[lang="ar"] { --lp-fs-h1: 2.25rem; } }
   @media (min-width: 48em) { html[lang="ar"] { --lp-fs-label: 1.125rem; --lp-fs-body: 1.25rem; --lp-fs-h2: 1.75rem; --lp-fs-h1: 2.5rem; } }
 
-  /* Classic: dark, light       (light-dark(LIGHT, DARK)) */
+  /* Classic: light, dark       (light-dark(LIGHT, DARK)). v3 "easy on the eyes": the page is a soft sage paper
+     (light) or a deep moss slate (dark) instead of the blue-white / navy pair: lower glare, no blue cast, text one
+     step off pure black/white. Every pair was re-checked for contrast (>= 4.5 text, >= 3 for the line colour). */
   :root, [data-mode="classic"] {
-    --lp-bg-0: light-dark(#D9DEEA, #12151C);
-    --lp-bg-1: light-dark(#F3F5FA, #1B2030);
-    --lp-bg-2: light-dark(#C5CCDD, #262D44);
-    --lp-field: light-dark(#C5CCDD, #12151C);
-    --lp-text: light-dark(#151A2E, #ECEFF7);
-    --lp-text-dim: light-dark(#3A4160, #A9B1CC);   /* light value darkened from #444C6B (v2 2.4): 7.41 on bg-0 */
-    --lp-line: light-dark(#151A2E, #8E98BE);
-    --lp-line-soft: light-dark(#A3ABC2, #3A4466);
-    --lp-ledge: light-dark(#8F99B5, #0A0C12);
-    --lp-ink: light-dark(#151A2E, #12151C);
-    --lp-accent: light-dark(#F0A81C, #F5B942);
-    --lp-on-accent: light-dark(#151A2E, #12151C);
-    --lp-accent-text: light-dark(#6B4400, #F5B942);
-    --lp-meter: light-dark(#8A5600, #F5B942);
-    --lp-ok: light-dark(#125A34, #5BD68A);
-    --lp-bad: light-dark(#9E1B24, #FF7B7B);
-    --lp-info: light-dark(#1F4EA6, #7DB2FF);
-    --lp-danger: light-dark(#9E1B24, #FF7B7B);
-    --lp-on-danger: light-dark(#F3F5FA, #12151C);
-    /* inverse pair (toasts, skip link): a dark slab on the light scheme; on the dark scheme the raised surface (= bg-2/text), not a white slab */
-    --lp-inv-bg: light-dark(#151A2E, #262D44);
-    --lp-inv-text: light-dark(#F3F5FA, #ECEFF7);
-    --lp-spr-k: light-dark(#151A2E, #0A0C12);
-    --lp-spr-b: light-dark(#F0A81C, #F5B942);
-    --lp-spr-h: light-dark(#F3F5FA, #ECEFF7);
-    --lp-spr-s: light-dark(#444C6B, #8E98BE);
+    --lp-bg-0: light-dark(#D3DCD2, #151D1B);
+    --lp-bg-1: light-dark(#E7EDE4, #1E2926);
+    --lp-bg-2: light-dark(#C2CEC3, #2A3835);
+    --lp-field: light-dark(#C2CEC3, #151D1B);
+    --lp-text: light-dark(#19261F, #E2EAE4);
+    --lp-text-dim: light-dark(#374A40, #A9BAB0);
+    --lp-line: light-dark(#19261F, #8FA79A);
+    --lp-line-soft: light-dark(#9CAEA1, #3B4C46);
+    --lp-ledge: light-dark(#8A9E90, #0B100F);
+    --lp-ink: light-dark(#19261F, #151D1B);
+    --lp-accent: light-dark(#E9A43A, #EDB04A);
+    --lp-on-accent: light-dark(#19261F, #151D1B);
+    --lp-accent-text: light-dark(#6A4300, #EDB04A);
+    --lp-meter: light-dark(#8A5600, #EDB04A);
+    --lp-ok: light-dark(#14602F, #6FD99A);
+    --lp-bad: light-dark(#A01E26, #FF8A84);
+    --lp-info: light-dark(#1F4EA6, #86B9FF);
+    --lp-danger: light-dark(#A01E26, #FF8A84);
+    --lp-on-danger: light-dark(#E7EDE4, #151D1B);
+    /* inverse pair (toasts, skip link, tips): a dark slab on the light scheme; on the dark scheme the raised surface (= bg-2/text), not a white slab */
+    --lp-inv-bg: light-dark(#19261F, #2A3835);
+    --lp-inv-text: light-dark(#E7EDE4, #E2EAE4);
+    --lp-spr-k: light-dark(#19261F, #0B100F);
+    --lp-spr-b: light-dark(#E9A43A, #EDB04A);
+    --lp-spr-h: light-dark(#E7EDE4, #E2EAE4);
+    --lp-spr-s: light-dark(#46584D, #8FA79A);
   }
-  /* Blood Point: dark, light */
+  /* Blood Point: light, dark. Same softening as Classic, still unmistakably red. */
   [data-mode="blood"] {
-    --lp-bg-0: light-dark(#F1D6D6, #160709);
-    --lp-bg-1: light-dark(#FFF1F0, #240E12);
-    --lp-bg-2: light-dark(#E5BDBE, #35161C);
-    --lp-field: light-dark(#E5BDBE, #160709);
-    --lp-text: light-dark(#2A0A0E, #FBEEEF);
-    --lp-text-dim: light-dark(#6B2A31, #D8A7AC);
+    --lp-bg-0: light-dark(#EBD5D1, #1A0E0F);
+    --lp-bg-1: light-dark(#FAEDEA, #26151A);
+    --lp-bg-2: light-dark(#DDBCB9, #38202A);
+    --lp-field: light-dark(#DDBCB9, #1A0E0F);
+    --lp-text: light-dark(#2A0A0E, #F6E9EA);
+    --lp-text-dim: light-dark(#6B2A31, #D3A4A9);
     --lp-line: light-dark(#2A0A0E, #C9707A);
     --lp-line-soft: light-dark(#C99A9C, #5A2A31);
     --lp-ledge: light-dark(#B58587, #0A0304);
-    --lp-ink: light-dark(#2A0A0E, #160709);
-    --lp-accent: light-dark(#C4202A, #FF5A5A);
-    --lp-on-accent: light-dark(#FFF1F0, #160709);
-    --lp-accent-text: light-dark(#9E1B24, #FF5A5A);
-    --lp-meter: light-dark(#C4202A, #FF5A5A);
-    --lp-ok: light-dark(#125A34, #5BD68A);
+    --lp-ink: light-dark(#2A0A0E, #1A0E0F);
+    --lp-accent: light-dark(#C4202A, #FF6464);
+    --lp-on-accent: light-dark(#FFF1F0, #1A0E0F);
+    --lp-accent-text: light-dark(#9E1B24, #FF6464);
+    --lp-meter: light-dark(#C4202A, #FF6464);
+    --lp-ok: light-dark(#125A34, #6FD99A);
     --lp-bad: light-dark(#9E1B24, #FF9A9A);
-    --lp-info: light-dark(#1F4EA6, #7DB2FF);
+    --lp-info: light-dark(#1F4EA6, #86B9FF);
     --lp-danger: light-dark(#9E1B24, #FF9A9A);
-    --lp-on-danger: light-dark(#FFF1F0, #160709);
-    --lp-inv-bg: light-dark(#2A0A0E, #35161C);
-    --lp-inv-text: light-dark(#FFF1F0, #FBEEEF);
+    --lp-on-danger: light-dark(#FFF1F0, #1A0E0F);
+    --lp-inv-bg: light-dark(#2A0A0E, #38202A);
+    --lp-inv-text: light-dark(#FFF1F0, #F6E9EA);
     --lp-spr-k: light-dark(#2A0A0E, #0A0304);
-    --lp-spr-b: light-dark(#C4202A, #FF5A5A);
-    --lp-spr-h: light-dark(#FFF1F0, #FBEEEF);
+    --lp-spr-b: light-dark(#C4202A, #FF6464);
+    --lp-spr-h: light-dark(#FFF1F0, #F6E9EA);
     --lp-spr-s: light-dark(#6B2A31, #C9707A);
   }
 
@@ -232,6 +234,11 @@
   :root, [data-mode] {
     --lp-dither: color-mix(in srgb, var(--lp-text) 8%, transparent);   /* prefers-contrast hook only; the page is flat */
     --lp-scrim: color-mix(in srgb, var(--lp-bg-0) 86%, transparent);
+    /* the floating keypad: a see-through panel with near-solid keys, so the clues stay visible through the gaps */
+    --lp-glass: color-mix(in srgb, var(--lp-bg-1) 55%, transparent);
+    --lp-glass-key: color-mix(in srgb, var(--lp-bg-2) 84%, transparent);
+    --lp-glass-hi: color-mix(in srgb, var(--lp-accent) 94%, transparent);
+    --lp-dots: color-mix(in srgb, var(--lp-text) 9%, transparent);
     --lp-spr-lamp: var(--lp-text-dim);
     --lp-shadow-frame:
       0 calc(var(--lp-bw) * -1) 0 0 var(--_c, var(--lp-line)),
@@ -246,13 +253,19 @@
   [data-lock="fail"] { --lp-spr-lamp: var(--lp-bad); }
 
   @media (prefers-reduced-transparency: reduce) {
-    :root, [data-mode] { --lp-scrim: var(--lp-bg-0); }
+    :root, [data-mode] {
+      --lp-scrim: var(--lp-bg-0);
+      --lp-glass: var(--lp-bg-1);
+      --lp-glass-key: var(--lp-bg-2);
+      --lp-glass-hi: var(--lp-accent);
+    }
   }
   /* More contrast: thicker frames, dim text becomes full text. */
   @media (prefers-contrast: more) {
     :root { --lp-bw: calc(var(--lp-px) * 2); }
     :root, [data-mode] {
       --lp-dither: transparent;
+      --lp-dots: transparent;
       --lp-text-dim: var(--lp-text);
       --lp-line-soft: var(--lp-line);
     }
@@ -302,6 +315,17 @@
     overflow-wrap: break-word;
     word-break: normal;
   }
+  /* The pixel signature of the page: a faint staggered grid of 2px dots on a 16px pitch (about 9% text colour). It is a
+     fixed layer behind everything (z-index -1), so it never scrolls, never takes a click and every card covers it. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: var(--lp-dots);
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h2v2H0zM8 8h2v2H8z'/%3E%3C/svg%3E") 0 0 / 16px 16px;
+  }
   [data-out="name"], tbody th, input { overflow-wrap: anywhere; }   /* user content only */
   [data-mode] { color: var(--lp-text); }
 
@@ -327,7 +351,7 @@
     position: relative;                    /* containing block for the account menu */
     z-index: var(--lp-z-header);
     display: flex;
-    flex-wrap: wrap;                       /* safety net only: the row is built to fit at 320 */
+    flex-wrap: nowrap;                     /* one row at every width: icons never drop under the header */
     align-items: center;
     gap: 0;
     min-block-size: var(--lp-header-h);
@@ -371,6 +395,8 @@
   /* Brand: 16x16 lock at 2px per art pixel = 32px; wordmark from 30em (hidden below, utilities layer) */
   .lp-brand { display: flex; align-items: center; gap: var(--lp-space-2); margin-inline-end: auto; min-inline-size: 0; font-size: var(--lp-fs-body); line-height: 1; }
   .lp-brand .lp-sprite { inline-size: var(--lp-lock-sm); block-size: var(--lp-lock-sm); }
+  /* 320px with the sync chip showing: six tiles fill the row, so the little lock steps aside instead of being squeezed */
+  @media (max-width: 22.49em) { body > header:has(.lp-chip:not([hidden])) .lp-brand .lp-sprite { display: none; } }
 
   /* Sprites. Sized in CSS only; width/height attributes are the no-CLS fallback. */
   .lp-icon, .lp-sprite { display: inline-block; flex: none; aspect-ratio: 1; color: inherit; shape-rendering: crispEdges; vertical-align: middle; }
@@ -435,21 +461,30 @@
   /* danger confirm inside dialogs */
   dialog [data-action="logout"], dialog [data-action="quit"] { background: var(--lp-danger); color: var(--lp-on-danger); }
 
-  /* unframed icon buttons (header, top bar, screen head): 44px, no frame, no margin. --lp-bw: 0 makes the
-     frame shadow, the margin and the focus-ring maths collapse to nothing (ring: 2px ink + 2px white). */
-  :is(.lp-iconbtn, body > header > button, body > header summary, .lp-topbar button, .lp-screenhead button) {
-    --lp-bw: 0px;
+  /* ICON TILES (header, top bar, screen head, account, sync chip): every one is the same 44x44 box with the same 2px
+     stepped frame and the same fill, so no icon can look bigger than its neighbours. The frame is drawn OUTSIDE the box
+     (box-shadow) and reserved by the margin: a tile takes 48x48. Art is 32px (an 8x8 sprite at 4px) or 28px text. */
+  :is(.lp-iconbtn, body > header > button, body > header summary, .lp-topbar button, .lp-screenhead button, .lp-chip) {
+    --lp-bw: 2px;
+    --_c: var(--lp-line-soft);
+    --_rf: 0 calc(var(--lp-bw) * -1) 0 0 var(--_c), 0 var(--lp-bw) 0 0 var(--_c), calc(var(--lp-bw) * -1) 0 0 0 var(--_c), var(--lp-bw) 0 0 0 var(--_c);
     display: inline-grid;
     place-items: center;
     flex: none;
     inline-size: var(--lp-icon-btn);
-    min-block-size: var(--lp-icon-btn);
-    margin: 0;
+    block-size: var(--lp-icon-btn);
+    min-block-size: 0;
+    margin: var(--lp-bw);
     padding: 0;
-    background: transparent;
-    box-shadow: none;
+    overflow: visible;
+    background: var(--lp-bg-1);
+    box-shadow: var(--_rf);
     color: var(--lp-text);
+    line-height: 1;
   }
+  /* the language tile shows a letter, not a sprite: sized so its glyph fills the same area as a 32px sprite */
+  :is(.lp-iconbtn, body > header > button) > span[aria-hidden="true"] { font-size: 1.75rem; line-height: 1; }
+  details[data-account][open] > summary { --_c: var(--lp-line); background: var(--lp-bg-2); }
   /* text links: no frame, no fill; the "I have a code" / "New player" switches */
   :is(.lp-link, [data-action="show-signin"], [data-action="show-signup"]) {
     --lp-bw: 0px;
@@ -488,7 +523,7 @@
   }
   @media (hover: hover) {
     button:not(:disabled):hover { --_c: var(--lp-text); }
-    :is(.lp-iconbtn, body > header > button, body > header summary, .lp-topbar button, .lp-screenhead button):hover { background: var(--lp-bg-2); }
+    :is(.lp-iconbtn, body > header > button, body > header summary, .lp-topbar button, .lp-screenhead button):hover { --_c: var(--lp-line); background: var(--lp-bg-2); }
     .lp-link:hover, [data-action="show-signin"]:hover, [data-action="show-signup"]:hover { background: transparent; }
   }
   button[aria-busy="true"]::after { content: "..."; }
@@ -503,6 +538,7 @@
     justify-items: start;
     min-block-size: calc(var(--lp-px) * 18);      /* 72 box (tall) */
     padding: var(--lp-space-2) var(--lp-space-4);
+    align-content: center;
     text-align: start;
   }
   @media (max-height: 43.75em) { .lp-play button { min-block-size: calc(var(--lp-px) * 16); } }
@@ -512,6 +548,34 @@
   /* Blood button: Blood tokens on a bg-1 fill, label in text, skull + subline in accent-text; no ledge */
   button[data-mode="blood"] { background: var(--lp-bg-1); color: var(--lp-text); }
   button[data-mode="blood"] .lp-icon, button[data-mode="blood"] .lp-btn__sub { color: var(--lp-accent-text); }
+
+  /* ---- button descriptions (ADR 0006): hidden until the button is hovered, keyboard-focused, or tapped / held for 2 s
+     (ui/chrome.js sets [data-tip-on]). Nothing is display:none, so the text stays in the accessibility tree. ---- */
+  [data-tip] > .lp-btn__sub { max-block-size: 0; overflow: hidden; opacity: 0; }
+  [data-tip][data-tip-on] > .lp-btn__sub, [data-tip]:focus-visible > .lp-btn__sub { max-block-size: 1.5em; opacity: 1; }
+  [data-tip="hold"] { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+  /* a bubble for icon buttons (the keypad lock): floats under the tile, never takes a click */
+  .lp-lockbtn { position: relative; }
+  .lp-tip {
+    position: absolute;
+    inset-block-start: calc(100% + var(--lp-space-2));
+    inset-inline-start: 0;
+    z-index: 5;
+    padding: var(--lp-space-1) var(--lp-space-3);
+    background: var(--lp-inv-bg);
+    color: var(--lp-inv-text);
+    font-size: var(--lp-fs-label);
+    line-height: 1.2;
+    white-space: nowrap;
+    pointer-events: none;
+    visibility: hidden;
+    opacity: 0;
+  }
+  [data-tip][data-tip-on] > .lp-tip, [data-tip]:focus-visible > .lp-tip { visibility: visible; opacity: 1; }
+  @media (hover: hover) {
+    [data-tip]:hover > .lp-btn__sub { max-block-size: 1.5em; opacity: 1; }
+    [data-tip]:hover > .lp-tip { visibility: visible; opacity: 1; }
+  }
 
   /* ---- inputs ---- */
   input:not([type="checkbox"], [type="radio"]) {
@@ -590,8 +654,10 @@
   summary { list-style: none; cursor: pointer; touch-action: manipulation; }
   summary::-webkit-details-marker { display: none; }
   details[data-account] > summary .lp-icon { margin: 0; }
-  /* block-level grid, not inline-grid: an inline box sits on a text baseline and made the closed <details> 47px high */
+  /* block-level grid, not inline-grid: an inline box sits on a text baseline and made the closed <details> taller than its tile */
   details[data-account] > summary { display: grid; }
+  /* the avatar: an outlined figure whose body is filled with the player's own colour (--lp-user, set by ui/chrome.js) */
+  .lp-avatar { color: var(--lp-text); }
   /* BUG FIX: the panel paints (padding, bg, ledge lip) only while OPEN. Styling it in the closed state left an
      empty 208x16 box under the header even though its content is hidden. */
   details[data-account]:not([open])::details-content { content-visibility: hidden; block-size: 0; padding: 0; border: 0; background: none; box-shadow: none; }
@@ -617,7 +683,7 @@
   }
 
   /* ---- sync chip: icon only, and only when attention is needed (CIRCUIT hides it for synced/saving) ---- */
-  .lp-chip { display: inline-flex; align-items: center; flex: none; min-block-size: var(--lp-icon-btn); margin: 0; line-height: 1; }
+  .lp-chip { margin-inline-end: 0; }
   :is(.lp-chip[data-status="offline"], .lp-chip:has([data-status="offline"])) .lp-icon { color: var(--lp-bad); }
   :is(.lp-chip[data-status="local"], .lp-chip:has([data-status="local"])) .lp-icon { color: var(--lp-info); }
 
@@ -931,6 +997,12 @@
     /* buttons: eased press / release. Equal-length shadow lists (ledge collapses to 0) so box-shadow tweens. */
     button { transition: translate var(--lp-dur-release) var(--lp-ease-out), box-shadow var(--lp-dur-release) var(--lp-ease-out), background-color var(--lp-dur-release) var(--lp-ease-out); }
     button:active { transition-duration: var(--lp-dur-press); }
+    /* descriptions fade/grow in; the floating keypad slides and fades (hidden state also drops visibility after the fade) */
+    [data-tip] > .lp-btn__sub { transition: max-block-size var(--lp-dur-base) var(--lp-ease-out), opacity var(--lp-dur-base) var(--lp-ease-out); }
+    .lp-tip { transition: opacity var(--lp-dur-release) var(--lp-ease-out), visibility 0s linear var(--lp-dur-release); }
+    [data-tip][data-tip-on] > .lp-tip, [data-tip]:focus-visible > .lp-tip, [data-tip]:hover > .lp-tip { transition-delay: 0s; }
+    main > [data-screen="play"] > #play-pad { transition: opacity var(--lp-dur-base) var(--lp-ease-in), translate var(--lp-dur-base) var(--lp-ease-in), visibility 0s linear var(--lp-dur-base); }
+    main > [data-screen="play"][data-pad="open"] > #play-pad { transition: opacity var(--lp-dur-base) var(--lp-ease-out), translate var(--lp-dur-base) var(--lp-ease-out), visibility 0s; }
     /* dials: a small settle when a digit lands (two names so selected -> filled restarts it) */
     [data-slot="dials"] > button[data-state="selected"] { animation: lp-fill var(--lp-dur-base) var(--lp-ease-out) 1; }
     [data-slot="dials"] > button[data-state="filled"] { animation: lp-fill-b var(--lp-dur-base) var(--lp-ease-out) 1; }
@@ -980,7 +1052,6 @@
   main > [data-screen="auth"] > h1 { text-align: center; }
   main > [data-screen="auth"] > form { margin-block-start: var(--lp-space-2); }
   main > [data-screen="auth"] form p { margin: 0; }
-  #auth-privacy { margin: 0; text-align: center; color: var(--lp-text-dim); font-size: var(--lp-fs-label); }
   @media (max-height: 37.5em) { main > [data-screen="auth"] > .lp-vault-door { display: none; } }
 
   /* ---------------------------------------------------------------- HOME
@@ -989,6 +1060,7 @@
   .lp-who { display: flex; align-items: center; gap: var(--lp-space-3); min-block-size: calc(var(--lp-px) * 14); font-size: var(--lp-fs-h1); line-height: 1; }
   @media (max-height: 43.75em) { .lp-who { min-block-size: var(--lp-icon-btn); } }
   .lp-who [data-out="name"] { min-inline-size: 0; }
+  .lp-who .lp-avatar { inline-size: calc(var(--lp-px) * 12); block-size: calc(var(--lp-px) * 12); }   /* 48px: 16x16 art at 3px */
   .lp-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--lp-space-1); }
   .lp-stats > * {
     display: grid;
@@ -1047,33 +1119,70 @@
   noscript ol { list-style: decimal; }
 
   /* ---------------------------------------------------------------- PLAY
-     Three layouts, one DOM: [h1] top bar / Blood strip / clue area / dock
-       1. base            normal page flow: short viewports (< 544px high), zoom, small landscape. The page scrolls,
-                          the dock is in flow, nothing is fixed, clipped or overlapped.
-       2. phone fixed     < 48em AND >= 544px high: a viewport-tall grid, only the clue list scrolls, dock is a grid row
-       3. >= 48em         two columns: clues | dock (24rem, 28rem from 80em)
-     The Play section is a flex/grid item, never <body> (see the scope rule above). */
-  main > [data-screen="play"] { display: flex; flex-direction: column; gap: 0; padding-block-start: 0; }
+     [top bar] [Blood strip] [clue list] + the FLOATING keypad (#play-pad, position: fixed) + the message toast.
+       phones (< 48em, >= 34em high)  a viewport-tall grid: only the clue list scrolls, so the bar and the Blood timer never leave the screen
+       everything else                normal flow: the page scrolls
+     The keypad floats over the bottom of the page on a see-through panel; the lock in the top bar shows/hides it
+     (data-pad="open|closed" on the section, set by ui/play.js). While it is open the clue list reserves its height
+     (--lp-reserve, from the measured --lp-dock-h) so the last clue can always be scrolled clear of it. The Play
+     section is a flex/grid item, never <body> (see the scope rule above). */
+  main > [data-screen="play"] {
+    --lp-pad-gap: var(--lp-space-2);
+    --lp-pad-w: min(26rem, 100vw - var(--lp-pad-gap) * 2);
+    --lp-reserve: 0px;
+    --lp-reserve-i: 0px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding-block-start: 0;
+  }
+  main > [data-screen="play"][data-pad="open"] { --lp-reserve: calc(var(--lp-dock-h) + var(--lp-pad-gap) * 2); }
   main > [data-screen="play"] > * { min-inline-size: 0; }
   main > [data-screen="play"] > section[aria-labelledby="play-clues-title"] { position: relative; container-type: inline-size; align-content: start; gap: 0; }
-  [data-slot="clues"] { padding: var(--lp-space-2) var(--lp-gutter); margin: 0; }
-  main > [data-screen="play"] > section[aria-labelledby="play-guess-title"] {
+  [data-slot="clues"] { margin: 0; padding: var(--lp-space-2) var(--lp-gutter); padding-block-end: calc(var(--lp-space-2) + var(--lp-reserve)); padding-inline-end: calc(var(--lp-gutter) + var(--lp-reserve-i)); scroll-padding-block-end: var(--lp-reserve); }
+  /* the top bar paints above the clue list so the lock's bubble is never covered by it */
+  main > [data-screen="play"] > .lp-topbar { position: relative; z-index: 3; flex-shrink: 0; }
+
+  /* the floating keypad: a see-through panel (55% of the surface + a light blur) holding near-solid keys; the clues stay
+     readable through the gaps and the frame. Closed = invisible and inert (ui/play.js sets `inert`). */
+  main > [data-screen="play"] > #play-pad {
+    position: fixed;
+    z-index: var(--lp-z-dock);
+    inset-inline: var(--lp-pad-gap);
+    inset-block-end: max(var(--lp-pad-gap), env(safe-area-inset-bottom, 0px));
+    inline-size: var(--lp-pad-w);
+    max-block-size: calc(100dvh - var(--lp-topbar-h) - var(--lp-pad-gap) * 3);
+    margin-inline: auto;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: var(--lp-dock-gap);
-    padding: var(--lp-dock-pad) var(--lp-gutter) max(var(--lp-dock-pad), env(safe-area-inset-bottom, 0px));
-    background: var(--lp-bg-1);
+    padding: var(--lp-dock-pad);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--lp-glass);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 -2px 0 0 var(--lp-line-soft), 0 2px 0 0 var(--lp-line-soft), -2px 0 0 0 var(--lp-line-soft), 2px 0 0 0 var(--lp-line-soft);
+    visibility: hidden;
+    opacity: 0;
+    translate: 0 var(--lp-space-3);
+    pointer-events: none;
   }
-  /* the bar and the dock never give up height to the clue list (flex-shrink / grid min size), whatever the text size */
-  main > [data-screen="play"] > .lp-topbar { flex-shrink: 0; }
-  main > [data-screen="play"] > section[aria-labelledby="play-guess-title"] { flex-shrink: 0; min-block-size: min-content; }
-  /* messages: a transient toast over the bottom of the clue area (not a dock row); never covers a control */
-  main > [data-screen="play"] p[data-live="status"] {
-    position: absolute;
-    inset-inline: var(--lp-space-2);
-    inset-block-end: var(--lp-space-2);
-    z-index: 1;
-    margin: 0;
+  main > [data-screen="play"][data-pad="open"] > #play-pad { visibility: visible; opacity: 1; translate: 0 0; pointer-events: auto; }
+  /* Keys keep a (nearly) solid fill so digits stay readable over moving clue text; only colour changes, so the
+     disabled checker and the pressed texture, which are background-images, still show. */
+  #play-pad button { background-color: var(--lp-glass-key); }
+  #play-pad :is([data-action="check"], [data-slot="dials"] > button[data-state="selected"]) { background-color: var(--lp-glass-hi); }
+  @supports not (backdrop-filter: blur(1px)) { main > [data-screen="play"] > #play-pad { background: color-mix(in srgb, var(--lp-bg-1) 88%, transparent); } }
+
+  /* messages: a transient toast floating just above the keypad (or at the bottom when it is hidden); never covers a control */
+  main > [data-screen="play"] > p[data-live="status"] {
+    position: fixed;
+    z-index: calc(var(--lp-z-dock) + 1);
+    inset-inline: var(--lp-pad-gap);
+    inset-block-end: max(var(--lp-reserve), var(--lp-pad-gap) * 2);
+    inline-size: var(--lp-pad-w);
+    margin: 0 auto;
     padding: var(--lp-space-2) var(--lp-space-3);
     background: var(--lp-inv-bg);
     color: var(--lp-inv-text);
@@ -1082,9 +1191,9 @@
     line-height: 1.2;
     pointer-events: none;
   }
-  main > [data-screen="play"] p[data-live="status"] [data-out="msg"] { color: inherit; }
+  main > [data-screen="play"] > p[data-live="status"] [data-out="msg"] { color: inherit; }
   /* empty = collapsed but still in the tree (a live region must not toggle display) */
-  main > [data-screen="play"] p[data-live="status"]:has(> [data-out="msg"]:empty) { opacity: 0; block-size: 0; padding-block: 0; overflow: hidden; }
+  main > [data-screen="play"] > p[data-live="status"]:has(> [data-out="msg"]:empty) { opacity: 0; block-size: 0; padding-block: 0; overflow: hidden; }
 
   /* phones <= 48em: the top bar replaces the global header; Play goes edge to edge */
   @media (max-width: 47.999em) {
@@ -1095,15 +1204,15 @@
   /* sound lives in the header from 48em, so the top bar's copy goes */
   @media (min-width: 48em) { .lp-topbar [data-action="mute"] { display: none; } }
 
-  /* 2. phone fixed-viewport grid: only the clue list scrolls (tabindex=0 for keyboards). Text-zoom proof: all rows are
-     content-sized except the clue row, floored at two rows of max(row token, text). The list is absolute so its length
-     never feeds the grid's intrinsic size; 100dvh is the target and min-content the floor, so when bar + dock + floor
-     outgrow the viewport the grid grows and the page scrolls instead of rows overlapping. */
+  /* phone fixed-viewport grid: only the clue list scrolls (tabindex=0 for keyboards). Text-zoom proof: both rows above
+     the list are content-sized and the list is floored at two rows of max(row token, text). The list is absolute so
+     its length never feeds the grid's intrinsic size; 100dvh is the target and min-content the floor, so when bar +
+     floor outgrow the viewport the grid grows and the page scrolls instead of rows overlapping. */
   @media (max-width: 47.999em) and (min-height: 34em) {
     main > [data-screen="play"] {
       display: grid;
       grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: auto auto minmax(calc(max(var(--lp-row-h), var(--lp-fs-body)) * 2 + var(--lp-row-gap) + var(--lp-space-4)), 1fr) auto;
+      grid-template-rows: auto auto minmax(calc(max(var(--lp-row-h), var(--lp-fs-body)) * 2 + var(--lp-row-gap) + var(--lp-space-4)), 1fr);
       block-size: 100dvh;
       min-block-size: min-content;
       padding-block-end: 0;
@@ -1111,41 +1220,32 @@
     main > [data-screen="play"] > .lp-topbar { grid-row: 1; }
     main > [data-screen="play"] > [data-timer-bar] { grid-row: 2; }
     main > [data-screen="play"] > section[aria-labelledby="play-clues-title"] { grid-row: 3; min-block-size: 0; }
-    main > [data-screen="play"] > section[aria-labelledby="play-guess-title"] { grid-row: 4; }
-    main > [data-screen="play"] [data-slot="clues"] { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; scroll-padding-block: var(--lp-space-2); }
+    main > [data-screen="play"] [data-slot="clues"] { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; scroll-padding-block-start: var(--lp-space-2); }
   }
 
-  /* 1b. landscape phones (short, wide enough for a >= 44px keypad): clues left, dock right, page flow. Narrower or
-     taller viewports use the single-column flow (1). */
-  @media (min-width: 40em) and (max-width: 47.999em) and (orientation: landscape) and (max-height: 31.25em) {
-    main > [data-screen="play"] { display: grid; grid-template-columns: minmax(0, 1fr) min(22rem, 50%); grid-template-rows: auto auto 1fr; }
-    main > [data-screen="play"] > .lp-topbar, main > [data-screen="play"] > [data-timer-bar] { grid-column: 1 / -1; }
-    main > [data-screen="play"] > section[aria-labelledby="play-clues-title"] { grid-column: 1; grid-row: 3; }
-    main > [data-screen="play"] > section[aria-labelledby="play-guess-title"] { grid-column: 2; grid-row: 3; align-self: start; }
+  /* landscape phones (short and wide): the keypad docks to the inline-end side and the clues keep the rest, so the
+     panel never hides the whole list */
+  @media (min-width: 40em) and (orientation: landscape) and (max-height: 31.25em) {
+    main > [data-screen="play"] { --lp-pad-w: min(22rem, 50vw); }
+    main > [data-screen="play"][data-pad="open"] { --lp-reserve: 0px; --lp-reserve-i: calc(var(--lp-pad-w) + var(--lp-pad-gap)); }
+    main > [data-screen="play"] > #play-pad { inset-inline: auto var(--lp-pad-gap); margin-inline: 0; }
+    main > [data-screen="play"] > p[data-live="status"] { inset-inline: var(--lp-pad-gap) auto; margin: 0; inline-size: calc(100vw - var(--lp-reserve-i) - var(--lp-pad-gap) * 2); inset-block-end: var(--lp-pad-gap); }
   }
 
-  /* 3. tablet / desktop: two columns under a 52px top bar. The dock column is capped at 55% so text-only zoom
-     (24rem grows with the font) can never push the page sideways. */
+  /* narrow AND short (zoomed phones, tiny windows): a floating panel would cover most of the screen, so the keypad goes
+     back into the page flow under the clues and the page scrolls; the lock still hides it */
+  @media (max-width: 39.999em) and (max-height: 33.999em) {
+    main > [data-screen="play"][data-pad="open"] { --lp-reserve: 0px; }
+    main > [data-screen="play"] > #play-pad { position: static; inline-size: auto; max-block-size: none; margin: var(--lp-pad-gap); translate: none; }
+    main > [data-screen="play"][data-pad="closed"] > #play-pad { display: none; }
+  }
+
+  /* tablet / desktop: one centred column; the keypad floats at the bottom centre of the window */
   @media (min-width: 48em) {
-    main > [data-screen="play"] {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) min(24rem, 55%);
-      grid-template-rows: auto auto 1fr;
-      column-gap: var(--lp-space-6);
-      align-items: start;
-      padding-block-start: var(--lp-space-3);
-    }
-    main > [data-screen="play"] > .lp-topbar, main > [data-screen="play"] > [data-timer-bar] { grid-column: 1 / -1; }
+    main > [data-screen="play"] { inline-size: min(100%, var(--lp-col-wide)); margin-inline: auto; padding-block-start: var(--lp-space-3); }
     .lp-topbar { padding-inline: 0; }
-    main > [data-screen="play"] > section[aria-labelledby="play-clues-title"] { grid-column: 1; grid-row: 3; }
-    [data-slot="clues"] { padding-inline: 0; }
-    main > [data-screen="play"] > section[aria-labelledby="play-guess-title"] { grid-column: 2; grid-row: 3; padding: var(--lp-space-4); }
+    [data-slot="clues"] { padding-inline: 0 var(--lp-reserve-i); }
   }
-  /* sticky only when the dock (about 264-310px) fits the viewport with room to spare; a sticky box taller than the viewport hides its bottom row */
-  @media (min-width: 48em) and (min-height: 25em) {
-    main > [data-screen="play"] > section[aria-labelledby="play-guess-title"] { position: sticky; inset-block-start: var(--lp-space-3); }
-  }
-  @media (min-width: 80em) { main > [data-screen="play"] { grid-template-columns: minmax(0, 1fr) min(28rem, 55%); } }
 
   /* the message toast eases in/out (state only; reduced motion shows/hides it instantly) */
   @media (prefers-reduced-motion: no-preference) {

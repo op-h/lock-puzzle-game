@@ -25,7 +25,7 @@ test('toggle flips lang/dir/title/label, keeps Latin digits, persists across rel
   await d.goto('');
   let h = await html(page);
   assert.deepEqual([h.lang, h.dir, h.btn, h.btnLang], ['en', 'ltr', 'العربية', 'ar']);
-  assert.match(h.title, /^Welcome \| Lock Puzzle$/);
+  assert.match(h.title, /^Sign in \| Lock Game$/);
   const enH1 = await page.textContent('main > [data-screen="auth"] label[for="signup-name"]');
 
   await page.click('header [data-action="lang"]');

@@ -450,7 +450,7 @@ test('token contrast pairs from css/main.css, all four schemes: text pairs >= 4.
   pin('Blood light on-accent on accent', blood['--lp-on-accent'].light, blood['--lp-accent'].light, 5.3);
   pin('Blood dark accent-text on bg-1', blood['--lp-accent-text'].dark, blood['--lp-bg-1'].dark, 5.9);
   pin('Classic light text-dim on bg-0', classic['--lp-text-dim'].light, classic['--lp-bg-0'].light, 4.5);
-  assert.equal(classic['--lp-text-dim'].light.toLowerCase(), '#3a4160', 'the Classic-light dim text token is the value PRISM reported');
+  assert.equal(classic['--lp-text-dim'].light.toLowerCase(), '#374a40', 'the Classic-light dim text token is the ADR 0006 sage-palette value');
 });
 
 // ----------------------------------------------------------------------------------------------- zoom (DoD 4)

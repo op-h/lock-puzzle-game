@@ -40,6 +40,10 @@ export function createPlay(app) {
   const checkBtn = $(root, '[data-action="check"]');
   const hintBtn = $(root, '[data-action="hint"]');
   const skipBtn = $(root, '[data-action="skip"]');
+  // The entry panel floats over the page; the lock in the top bar shows and hides it.
+  const padEl = $(root, '#play-pad');
+  const padBtn = $(root, '[data-action="toggle-pad"]');
+  const padTip = $(padBtn, '.lp-tip');
   const quitDlg = $(doc, '[data-dialog="confirm-quit"]');
   // Top bar groups (design-v2 3.3): the wrong count exists only in Classic, the solved count only in Blood.
   const wrongGrp = $(root, '[data-topbar="wrong"]');
@@ -60,6 +64,7 @@ export function createPlay(app) {
   let flash = null;
   let dialEls = [];
   let tickId = null;
+  let padOpen = true;
   const timers = { flash: 0, lock: 0, result: 0 };
 
   const NO_PROGRESS = { save: () => false, load: () => null, clear() {} };
@@ -121,6 +126,16 @@ export function createPlay(app) {
     for (const n of $$(root, '[data-lock]')) n.dataset.lock = state;
   }
 
+  /** Show or hide the floating dials + keypad. Hidden = inert, so focus and assistive tech skip it too. */
+  function setPad(open) {
+    padOpen = open;
+    root.dataset.pad = open ? 'open' : 'closed';
+    padEl.inert = !open;
+    padBtn.setAttribute('aria-expanded', String(open));
+    padTip.textContent = t(open ? 'play.pad.hide' : 'play.pad.show');
+    app.chrome.measure();
+  }
+
   function paintDials() {
     const n = digits.length;
     dialEls.forEach((b, i) => {
@@ -180,7 +195,7 @@ export function createPlay(app) {
     paintSolved();
     renderAttempts();
     paintDials();
-    if (hadFocus && dialEls[sel]) dialEls[sel].focus();
+    if (hadFocus && padOpen && dialEls[sel]) dialEls[sel].focus();
   }
 
   function paintMode() {
@@ -521,6 +536,7 @@ export function createPlay(app) {
     const dg = asciiDigit(e.key); // Arabic-Indic and Eastern Arabic keyboards send their own digit glyphs
     if (dg !== null) {
       e.preventDefault();
+      if (!padOpen) setPad(true); // typing a digit is asking for the keypad
       typeDigit(dg);
       const k = $(keypadEl, `[data-digit="${dg}"]`);
       if (k) {
@@ -566,6 +582,10 @@ export function createPlay(app) {
       clear: clearAll,
       skip,
       hint,
+      'toggle-pad': () => {
+        setPad(!padOpen);
+        app.chrome.tip(padBtn);
+      },
       quit: () => openDialog(quitDlg),
       mute: () => app.chrome.toggleSound(), // the Play top bar's own sound button (the header is hidden on phones here)
     },
@@ -675,6 +695,7 @@ export function createPlay(app) {
       if (!round) return;
       round.entered = true;
       paintMode();
+      setPad(true);
       buildPuzzle();
       setLock('idle');
       say(root, '', 'info');
@@ -721,7 +742,8 @@ export function createPlay(app) {
       sel = keepSel;
       paintDials();
       renderTimer();
-      if (hadFocus) dialEls[sel].focus();
+      padTip.textContent = t(padOpen ? 'play.pad.hide' : 'play.pad.show');
+      if (hadFocus && padOpen) dialEls[sel].focus();
     },
   };
 

@@ -233,3 +233,28 @@ test('parseCode requires exactly six digits', () => {
 test('parseCode(formatCode(c)) round-trips', () => {
   for (const c of ['000000', '999999', '012345']) assert.equal(parseCode(formatCode(c)), c);
 });
+
+// ---- avatar colour (ADR 0006) ----
+import { accountColor } from '../../js/sync/identity.js';
+
+test('accountColor: deterministic, a valid hsl() string, and a function of both the id and the first sign-in time', () => {
+  const id = sha('lp1:sara:123456');
+  const c = accountColor(id, 1760000000000);
+  assert.match(c, /^hsl\((\d{1,3}) (62|74|86)% (50|58|66)%\)$/);
+  assert.equal(accountColor(id, 1760000000000), c, 'same inputs, same colour (so every device agrees)');
+  assert.notEqual(accountColor(id, 1760000000001), c, 'a different first-sign-in time gives another colour');
+  assert.notEqual(accountColor(sha('lp1:sara:123457'), 1760000000000), c, 'a different code gives another colour');
+});
+
+test('accountColor: spreads over the whole hue wheel and rarely collides', () => {
+  const seen = new Set();
+  const hues = new Set();
+  const N = 2000;
+  for (let i = 0; i < N; i++) {
+    const c = accountColor(sha('lp1:p' + i + ':' + String(i * 7919).padStart(6, '0')), 1760000000000 + i * 1000);
+    seen.add(c);
+    hues.add(Number(/hsl\((\d+)/.exec(c)[1]));
+  }
+  assert.ok(hues.size > 330, `hues used: ${hues.size} of 360`);
+  assert.ok(seen.size > N * 0.45, `distinct colours: ${seen.size} of ${N}`);
+});

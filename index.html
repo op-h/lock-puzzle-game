@@ -131,7 +131,7 @@
     <!-- Native disclosure: works by keyboard with no JS. The avatar is the summary; the name lives in the panel (and, hidden, in the summary's accessible name). -->
     <details data-account data-needs-auth hidden>
       <summary class="lp-iconbtn">
-        <svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-user"/></svg>
+        <svg class="lp-icon lp-avatar" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-user"/></svg>
         <span class="visually-hidden" data-i18n="chrome.account.label">Account</span>
         <span class="visually-hidden" translate="no" data-out="name"></span>
       </summary>
@@ -145,7 +145,7 @@
     <noscript>
       <section aria-labelledby="noscript-title">
         <h1 id="noscript-title">This game needs JavaScript to play</h1>
-        <p>Lock Puzzle is a code-cracking game that runs in your browser. Turn JavaScript on for this site and reload the page to play. The rules are below so you can read them without it.</p>
+        <p>Lock Game is a code-cracking game that runs in your browser. Turn JavaScript on for this site and reload the page to play. The rules are below so you can read them without it.</p>
 
         <h2>Goal</h2>
         <p>Find the hidden code. All clues are true.</p>
@@ -192,8 +192,8 @@
           <li>At zero the open puzzle is lost. Earned points stay.</li>
         </ul>
 
-        <h2>Your code</h2>
-        <p>Your 6-digit code can’t be recovered.</p>
+        <h2>Name and code</h2>
+        <p>Pick a nickname. You get a 6-digit code that can’t be recovered. Enter both on any device to carry on.</p>
 
         <h2>Example</h2>
         <p>A Rookie-style puzzle has 3 different digits and feedback clues only. This one has 4 clues.</p>
@@ -221,8 +221,8 @@
           <label for="signup-name" data-i18n="auth.name.label">Nickname</label>
           <input id="signup-name" name="name" type="text" data-field="name" autocomplete="username" maxlength="20" required spellcheck="false" autocapitalize="off" aria-describedby="auth-privacy signup-name-hint signup-error">
         </p>
-        <!-- The one short visible privacy line (owner ruling). The detail is read by assistive tech through aria-describedby. -->
-        <p id="auth-privacy" data-i18n="auth.privacy">Use a nickname.</p>
+        <!-- Owner ruling: nothing explains sign-in on this screen; the explanation lives in Help. Assistive tech still gets this through aria-describedby. -->
+        <p id="auth-privacy" class="visually-hidden" data-i18n="auth.privacy">Use a nickname.</p>
         <p id="signup-name-hint" class="visually-hidden" data-i18n="auth.name.hint">Shown on the leaderboard. Up to 20 characters.</p>
         <!-- Icon is a sibling of the live region, never inside it: CIRCUIT writes the region via textContent. PRISM shows it only while the region is non-empty. -->
         <p class="lp-error"><svg class="lp-icon lp-icon--when-error" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-x"/></svg><span id="signup-error" data-error role="alert"></span></p>
@@ -260,7 +260,7 @@
     <section data-screen="home" hidden aria-labelledby="home-title">
       <h1 id="home-title" class="visually-hidden" tabindex="-1" data-i18n="home.title">Home</h1>
       <p class="lp-who">
-        <svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-user"/></svg>
+        <svg class="lp-icon lp-avatar" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-user"/></svg>
         <span class="visually-hidden" data-i18n="home.signedInAs">Signed in as</span>
         <span translate="no" data-out="name"></span>
       </p>
@@ -299,11 +299,11 @@
 
         <menu class="lp-play">
           <li>
-            <button type="button" data-action="play-classic" aria-describedby="home-classic-desc"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-key"/></svg><span class="lp-btn__label" data-i18n="home.classic.button">Classic</span><span class="lp-btn__sub" data-i18n="home.classic.desc">No timer</span></button>
+            <button type="button" data-action="play-classic" data-tip="hold" aria-describedby="home-classic-desc"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-key"/></svg><span class="lp-btn__label" data-i18n="home.classic.button">Classic</span><span class="lp-btn__sub" data-i18n="home.classic.desc">No timer</span></button>
             <span id="home-classic-desc" class="visually-hidden" data-i18n="home.classic.sr">Faster solves, fewer wrong guesses and no hint score more.</span>
           </li>
           <li>
-            <button type="button" data-action="play-blood" data-mode="blood" aria-describedby="home-blood-desc"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-skull"/></svg><span class="lp-btn__label" data-i18n="home.blood.button">Blood</span><span class="lp-btn__sub" data-i18n="home.blood.desc">3:00 clock, ×2</span></button>
+            <button type="button" data-action="play-blood" data-mode="blood" data-tip="hold" aria-describedby="home-blood-desc"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-skull"/></svg><span class="lp-btn__label" data-i18n="home.blood.button">Blood</span><span class="lp-btn__sub" data-i18n="home.blood.desc">3:00 clock, ×2</span></button>
             <span id="home-blood-desc" class="visually-hidden" data-i18n="home.blood.sr">3:00 countdown, ×2&nbsp;points, wrong guess −5&nbsp;s, skip −10&nbsp;s, no hints. Gets harder as you solve.</span>
           </li>
         </menu>
@@ -311,7 +311,7 @@
     </section>
 
     <!-- ===== PLAY ===== -->
-    <section data-screen="play" hidden aria-labelledby="play-title">
+    <section data-screen="play" data-pad="open" hidden aria-labelledby="play-title">
       <h1 id="play-title" class="visually-hidden" tabindex="-1" data-i18n="play.title">Crack the lock</h1>
       <p class="visually-hidden"><span data-mode-badge></span></p>
 
@@ -321,8 +321,12 @@
           <svg class="lp-icon lp-icon--flip" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-arrow-left"/></svg>
           <span class="visually-hidden" data-i18n="play.quit">Quit round</span>
         </button>
-        <!-- Lock host: both symbols present, CSS shows one by data-lock (idle|success|fail). -->
-        <span data-lock="idle" class="lp-lock" aria-hidden="true"><svg class="lp-sprite" aria-hidden="true" focusable="false" width="32" height="32"><use class="lp-lock__closed" href="./assets/sprites.svg#lp-lock-closed"/><use class="lp-lock__open" href="./assets/sprites.svg#lp-lock-open"/></svg></span>
+        <!-- The lock is the switch for the floating keypad. Lock host: both symbols present, CSS shows one by data-lock (idle|success|fail). The bubble is a visual hint only (the name is the hidden text; aria-expanded carries the state). -->
+        <button type="button" class="lp-iconbtn lp-lockbtn" data-action="toggle-pad" data-tip="tap" aria-controls="play-pad" aria-expanded="true">
+          <span data-lock="idle" class="lp-lock" aria-hidden="true"><svg class="lp-sprite" aria-hidden="true" focusable="false" width="32" height="32"><use class="lp-lock__closed" href="./assets/sprites.svg#lp-lock-closed"/><use class="lp-lock__open" href="./assets/sprites.svg#lp-lock-open"/></svg></span>
+          <span class="visually-hidden" data-i18n="play.pad.toggle">Keypad</span>
+          <span class="lp-tip" aria-hidden="true"></span>
+        </button>
         <p class="lp-topbar__diff" data-topbar="difficulty">
           <svg class="lp-icon-sm lp-icon--when-blood" data-mode="blood" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-skull"/></svg>
           <span data-out="difficulty"></span>
@@ -361,10 +365,10 @@
       <section aria-labelledby="play-clues-title">
         <h2 id="play-clues-title" class="visually-hidden" data-i18n="play.clues.title">Clues</h2>
         <ol data-slot="clues" aria-labelledby="play-clues-title" tabindex="0"></ol>
-        <p data-live="status" aria-live="polite" aria-atomic="true"><span data-out="msg"></span></p>
       </section>
 
-      <section aria-labelledby="play-guess-title">
+      <!-- Floating entry panel (position: fixed, see-through). The lock button shows/hides it; hidden = inert. -->
+      <section id="play-pad" aria-labelledby="play-guess-title">
         <h2 id="play-guess-title" class="visually-hidden" data-i18n="play.guess.title">Your guess</h2>
         <p id="play-guess-help" class="visually-hidden" data-i18n="play.guess.help">Tap a dial, then a digit. Keyboard: digits, arrows, Backspace, Enter.</p>
         <!-- div: CIRCUIT replaces this slot's children with dial buttons, so a fieldset/legend would be wiped. role=group names the set. -->
@@ -382,6 +386,9 @@
           <li><button type="button" data-action="hint"><svg class="lp-icon" aria-hidden="true" focusable="false" width="32" height="32"><use href="./assets/sprites.svg#lp-bulb"/></svg><span class="visually-hidden" data-i18n="play.hint">Hint, half points</span></button></li>
         </menu>
       </section>
+
+      <!-- Messages float just above the keypad (position: fixed), so they are never hidden by it. -->
+      <p data-live="status" aria-live="polite" aria-atomic="true"><span data-out="msg"></span></p>
     </section>
 
     <!-- ===== RESULT (classic puzzle result and Blood run summary) ===== -->
@@ -512,8 +519,21 @@
       </section>
 
       <section aria-labelledby="help-code-title">
-        <h2 id="help-code-title" data-i18n="help.code.title">Your code</h2>
-        <p data-i18n="help.code.body">Your 6-digit code can’t be recovered.</p>
+        <h2 id="help-code-title" data-i18n="help.code.title">Name and code</h2>
+        <ul>
+          <li><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-user"/></svg><span data-i18n="help.code.name">Pick a nickname, up to 20&nbsp;characters. It shows on the leaderboard, so skip your real name.</span></li>
+          <li><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-key"/></svg><span data-i18n="help.code.keep">You get a 6-digit code. Write it down: it can’t be recovered.</span></li>
+          <li><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-check"/></svg><span data-i18n="help.code.again">On any device tap “I have a code”, then enter your nickname and code to carry on.</span></li>
+          <li><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-arrow-left"/></svg><span data-i18n="help.code.out">Log out with the account button in the top bar.</span></li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="help-tips-title">
+        <h2 id="help-tips-title" data-i18n="help.tips.title">Tips</h2>
+        <ul>
+          <li><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-lock-closed"/></svg><span data-i18n="help.tips.lock">Tap the lock to show or hide the keypad.</span></li>
+          <li><svg class="lp-icon-sm" aria-hidden="true" focusable="false" width="16" height="16"><use href="./assets/sprites.svg#lp-help"/></svg><span data-i18n="help.tips.hold">Hold a button to see what it does.</span></li>
+        </ul>
       </section>
 
       <details>
